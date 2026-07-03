@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Gift, LogIn } from "lucide-react";
+import { Clock3, Gift, LogIn, RefreshCw } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
 import { Notice } from "@/components/Notice";
 import { emotionLabel, formatDateTime } from "@/lib/format";
@@ -22,9 +22,14 @@ type PublicMessage = {
   linked: boolean;
 };
 
+type ArrivalGate = {
+  scheduledAt?: string | null;
+};
+
 export default function ArrivalPage() {
   const params = useParams<{ token: string }>();
   const [message, setMessage] = useState<PublicMessage | null>(null);
+  const [gate, setGate] = useState<ArrivalGate | null>(null);
   const [opened, setOpened] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,12 +40,26 @@ export default function ArrivalPage() {
       try {
         const response = await apiFetch<{ message: PublicMessage }>(`/public/messages/${params.token}`);
         setMessage(response.message);
+        setGate(null);
+        setError(null);
       } catch (caught) {
+        if (caught instanceof ApiError && caught.code === "MESSAGE_NOT_ARRIVED") {
+          setGate((caught.details ?? {}) as ArrivalGate);
+          setError(null);
+          return;
+        }
+
+        setGate(null);
         setError(caught instanceof ApiError ? caught.message : "도착한 마음을 찾지 못했어요.");
       }
     }
 
     void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 15000);
+
+    return () => window.clearInterval(timer);
   }, [params.token]);
 
   return (
@@ -53,7 +72,26 @@ export default function ArrivalPage() {
       </div>
 
       {error ? <Notice title={error} tone="danger" /> : null}
-      {!message && !error ? <p className="text-sm text-slate-600">도착한 마음을 확인하고 있어요.</p> : null}
+      {!message && !error && !gate ? <p className="text-sm text-slate-600">도착한 마음을 확인하고 있어요.</p> : null}
+      {gate ? (
+        <section className="rounded-md border border-slate-200 bg-white p-6 text-center shadow-soft">
+          <Clock3 className="mx-auto mb-4 text-moss" size={36} />
+          <h1 className="text-2xl font-semibold text-ink">아직 보관 중인 마음이에요.</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {gate.scheduledAt
+              ? `${formatDateTime(gate.scheduledAt)} 이후에 열어볼 수 있어요.`
+              : "도착 시간이 될 때까지 조금 더 기다려 주세요."}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="focus-ring mt-6 inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
+          >
+            <RefreshCw size={16} />
+            다시 확인
+          </button>
+        </section>
+      ) : null}
       {message && !opened ? (
         <section className="rounded-md border border-slate-200 bg-white p-6 text-center shadow-soft">
           <Gift className="mx-auto mb-4 text-petal" size={36} />
@@ -83,16 +121,22 @@ export default function ArrivalPage() {
             {message.content}
           </div>
           <div className="mt-6 rounded-md border border-slate-200 bg-white p-4">
-            <p className="text-sm font-medium text-slate-700">
-              이 마음을 오래 보관하고 싶다면 마음도착에 저장해 보세요.
-            </p>
-            <a
-              href={`${getApiBaseUrl()}/auth/kakao`}
-              className="focus-ring mt-3 inline-flex items-center gap-2 rounded-md bg-[#fee500] px-4 py-2 text-sm font-semibold text-[#191600]"
-            >
-              <LogIn size={16} />
-              카카오로 시작하기
-            </a>
+            {message.linked ? (
+              <p className="text-sm font-medium text-slate-700">이미 마음도착 수신함에 보관된 마음이에요.</p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-slate-700">
+                  이 마음을 오래 보관하고 싶다면 마음도착에 저장해 보세요.
+                </p>
+                <a
+                  href={`${getApiBaseUrl()}/auth/kakao`}
+                  className="focus-ring mt-3 inline-flex items-center gap-2 rounded-md bg-[#fee500] px-4 py-2 text-sm font-semibold text-[#191600]"
+                >
+                  <LogIn size={16} />
+                  카카오로 시작하기
+                </a>
+              </>
+            )}
           </div>
         </article>
       ) : null}

@@ -29,6 +29,7 @@ export async function authMiddleware(request: Request, _response: Response, next
         kakaoId: true,
         nickname: true,
         email: true,
+        onboardingNote: true,
       },
     });
 

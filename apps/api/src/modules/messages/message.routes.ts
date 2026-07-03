@@ -3,6 +3,7 @@ import { authMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody } from "../../middlewares/validate.middleware.js";
 import {
   cancelMessageController,
+  createMessagePublicLinkController,
   createMessageController,
   getMessageDetailController,
   listReceivedMessagesController,
@@ -16,4 +17,5 @@ messageRoutes.post("/messages", authMiddleware, validateBody(createMessageSchema
 messageRoutes.get("/messages/sent", authMiddleware, listSentMessagesController);
 messageRoutes.get("/messages/received", authMiddleware, listReceivedMessagesController);
 messageRoutes.get("/messages/:id", authMiddleware, getMessageDetailController);
+messageRoutes.post("/messages/:id/public-link", authMiddleware, createMessagePublicLinkController);
 messageRoutes.patch("/messages/:id/cancel", authMiddleware, cancelMessageController);

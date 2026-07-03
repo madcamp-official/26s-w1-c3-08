@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -12,34 +12,44 @@ export default function AuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function finishAuth() {
-      const token = sessionStorage.getItem(PENDING_TOKEN_KEY);
+  const finishAuth = useCallback(async () => {
+    setError(null);
 
-      if (!token) {
+    const token = sessionStorage.getItem(PENDING_TOKEN_KEY);
+
+    if (!token) {
+      try {
+        const response = await apiFetch<{ user: { onboardingNote?: string | null } }>("/me");
+        const completedOnboarding =
+          response.user.onboardingNote !== null && typeof response.user.onboardingNote !== "undefined";
+
+        router.replace(completedOnboarding ? "/write" : "/onboarding");
+      } catch {
         router.replace("/write");
+      }
+      return;
+    }
+
+    try {
+      await apiFetch<{ linked: boolean; redirectTo: string }>("/auth/link-message", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      });
+      sessionStorage.removeItem(PENDING_TOKEN_KEY);
+      router.replace("/inbox");
+    } catch (caught) {
+      if (caught instanceof ApiError) {
+        setError(caught.message);
         return;
       }
 
-      try {
-        await apiFetch<{ linked: boolean; redirectTo: string }>("/auth/link-message", {
-          method: "POST",
-          body: JSON.stringify({ token }),
-        });
-        sessionStorage.removeItem(PENDING_TOKEN_KEY);
-        router.replace("/inbox");
-      } catch (caught) {
-        if (caught instanceof ApiError) {
-          setError(caught.message);
-          return;
-        }
-
-        setError("도착한 마음을 보관하지 못했어요.");
-      }
+      setError("도착한 마음을 보관하지 못했어요.");
     }
-
-    void finishAuth();
   }, [router]);
+
+  useEffect(() => {
+    void finishAuth();
+  }, [finishAuth]);
 
   return (
     <main className="grid min-h-screen place-items-center px-4">
@@ -47,6 +57,13 @@ export default function AuthCallbackPage() {
         {error ? (
           <div className="space-y-4">
             <Notice title={error} tone="danger" />
+            <button
+              type="button"
+              onClick={() => void finishAuth()}
+              className="focus-ring rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
+            >
+              다시 시도
+            </button>
             <button
               type="button"
               onClick={() => router.replace("/arrival/link-failed")}

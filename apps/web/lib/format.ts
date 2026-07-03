@@ -17,6 +17,7 @@ export function statusLabel(status: string) {
     BLOCKED: "검사 차단",
     MODERATION_FAILED: "검사 대기",
     CANCELED: "취소됨",
+    WAITING: "발송 대기",
   };
 
   return labels[status] ?? status;

@@ -2,7 +2,7 @@ import { MessageStatus, ModerationAttemptStatus, Prisma } from "@maeum-arrival/d
 import { config } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashPublicToken } from "../lib/tokens.js";
-import { moderateMessageWithRetry } from "../modules/moderation/moderation.service.js";
+import { getModerationInputHash, moderateMessageWithRetry } from "../modules/moderation/moderation.service.js";
 
 export async function retryFailedModerationMessages() {
   const messages = await prisma.message.findMany({
@@ -26,11 +26,13 @@ export async function retryFailedModerationMessages() {
   });
 
   for (const message of messages) {
-    const moderation = await moderateMessageWithRetry({
+    const moderationInput = {
       title: message.title,
       content: message.content,
       emotionTag: message.customEmotionTag ?? message.emotionTag,
-    });
+    };
+    const moderation = await moderateMessageWithRetry(moderationInput);
+    const inputHash = getModerationInputHash(moderationInput);
 
     const attemptNo = message.moderationAttemptCount + config.moderationMaxAttempts;
 
@@ -71,6 +73,7 @@ export async function retryFailedModerationMessages() {
             attemptNo,
             model: config.openaiModerationModel,
             status: ModerationAttemptStatus.APPROVED,
+            inputHash,
             categories: moderation.categories,
             categoryScores: moderation.categoryScores,
           },
@@ -101,6 +104,7 @@ export async function retryFailedModerationMessages() {
             attemptNo,
             model: config.openaiModerationModel,
             status: ModerationAttemptStatus.BLOCKED,
+            inputHash,
             categories: moderation.categories,
             categoryScores: moderation.categoryScores,
             feedback: moderation.feedback,
@@ -128,6 +132,7 @@ export async function retryFailedModerationMessages() {
           attemptNo,
           model: config.openaiModerationModel,
           status: ModerationAttemptStatus.FAILED,
+          inputHash,
           errorMessage: moderation.reason,
         },
       });

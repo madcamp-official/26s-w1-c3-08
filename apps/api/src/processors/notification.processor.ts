@@ -13,19 +13,50 @@ export class NotificationProcessor {
       select: {
         id: true,
         receiverUserId: true,
+        receiverEmail: true,
+        receiverPhone: true,
+        receiverName: true,
+        accessTokens: {
+          where: {
+            revokedAt: null,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+          select: {
+            id: true,
+            tokenPreview: true,
+          },
+        },
       },
     });
 
     for (const recipient of recipients) {
       if (!recipient.receiverUserId) {
+        const channel = recipient.receiverEmail
+          ? NotificationChannel.EMAIL
+          : recipient.receiverPhone
+            ? NotificationChannel.SMS
+            : NotificationChannel.IN_APP;
+
         await prisma.notificationLog.create({
           data: {
             messageRecipientId: recipient.id,
             eventType: NotificationEventType.MESSAGE_SENT,
-            channel: NotificationChannel.IN_APP,
+            channel,
             status: NotificationStatus.SKIPPED,
             attemptedAt: new Date(),
-            errorMessage: "가입 수신자가 아니어서 내부 알림을 생성하지 않았습니다.",
+            payload: {
+              messageId: payload.messageId,
+              sentAt: payload.sentAt.toISOString(),
+              receiverName: recipient.receiverName,
+              receiverEmail: recipient.receiverEmail,
+              receiverPhone: recipient.receiverPhone,
+              accessTokenId: recipient.accessTokens[0]?.id ?? null,
+              tokenPreview: recipient.accessTokens[0]?.tokenPreview ?? null,
+            },
+            errorMessage: "외부 알림 provider가 설정되지 않아 실제 발송은 생략했습니다.",
           },
         });
         continue;

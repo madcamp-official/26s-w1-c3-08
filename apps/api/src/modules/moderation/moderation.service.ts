@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { config } from "../../config/env.js";
+import { hashText } from "../../lib/tokens.js";
 import { getModerationFeedback } from "./moderation-feedback.js";
 
 export type ModerationInput = {
@@ -38,7 +39,7 @@ const openai = new OpenAI({
 });
 
 export async function moderateMessage(input: ModerationInput): Promise<ModerationAllowedResult | ModerationBlockedResult> {
-  const text = [input.title, input.content, input.emotionTag].filter(Boolean).join("\n\n");
+  const text = buildModerationInputText(input);
 
   const response = await openai.moderations.create({
     model: config.openaiModerationModel,
@@ -68,6 +69,14 @@ export async function moderateMessage(input: ModerationInput): Promise<Moderatio
     categories,
     categoryScores,
   };
+}
+
+export function buildModerationInputText(input: ModerationInput) {
+  return [input.title, input.content, input.emotionTag].filter(Boolean).join("\n\n");
+}
+
+export function getModerationInputHash(input: ModerationInput) {
+  return hashText(buildModerationInputText(input));
 }
 
 export async function moderateMessageWithRetry(input: ModerationInput): Promise<ModerationResult> {

@@ -17,11 +17,21 @@ import {
 import { linkMessageToUser } from "./link-message.service.js";
 
 const OAUTH_STATE_COOKIE = "maeum_oauth_state";
+const OAUTH_RETURN_ORIGIN_COOKIE = "maeum_oauth_return_origin";
 
-export const startKakaoLogin = asyncHandler(async (_request: Request, response: Response) => {
+export const startKakaoLogin = asyncHandler(async (request: Request, response: Response) => {
   const state = createOAuthState();
+  const returnOrigin = getRequestOrigin(request);
 
   response.cookie(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: config.cookieSecure,
+    sameSite: "lax",
+    domain: config.cookieDomain,
+    path: "/",
+    maxAge: 1000 * 60 * 10,
+  });
+  response.cookie(OAUTH_RETURN_ORIGIN_COOKIE, returnOrigin, {
     httpOnly: true,
     secure: config.cookieSecure,
     sameSite: "lax",
@@ -37,6 +47,7 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
   const code = typeof request.query.code === "string" ? request.query.code : undefined;
   const state = typeof request.query.state === "string" ? request.query.state : undefined;
   const savedState = request.cookies?.[OAUTH_STATE_COOKIE];
+  const returnOrigin = getSafeReturnOrigin(request.cookies?.[OAUTH_RETURN_ORIGIN_COOKIE]);
 
   if (!code || !state || !savedState || state !== savedState) {
     throw new AppError("INVALID_OAUTH_STATE", "카카오 로그인 요청이 올바르지 않아요.", 400);
@@ -64,8 +75,9 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
   });
 
   response.clearCookie(OAUTH_STATE_COOKIE, { domain: config.cookieDomain, path: "/" });
+  response.clearCookie(OAUTH_RETURN_ORIGIN_COOKIE, { domain: config.cookieDomain, path: "/" });
   response.cookie(AUTH_COOKIE_NAME, createSessionToken(user.id), getAuthCookieOptions());
-  response.redirect(`${config.webOrigin}/auth/callback`);
+  response.redirect(`${returnOrigin}/auth/callback`);
 });
 
 export const getMe = asyncHandler(async (request: Request, response: Response) => {
@@ -74,6 +86,34 @@ export const getMe = asyncHandler(async (request: Request, response: Response) =
   }
 
   response.json({ user: request.user });
+});
+
+export const updateOnboardingNote = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const note = typeof request.body?.note === "string" ? request.body.note.trim() : "";
+
+  if (note.length > 1000) {
+    throw new AppError("ONBOARDING_NOTE_TOO_LONG", "온보딩 답변은 1000자 이하로 적어 주세요.", 400);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: request.user.id },
+    data: {
+      onboardingNote: note,
+    },
+    select: {
+      id: true,
+      kakaoId: true,
+      nickname: true,
+      email: true,
+      onboardingNote: true,
+    },
+  });
+
+  response.json({ user });
 });
 
 export const logout = asyncHandler(async (_request: Request, response: Response) => {
@@ -94,3 +134,51 @@ export const linkMessage = asyncHandler(async (request: Request, response: Respo
 
   response.json(linked);
 });
+
+function getRequestOrigin(request: Request) {
+  const origin = request.get("origin");
+
+  if (origin && isAllowedOrigin(origin)) {
+    return origin;
+  }
+
+  const referer = request.get("referer");
+
+  if (referer) {
+    try {
+      const refererOrigin = new URL(referer).origin;
+
+      if (isAllowedOrigin(refererOrigin)) {
+        return refererOrigin;
+      }
+    } catch {
+      return config.webOrigin;
+    }
+  }
+
+  return config.webOrigin;
+}
+
+function getSafeReturnOrigin(value: unknown) {
+  if (typeof value === "string" && isAllowedOrigin(value)) {
+    return value;
+  }
+
+  return config.webOrigin;
+}
+
+function isAllowedOrigin(origin: string) {
+  try {
+    const parsed = new URL(origin);
+    const configured = new URL(config.webOrigin);
+    const kakaoRedirect = new URL(config.kakaoRedirectUri);
+
+    if (parsed.origin === configured.origin || parsed.origin === kakaoRedirect.origin) {
+      return true;
+    }
+
+    return parsed.protocol === "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1";
+  } catch {
+    return false;
+  }
+}

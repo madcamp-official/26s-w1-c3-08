@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Send } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -32,6 +32,7 @@ export default function WritePage() {
   const [receiverType, setReceiverType] = useState<"SELF" | "OTHER">("SELF");
   const [receiverName, setReceiverName] = useState("");
   const [receiverEmail, setReceiverEmail] = useState("");
+  const [receiverPhone, setReceiverPhone] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [emotionTag, setEmotionTag] = useState("THANKS");
@@ -42,6 +43,23 @@ export default function WritePage() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [minScheduledAt, setMinScheduledAt] = useState("");
+  const [kstNow, setKstNow] = useState("KST 시간 확인 중");
+
+  useEffect(() => {
+    setMinScheduledAt(toDatetimeLocalValue(new Date(Date.now() + 60 * 1000)));
+  }, []);
+
+  useEffect(() => {
+    function tick() {
+      setKstNow(formatKstNow(new Date()));
+    }
+
+    tick();
+    const timer = window.setInterval(tick, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,6 +68,11 @@ export default function WritePage() {
     setPublicUrl(null);
 
     try {
+      if (new Date(scheduledAt).getTime() <= Date.now()) {
+        setNotice({ title: "도착 시간은 현재보다 뒤로 골라 주세요.", tone: "danger" });
+        return;
+      }
+
       const response = await apiFetch<CreateMessageResponse>("/messages", {
         method: "POST",
         body: JSON.stringify({
@@ -57,6 +80,7 @@ export default function WritePage() {
             type: receiverType,
             name: receiverType === "SELF" ? "미래의 나" : receiverName,
             email: receiverEmail || undefined,
+            phone: receiverPhone || undefined,
           },
           title,
           content,
@@ -69,7 +93,7 @@ export default function WritePage() {
       });
 
       if (response.publicUrl) {
-        setPublicUrl(response.publicUrl);
+        setPublicUrl(toBrowserPublicUrl(response.publicUrl));
         setNotice({ title: "예약이 완료됐어요.", body: "마음이 도착할 때까지 조용히 보관할게요.", tone: "success" });
       } else {
         setNotice({ title: "안전 검사를 잠시 완료하지 못했어요.", body: response.notice, tone: "default" });
@@ -91,12 +115,18 @@ export default function WritePage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-ink">마음 쓰기</h1>
           <p className="mt-2 text-sm text-slate-600">지금의 마음을 미래의 순간에 남겨요.</p>
         </div>
-        <CalendarClock className="hidden text-moss md:block" />
+        <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 shadow-soft">
+          <CalendarClock className="text-moss" size={22} />
+          <div>
+            <p className="text-xs font-semibold text-slate-500">현재 KST</p>
+            <p className="font-mono text-sm font-semibold tabular-nums text-ink">{kstNow}</p>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="grid gap-5">
@@ -139,7 +169,7 @@ export default function WritePage() {
             </label>
           </div>
           {receiverType === "OTHER" ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               <input
                 required
                 value={receiverName}
@@ -152,6 +182,14 @@ export default function WritePage() {
                 onChange={(event) => setReceiverEmail(event.target.value)}
                 placeholder="수신자 이메일"
                 type="email"
+                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+              />
+              <input
+                value={receiverPhone}
+                onChange={(event) => setReceiverPhone(event.target.value)}
+                placeholder="수신자 전화번호"
+                inputMode="tel"
+                maxLength={32}
                 className="focus-ring rounded-md border border-slate-300 px-3 py-2"
               />
             </div>
@@ -209,9 +247,11 @@ export default function WritePage() {
               required
               type="datetime-local"
               value={scheduledAt}
+              min={minScheduledAt || undefined}
               onChange={(event) => setScheduledAt(event.target.value)}
               className="focus-ring rounded-md border border-slate-300 px-3 py-2"
             />
+            <p className="text-sm text-slate-500">현재 브라우저 시간대 기준으로 예약돼요.</p>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="rounded-md border border-slate-200 p-3">
                 <input
@@ -255,4 +295,36 @@ export default function WritePage() {
       </form>
     </AppShell>
   );
+}
+
+function toBrowserPublicUrl(publicUrl: string) {
+  try {
+    const parsed = new URL(publicUrl);
+
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      return `${window.location.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+
+    return publicUrl;
+  } catch {
+    return publicUrl;
+  }
+}
+
+function toDatetimeLocalValue(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function formatKstNow(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }

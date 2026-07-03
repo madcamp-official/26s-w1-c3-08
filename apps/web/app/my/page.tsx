@@ -11,6 +11,7 @@ type Me = {
   id: string;
   nickname: string;
   email?: string | null;
+  onboardingNote?: string | null;
 };
 
 export default function MyPage() {
@@ -57,6 +58,10 @@ export default function MyPage() {
               <dt className="font-semibold text-slate-500">이메일</dt>
               <dd className="mt-1 text-ink">{user.email ?? "미제공"}</dd>
             </div>
+            <div>
+              <dt className="font-semibold text-slate-500">오늘 마음에 남은 한 줄</dt>
+              <dd className="mt-1 whitespace-pre-wrap text-ink">{formatOnboardingNote(user.onboardingNote)}</dd>
+            </div>
           </dl>
           <button
             type="button"
@@ -70,4 +75,12 @@ export default function MyPage() {
       ) : null}
     </AppShell>
   );
+}
+
+function formatOnboardingNote(note: string | null | undefined) {
+  if (note === null || typeof note === "undefined") {
+    return "아직 없음";
+  }
+
+  return note.length > 0 ? note : "건너뛰었어요.";
 }

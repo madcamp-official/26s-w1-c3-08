@@ -36,7 +36,10 @@ export function mapMessageListItem(
           id: recipient.id,
           type: recipient.receiverType,
           name: recipient.receiverName,
+          email: recipient.receiverEmail,
+          phone: recipient.receiverPhone,
           deliveryStatus: recipient.deliveryStatus,
+          deliveredAt: recipient.deliveredAt,
           readAt: recipient.readAt,
         }
       : null,
@@ -46,6 +49,7 @@ export function mapMessageListItem(
 
 export function mapReceivedItem(
   recipient: MessageRecipient & {
+    accessTokens?: Pick<MessageAccessToken, "linkedAt" | "linkedUserId">[];
     message: Message & {
       sender: Pick<User, "id" | "nickname">;
     };
@@ -62,6 +66,9 @@ export function mapReceivedItem(
     customEmotionTag: message.customEmotionTag,
     senderName: message.isSenderHidden ? null : message.sender.nickname,
     arrivedAt: message.isDateHidden ? null : message.sentAt,
+    isSenderHidden: message.isSenderHidden,
+    isDateHidden: message.isDateHidden,
     readAt: recipient.readAt,
+    linkedAt: recipient.accessTokens?.find((token) => token.linkedUserId === recipient.receiverUserId)?.linkedAt ?? null,
   };
 }

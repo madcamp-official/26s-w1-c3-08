@@ -9,6 +9,7 @@ import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashPublicToken } from "../../lib/tokens.js";
 import {
+  getModerationInputHash,
   moderateMessageWithRetry,
   type ModerationResult,
 } from "../moderation/moderation.service.js";
@@ -16,11 +17,17 @@ import type { CreateMessageInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
-  const moderation = await moderateMessageWithRetry({
+  const moderationInput = {
     title: input.title,
     content: input.content,
     emotionTag: input.customEmotionTag ?? input.emotionTag,
+  };
+  const moderation = await moderateMessageWithRetry({
+    title: moderationInput.title,
+    content: moderationInput.content,
+    emotionTag: moderationInput.emotionTag,
   });
+  const inputHash = getModerationInputHash(moderationInput);
 
   if (moderation.allowed === false) {
     throw new AppError("MESSAGE_BLOCKED_BY_MODERATION", moderation.feedback, 422, {
@@ -52,7 +59,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
       },
     });
 
-    await createModerationLog(message.id, moderation, config.moderationMaxAttempts);
+    await createModerationLog(message.id, moderation, config.moderationMaxAttempts, inputHash);
 
     return {
       message,
@@ -89,7 +96,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     },
   });
 
-  await createModerationLog(message.id, moderation, 1);
+  await createModerationLog(message.id, moderation, 1, inputHash);
 
   return {
     message,
@@ -114,6 +121,55 @@ export async function listSentMessages(userId: string) {
   return messages.map(mapMessageListItem);
 }
 
+export async function createMessagePublicLink(userId: string, messageId: string) {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: {
+      recipients: {
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!message) {
+    throw new AppError("MESSAGE_NOT_FOUND", "메시지를 찾을 수 없어요.", 404);
+  }
+
+  if (message.senderId !== userId) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지의 링크를 만들 권한이 없어요.", 403);
+  }
+
+  if (
+    message.status === MessageStatus.MODERATION_FAILED ||
+    message.status === MessageStatus.BLOCKED ||
+    message.status === MessageStatus.CANCELED ||
+    message.status === MessageStatus.FAILED
+  ) {
+    throw new AppError("PUBLIC_LINK_UNAVAILABLE", "지금은 공개 링크를 만들 수 없는 메시지예요.", 409);
+  }
+
+  const recipient = message.recipients[0];
+
+  if (!recipient) {
+    throw new AppError("MESSAGE_RECIPIENT_NOT_FOUND", "수신자 정보를 찾을 수 없어요.", 404);
+  }
+
+  const rawToken = createPublicToken();
+
+  await prisma.messageAccessToken.create({
+    data: {
+      messageRecipientId: recipient.id,
+      tokenHash: hashPublicToken(rawToken),
+      tokenPreview: createTokenPreview(rawToken),
+    },
+  });
+
+  return {
+    publicUrl: toPublicUrl(rawToken),
+  };
+}
+
 export async function listReceivedMessages(userId: string) {
   const recipients = await prisma.messageRecipient.findMany({
     where: {
@@ -123,6 +179,15 @@ export async function listReceivedMessages(userId: string) {
       },
     },
     include: {
+      accessTokens: {
+        where: {
+          linkedUserId: userId,
+        },
+        select: {
+          linkedAt: true,
+          linkedUserId: true,
+        },
+      },
       message: {
         include: {
           sender: {
@@ -169,6 +234,10 @@ export async function getMessageDetail(userId: string, messageId: string) {
     throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 볼 권한이 없어요.", 403);
   }
 
+  if (!isSender && message.status !== MessageStatus.SENT) {
+    throw new AppError("MESSAGE_NOT_ARRIVED", "아직 도착하지 않은 마음이에요.", 403);
+  }
+
   if (recipient && !recipient.readAt && message.status === MessageStatus.SENT) {
     await prisma.messageRecipient.update({
       where: { id: recipient.id },
@@ -192,8 +261,11 @@ export async function getMessageDetail(userId: string, messageId: string) {
       ? message.recipients.map((item) => ({
           id: item.id,
           name: item.receiverName,
+          email: item.receiverEmail,
+          phone: item.receiverPhone,
           type: item.receiverType,
           deliveryStatus: item.deliveryStatus,
+          deliveredAt: item.deliveredAt,
           readAt: item.readAt,
           hasPublicLink: item.accessTokens.some((token) => !token.revokedAt),
         }))
@@ -259,7 +331,7 @@ export async function cancelMessage(userId: string, messageId: string) {
   return { canceled: true };
 }
 
-async function createModerationLog(messageId: string, moderation: ModerationResult, attemptNo: number) {
+async function createModerationLog(messageId: string, moderation: ModerationResult, attemptNo: number, inputHash: string) {
   if (moderation.allowed === true) {
     await prisma.moderationLog.create({
       data: {
@@ -267,6 +339,7 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
         attemptNo,
         model: config.openaiModerationModel,
         status: ModerationAttemptStatus.APPROVED,
+        inputHash,
         categories: moderation.categories,
         categoryScores: moderation.categoryScores,
       },
@@ -281,6 +354,7 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
         attemptNo,
         model: config.openaiModerationModel,
         status: ModerationAttemptStatus.BLOCKED,
+        inputHash,
         categories: moderation.categories,
         categoryScores: moderation.categoryScores,
         feedback: moderation.feedback,
@@ -295,6 +369,7 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
       attemptNo,
       model: config.openaiModerationModel,
       status: ModerationAttemptStatus.FAILED,
+      inputHash,
       errorMessage: moderation.reason,
     },
   });

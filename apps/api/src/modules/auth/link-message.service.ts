@@ -1,3 +1,4 @@
+import { MessageStatus } from "@maeum-arrival/database";
 import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashPublicToken } from "../../lib/tokens.js";
@@ -35,6 +36,10 @@ export async function linkMessageToUser({ token, userId }: LinkMessageInput) {
 
   if (accessToken.expiresAt && accessToken.expiresAt < new Date()) {
     throw new AppError("MESSAGE_TOKEN_EXPIRED", "이 마음을 보관할 수 있는 시간이 지났어요.", 410);
+  }
+
+  if (accessToken.recipient.message.status !== MessageStatus.SENT) {
+    throw new AppError("MESSAGE_NOT_ARRIVED", "아직 도착하지 않은 마음이에요.", 403);
   }
 
   if (accessToken.linkedUserId && accessToken.linkedUserId !== userId) {
