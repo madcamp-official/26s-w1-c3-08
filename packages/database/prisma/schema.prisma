@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+  BLOCKED
+  MODERATION_FAILED
+  CANCELED
+}
+
+enum RecipientType {
+  SELF
+  OTHER
+}
+
+enum RecipientDeliveryStatus {
+  WAITING
+  SENT
+  FAILED
+  CANCELED
+}
+
+enum EmotionTag {
+  THANKS
+  CHEER
+  CELEBRATION
+  COMFORT
+  LONGING
+  LOVE
+  CUSTOM
+}
+
+enum ModerationAttemptStatus {
+  APPROVED
+  BLOCKED
+  FAILED
+}
+
+enum NotificationChannel {
+  IN_APP
+  KAKAO_ALIMTALK
+  SMS
+  EMAIL
+}
+
+enum NotificationEventType {
+  MESSAGE_SENT
+  ARRIVAL_HINT
+  SYSTEM
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  kakaoId         String    @unique @db.VarChar(64)
+  nickname        String    @db.VarChar(80)
+  email           String?   @db.VarChar(255)
+  profileImageUrl String?   @db.VarChar(2048)
+  onboardingNote  String?   @db.Text
+  lastLoginAt     DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime? @db.Timestamptz(3)
+
+  sentMessages        Message[]            @relation("MessageSender")
+  receivedRecipients  MessageRecipient[]   @relation("RecipientUser")
+  claimedAccessTokens MessageAccessToken[] @relation("AccessTokenClaimedBy")
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model Message {
+  id                       String        @id @default(uuid()) @db.Uuid
+  senderId                 String        @db.Uuid
+  title                    String        @db.VarChar(120)
+  content                  String        @db.Text
+  emotionTag               EmotionTag?
+  customEmotionTag         String?       @db.VarChar(40)
+  scheduledAt              DateTime      @db.Timestamptz(3)
+  sentAt                   DateTime?     @db.Timestamptz(3)
+  canceledAt               DateTime?     @db.Timestamptz(3)
+  failedAt                 DateTime?     @db.Timestamptz(3)
+  failureReason            String?       @db.Text
+  isSenderHidden           Boolean       @default(false)
+  isDateHidden             Boolean       @default(false)
+  status                   MessageStatus @default(PENDING)
+  moderationAttemptCount   Int           @default(0)
+  moderationLastCheckedAt  DateTime?     @db.Timestamptz(3)
+  moderationNextRetryAt    DateTime?     @db.Timestamptz(3)
+  moderationFailureReason  String?       @db.Text
+  moderationFeedback       String?       @db.Text
+  moderationBlockedCategories Json?
+  createdAt                DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime      @updatedAt @db.Timestamptz(3)
+
+  sender         User                 @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipients     MessageRecipient[]
+  moderationLogs ModerationLog[]
+
+  @@index([senderId, createdAt])
+  @@index([status, scheduledAt])
+  @@index([status, moderationNextRetryAt])
+  @@index([createdAt])
+}
+
+model MessageRecipient {
+  id             String                  @id @default(uuid()) @db.Uuid
+  messageId      String                  @db.Uuid
+  receiverUserId String?                 @db.Uuid
+  receiverType   RecipientType
+  receiverName   String?                 @db.VarChar(80)
+  receiverEmail  String?                 @db.VarChar(255)
+  receiverPhone  String?                 @db.VarChar(32)
+  receiverInfo   Json?
+  deliveryStatus RecipientDeliveryStatus @default(WAITING)
+  deliveredAt    DateTime?               @db.Timestamptz(3)
+  readAt         DateTime?               @db.Timestamptz(3)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(3)
+
+  message       Message              @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  receiverUser  User?                @relation("RecipientUser", fields: [receiverUserId], references: [id], onDelete: SetNull)
+  accessTokens  MessageAccessToken[]
+  notifications NotificationLog[]
+
+  @@index([messageId])
+  @@index([receiverUserId, readAt])
+  @@index([deliveryStatus])
+  @@index([receiverEmail])
+  @@index([receiverPhone])
+}
+
+model MessageAccessToken {
+  id                 String    @id @default(uuid()) @db.Uuid
+  messageRecipientId String    @db.Uuid
+  tokenHash          String    @unique @db.Char(64)
+  tokenPreview       String?   @db.VarChar(12)
+  expiresAt          DateTime? @db.Timestamptz(3)
+  firstOpenedAt      DateTime? @db.Timestamptz(3)
+  lastOpenedAt       DateTime? @db.Timestamptz(3)
+  openCount          Int       @default(0)
+  linkedUserId       String?   @db.Uuid
+  linkedAt           DateTime? @db.Timestamptz(3)
+  revokedAt          DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  recipient  MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+  linkedUser User?            @relation("AccessTokenClaimedBy", fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@index([messageRecipientId])
+  @@index([linkedUserId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model ModerationLog {
+  id             String                  @id @default(uuid()) @db.Uuid
+  messageId      String                  @db.Uuid
+  attemptNo      Int
+  provider       String                  @default("openai") @db.VarChar(40)
+  model          String                  @db.VarChar(80)
+  status         ModerationAttemptStatus
+  inputHash      String?                 @db.Char(64)
+  categories     Json?
+  categoryScores Json?
+  feedback       String?                 @db.Text
+  errorCode      String?                 @db.VarChar(120)
+  errorMessage   String?                 @db.Text
+  checkedAt      DateTime                @default(now()) @db.Timestamptz(3)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, attemptNo])
+  @@index([status, checkedAt])
+  @@index([messageId, checkedAt])
+}
+
+model NotificationLog {
+  id                 String                @id @default(uuid()) @db.Uuid
+  messageRecipientId String                @db.Uuid
+  eventType          NotificationEventType @default(MESSAGE_SENT)
+  channel            NotificationChannel
+  status             NotificationStatus    @default(PENDING)
+  providerMessageId  String?               @db.VarChar(160)
+  payload            Json?
+  errorCode          String?               @db.VarChar(120)
+  errorMessage       String?               @db.Text
+  scheduledAt        DateTime?             @db.Timestamptz(3)
+  attemptedAt        DateTime?             @db.Timestamptz(3)
+  sentAt             DateTime?             @db.Timestamptz(3)
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
+
+  recipient MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+
+  @@index([messageRecipientId, channel])
+  @@index([status, scheduledAt])
+  @@index([eventType, createdAt])
+}
