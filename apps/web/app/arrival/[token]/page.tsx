@@ -1,13 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Clock3, Gift, LogIn, RefreshCw } from "lucide-react";
+import { BellOff, Clock3, Gift, LogIn, RefreshCw } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
 import { Notice } from "@/components/Notice";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
-const PENDING_TOKEN_KEY = "maeum.pendingArrivalToken";
+const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
 
 type PublicMessage = {
   id: string;
@@ -20,11 +21,15 @@ type PublicMessage = {
   isSenderHidden: boolean;
   isDateHidden: boolean;
   linked: boolean;
+  canSuppressEmailNotification: boolean;
+  canSuppressSmsNotification: boolean;
 };
 
 type ArrivalGate = {
   scheduledAt?: string | null;
 };
+
+type SuppressionChannel = "EMAIL" | "SMS";
 
 export default function ArrivalPage() {
   const params = useParams<{ token: string }>();
@@ -32,6 +37,11 @@ export default function ArrivalPage() {
   const [gate, setGate] = useState<ArrivalGate | null>(null);
   const [opened, setOpened] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suppressingChannel, setSuppressingChannel] = useState<SuppressionChannel | null>(null);
+  const [suppressionNotices, setSuppressionNotices] = useState<Partial<Record<SuppressionChannel, {
+    title: string;
+    tone: "success" | "danger";
+  }>>>({});
 
   useEffect(() => {
     sessionStorage.setItem(PENDING_TOKEN_KEY, params.token);
@@ -62,20 +72,64 @@ export default function ArrivalPage() {
     return () => window.clearInterval(timer);
   }, [params.token]);
 
+  async function handleSuppressNotifications(channel: SuppressionChannel) {
+    setSuppressingChannel(channel);
+    setSuppressionNotices((previous) => ({ ...previous, [channel]: undefined }));
+
+    try {
+      await apiFetch<{ suppressed: true }>("/public/notification-suppressions", {
+        method: "POST",
+        body: JSON.stringify({
+          token: params.token,
+          channel,
+        }),
+      });
+      setSuppressionNotices((previous) => ({
+        ...previous,
+        [channel]: {
+          title:
+            channel === "SMS"
+              ? "이 전화번호로는 매아리 문자 알림을 다시 보내지 않을게요."
+              : "이 이메일 주소로는 매아리 이메일 알림을 다시 보내지 않을게요.",
+          tone: "success",
+        },
+      }));
+    } catch (caught) {
+      setSuppressionNotices((previous) => ({
+        ...previous,
+        [channel]: {
+          title: caught instanceof ApiError ? caught.message : "수신거부를 저장하지 못했어요.",
+          tone: "danger",
+        },
+      }));
+    } finally {
+      setSuppressingChannel(null);
+    }
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-10">
       <div className="mb-8 flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-md bg-petal text-sm font-bold text-white">
-          마음
+        <span className="relative block h-10 w-10 overflow-hidden rounded-md border border-violet-100 bg-white shadow-sm">
+          <Image src="/images/maeari-mark.png" alt="" fill sizes="40px" className="object-cover" priority />
         </span>
-        <span className="text-lg font-semibold text-ink">마음도착</span>
+        <span className="text-lg font-semibold text-ink">매아리</span>
       </div>
 
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error && !gate ? <p className="text-sm text-slate-600">도착한 마음을 확인하고 있어요.</p> : null}
       {gate ? (
         <section className="rounded-md border border-slate-200 bg-white p-6 text-center shadow-soft">
-          <Clock3 className="mx-auto mb-4 text-moss" size={36} />
+          <div className="relative mx-auto mb-5 aspect-square w-28 overflow-hidden rounded-md bg-[#fbf7ff]">
+            <Image
+              src="/images/maeari-public-envelope.webp"
+              alt="보관 중인 마음 봉투"
+              fill
+              sizes="112px"
+              className="object-cover"
+            />
+          </div>
+          <Clock3 className="mx-auto mb-4 text-moss" size={32} />
           <h1 className="text-2xl font-semibold text-ink">아직 보관 중인 마음이에요.</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {gate.scheduledAt
@@ -94,7 +148,17 @@ export default function ArrivalPage() {
       ) : null}
       {message && !opened ? (
         <section className="rounded-md border border-slate-200 bg-white p-6 text-center shadow-soft">
-          <Gift className="mx-auto mb-4 text-petal" size={36} />
+          <div className="relative mx-auto mb-5 aspect-square w-36 overflow-hidden rounded-md bg-[#fbf7ff]">
+            <Image
+              src="/images/maeari-public-envelope.webp"
+              alt="도착한 마음 봉투"
+              fill
+              sizes="144px"
+              className="object-cover"
+              priority
+            />
+          </div>
+          <Gift className="mx-auto mb-4 text-petal" size={32} />
           <h1 className="text-2xl font-semibold text-ink">오늘, 누군가의 마음이 도착했어요.</h1>
           <button
             type="button"
@@ -122,11 +186,11 @@ export default function ArrivalPage() {
           </div>
           <div className="mt-6 rounded-md border border-slate-200 bg-white p-4">
             {message.linked ? (
-              <p className="text-sm font-medium text-slate-700">이미 마음도착 수신함에 보관된 마음이에요.</p>
+              <p className="text-sm font-medium text-slate-700">이미 매아리 수신함에 보관된 마음이에요.</p>
             ) : (
               <>
                 <p className="text-sm font-medium text-slate-700">
-                  이 마음을 오래 보관하고 싶다면 마음도착에 저장해 보세요.
+                  이 마음을 오래 보관하고 싶다면 매아리에 저장해 보세요.
                 </p>
                 <a
                   href={`${getApiBaseUrl()}/auth/kakao`}
@@ -138,8 +202,71 @@ export default function ArrivalPage() {
               </>
             )}
           </div>
+          {message.canSuppressEmailNotification || message.canSuppressSmsNotification ? (
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-600">
+                이 링크로 받은 알림을 앞으로 받고 싶지 않다면 채널별로 멈출 수 있어요.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {message.canSuppressEmailNotification ? (
+                  <SuppressionButton
+                    channel="EMAIL"
+                    label="이 이메일 알림 다시 받지 않기"
+                    notice={suppressionNotices.EMAIL}
+                    suppressingChannel={suppressingChannel}
+                    onSuppress={handleSuppressNotifications}
+                  />
+                ) : null}
+                {message.canSuppressSmsNotification ? (
+                  <SuppressionButton
+                    channel="SMS"
+                    label="이 문자 알림 다시 받지 않기"
+                    notice={suppressionNotices.SMS}
+                    suppressingChannel={suppressingChannel}
+                    onSuppress={handleSuppressNotifications}
+                  />
+                ) : null}
+              </div>
+              <div className="mt-3 grid gap-2">
+                {suppressionNotices.EMAIL ? (
+                  <Notice title={suppressionNotices.EMAIL.title} tone={suppressionNotices.EMAIL.tone} />
+                ) : null}
+                {suppressionNotices.SMS ? (
+                  <Notice title={suppressionNotices.SMS.title} tone={suppressionNotices.SMS.tone} />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </article>
       ) : null}
     </main>
+  );
+}
+
+function SuppressionButton({
+  channel,
+  label,
+  notice,
+  suppressingChannel,
+  onSuppress,
+}: {
+  channel: SuppressionChannel;
+  label: string;
+  notice?: { title: string; tone: "success" | "danger" };
+  suppressingChannel: SuppressionChannel | null;
+  onSuppress: (channel: SuppressionChannel) => Promise<void>;
+}) {
+  const isSuppressing = suppressingChannel === channel;
+
+  return (
+    <button
+      type="button"
+      onClick={() => void onSuppress(channel)}
+      disabled={Boolean(suppressingChannel) || notice?.tone === "success"}
+      className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+    >
+      <BellOff size={16} />
+      {isSuppressing ? "저장 중" : label}
+    </button>
   );
 }

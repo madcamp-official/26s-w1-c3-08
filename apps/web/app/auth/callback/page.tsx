@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
 import { Notice } from "@/components/Notice";
 
-const PENDING_TOKEN_KEY = "maeum.pendingArrivalToken";
+const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
 
 export default function AuthCallbackPage() {
   const router = useRouter();

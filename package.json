@@ -1,13 +1,13 @@
 {
-  "name": "maeum-arrival",
+  "name": "maeari",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "pnpm --parallel --filter @maeum-arrival/api --filter @maeum-arrival/web dev",
-    "dev:api": "pnpm --filter @maeum-arrival/api dev",
-    "dev:web": "pnpm --filter @maeum-arrival/web dev",
-    "dev:scheduler": "pnpm --filter @maeum-arrival/api dev:scheduler",
+    "dev": "pnpm --parallel --filter @maeari/api --filter @maeari/web dev",
+    "dev:api": "pnpm --filter @maeari/api dev",
+    "dev:web": "pnpm --filter @maeari/web dev",
+    "dev:scheduler": "pnpm --filter @maeari/api dev:scheduler",
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
     "lint": "pnpm --recursive lint",
@@ -17,7 +17,8 @@
     "db:validate": "prisma validate --schema packages/database/prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "coolsms-node-sdk": "^2.1.0"
   },
   "devDependencies": {
     "prisma": "^5.22.0",

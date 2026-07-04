@@ -12,6 +12,13 @@ export function hashPublicToken(token: string) {
     .digest("hex");
 }
 
+export function hashContact(channel: string, normalizedContact: string) {
+  return crypto
+    .createHmac("sha256", config.publicTokenPepper)
+    .update(`${channel}:${normalizedContact}`)
+    .digest("hex");
+}
+
 export function createTokenPreview(token: string) {
   return token.slice(0, 8);
 }

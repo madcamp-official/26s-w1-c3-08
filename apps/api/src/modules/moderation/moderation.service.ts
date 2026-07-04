@@ -2,6 +2,13 @@ import OpenAI from "openai";
 import { config } from "../../config/env.js";
 import { hashText } from "../../lib/tokens.js";
 import { getModerationFeedback } from "./moderation-feedback.js";
+import {
+  MESSAGE_SAFETY_POLICY_VERSION,
+  MESSAGE_SAFETY_SYSTEM_PROMPT,
+  buildMessageSafetyUserPrompt,
+  normalizeMessageSafetyAssessment,
+  type MessageSafetyAssessment,
+} from "./moderation-policy.js";
 
 export type ModerationInput = {
   title: string;
@@ -40,6 +47,11 @@ const openai = new OpenAI({
 
 export async function moderateMessage(input: ModerationInput): Promise<ModerationAllowedResult | ModerationBlockedResult> {
   const text = buildModerationInputText(input);
+  const localBlock = detectKoreanAbuse(text);
+
+  if (localBlock) {
+    return localBlock;
+  }
 
   const response = await openai.moderations.create({
     model: config.openaiModerationModel,
@@ -51,10 +63,22 @@ export async function moderateMessage(input: ModerationInput): Promise<Moderatio
   const categoryScores = (result?.category_scores ?? {}) as unknown as Record<string, number>;
 
   if (!result?.flagged) {
+    const policyAssessment = await assessMessageSafety(input);
+
+    if (!policyAssessment.allowed) {
+      return toPolicyBlockedResult(policyAssessment);
+    }
+
     return {
       allowed: true,
-      categories,
-      categoryScores,
+      categories: {
+        ...categories,
+        [`policy/${MESSAGE_SAFETY_POLICY_VERSION}`]: false,
+      },
+      categoryScores: {
+        ...categoryScores,
+        [`policy/${MESSAGE_SAFETY_POLICY_VERSION}`]: 0,
+      },
     };
   }
 
@@ -72,7 +96,11 @@ export async function moderateMessage(input: ModerationInput): Promise<Moderatio
 }
 
 export function buildModerationInputText(input: ModerationInput) {
-  return [input.title, input.content, input.emotionTag].filter(Boolean).join("\n\n");
+  return [
+    `제목: ${input.title}`,
+    `감정 태그: ${input.emotionTag ?? "없음"}`,
+    `본문:\n${input.content}`,
+  ].join("\n\n");
 }
 
 export function getModerationInputHash(input: ModerationInput) {
@@ -117,4 +145,129 @@ function getModerationFailureReason(error: unknown) {
   }
 
   return "unknown moderation error";
+}
+
+async function assessMessageSafety(input: ModerationInput): Promise<MessageSafetyAssessment> {
+  const response = await openai.chat.completions.create({
+    model: config.openaiGuardrailModel,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: MESSAGE_SAFETY_SYSTEM_PROMPT,
+      },
+      {
+        role: "user",
+        content: buildMessageSafetyUserPrompt(input),
+      },
+    ],
+  });
+
+  const rawContent = response.choices[0]?.message?.content;
+
+  if (!rawContent) {
+    throw new Error("empty OpenAI guardrail response");
+  }
+
+  const parsed = parseJsonObject(rawContent);
+  const assessment = normalizeMessageSafetyAssessment(parsed);
+
+  if (!assessment) {
+    throw new Error("invalid OpenAI guardrail response");
+  }
+
+  return assessment;
+}
+
+function toPolicyBlockedResult(assessment: MessageSafetyAssessment): ModerationBlockedResult {
+  const categories = Object.fromEntries(
+    assessment.categories.length > 0
+      ? assessment.categories.map((category) => [`policy/${category}`, true])
+      : [["policy/unsafe-message", true]],
+  );
+
+  categories[`policy/${MESSAGE_SAFETY_POLICY_VERSION}`] = true;
+
+  const categoryScores = Object.fromEntries(
+    Object.keys(categories).map((category) => [category, severityScore(assessment.severity)]),
+  );
+
+  return {
+    allowed: false,
+    feedback:
+      assessment.feedback ||
+      "받는 사람이 편안하게 읽을 수 있도록 표현을 조금 더 부드럽게 다듬어 주세요.",
+    blockedCategories: Object.keys(categories),
+    categories,
+    categoryScores,
+  };
+}
+
+function parseJsonObject(content: string) {
+  try {
+    return JSON.parse(content);
+  } catch {
+    const match = content.match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      throw new Error("OpenAI guardrail response did not include JSON");
+    }
+
+    return JSON.parse(match[0]);
+  }
+}
+
+function severityScore(severity: MessageSafetyAssessment["severity"]) {
+  if (severity === "high") {
+    return 1;
+  }
+
+  if (severity === "medium") {
+    return 0.85;
+  }
+
+  if (severity === "low") {
+    return 0.5;
+  }
+
+  return 0;
+}
+
+function detectKoreanAbuse(text: string): ModerationBlockedResult | null {
+  const normalized = text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}ㄱ-ㅎㅏ-ㅣ]+/gu, "");
+  const patterns = [
+    /개(?:새|세|쌔|쉐)끼/,
+    /개자식/,
+    /씨발|시발|씨바|시바|ㅅㅂ|ㅆㅂ/,
+    /병신|븅신|ㅂㅅ/,
+    /좆|존나|ㅈ같/,
+    /지랄|ㅈㄹ/,
+    /씹(?:새|세|쌔|쉐)?끼?/,
+    /땅딸보|땡중|멸거지|돌마니|돌추/,
+    /똥개|똥꼬충|딸빵|딸딸이|딸피/,
+    /마스터베이션아미|masturbationarmy/,
+  ];
+
+  if (!patterns.some((pattern) => pattern.test(normalized))) {
+    return null;
+  }
+
+  const categories = {
+    harassment: true,
+    "korean/profanity": true,
+  };
+
+  return {
+    allowed: false,
+    feedback: getModerationFeedback(categories),
+    blockedCategories: Object.keys(categories),
+    categories,
+    categoryScores: {
+      harassment: 1,
+      "korean/profanity": 1,
+    },
+  };
 }

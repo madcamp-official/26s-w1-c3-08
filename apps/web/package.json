@@ -1,17 +1,19 @@
 {
-  "name": "@maeum-arrival/web",
+  "name": "@maeari/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && pnpm run copy-standalone-assets",
+    "copy-standalone-assets": "mkdir -p .next/standalone/apps/web/.next && rm -rf .next/standalone/apps/web/.next/static .next/standalone/apps/web/public && cp -R .next/static .next/standalone/apps/web/.next/static && if [ -d public ]; then cp -R public .next/standalone/apps/web/public; fi",
     "start": "next start",
+    "start:standalone": "node .next/standalone/apps/web/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "next lint"
   },
   "dependencies": {
-    "@maeum-arrival/shared": "workspace:*",
+    "@maeari/shared": "workspace:*",
     "lucide-react": "^0.468.0",
     "next": "^15.0.3",
     "react": "^19.0.0",

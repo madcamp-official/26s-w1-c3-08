@@ -1,4 +1,4 @@
-import { MessageStatus, ModerationAttemptStatus, Prisma } from "@maeum-arrival/database";
+import { MessageStatus, ModerationAttemptStatus, Prisma } from "@maeari/database";
 import { config } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashPublicToken } from "../lib/tokens.js";

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Copy, XCircle } from "lucide-react";
+import { Copy, Trash2, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -18,6 +18,9 @@ type MessageDetail = {
   scheduledAt?: string | null;
   sentAt?: string | null;
   status: string;
+  viewerRole: "SENDER" | "RECIPIENT";
+  canCancel: boolean;
+  canDeleteFromMailbox: boolean;
   senderName?: string | null;
   isSenderHidden: boolean;
   isDateHidden: boolean;
@@ -32,6 +35,14 @@ type MessageDetail = {
     deliveredAt?: string | null;
     readAt?: string | null;
     hasPublicLink: boolean;
+    latestNotification?: {
+      channel: string;
+      status: string;
+      errorCode?: string | null;
+      errorMessage?: string | null;
+      attemptedAt?: string | null;
+      sentAt?: string | null;
+    } | null;
   }>;
 };
 
@@ -95,6 +106,24 @@ export default function MessageDetailPage() {
     }
   }
 
+  async function deleteFromMailbox() {
+    setBusy(true);
+    setNotice(null);
+
+    try {
+      await apiFetch(`/messages/${params.id}`, { method: "DELETE" });
+      setNotice({ title: "보관함에서 삭제했어요.", tone: "success" });
+      router.replace(message?.viewerRole === "RECIPIENT" ? "/inbox" : "/sent");
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof ApiError ? caught.message : "보관함에서 삭제하지 못했어요.",
+        tone: "danger",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     void load();
   }, [params.id, router]);
@@ -134,7 +163,7 @@ export default function MessageDetailPage() {
           </div>
           <h1 className="text-2xl font-semibold text-ink">{message.title}</h1>
           <div className="mt-3 grid gap-1 text-sm text-slate-600">
-            <p>보낸 사람: {message.senderName ?? "누군가"}</p>
+            <p>보낸 사람: {message.senderName ?? "익명 발신"}</p>
             <p>예약 시간: {formatDateTime(message.scheduledAt)}</p>
             <p>도착 시간: {formatDateTime(message.sentAt)}</p>
             {message.status === "MODERATION_FAILED" ? (
@@ -148,7 +177,7 @@ export default function MessageDetailPage() {
                 {message.recipients.map((recipient) => (
                   <div key={recipient.id} className="rounded-md bg-slate-50 p-3">
                     <p>
-                      {recipient.name ?? "수신자"} · {recipient.type === "SELF" ? "미래의 나" : "타인"} ·{" "}
+                      {recipient.name ?? "수신자"} · {recipientTypeLabel(recipient.type)} ·{" "}
                       {statusLabel(recipient.deliveryStatus)}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
@@ -156,6 +185,17 @@ export default function MessageDetailPage() {
                     </p>
                     {recipient.deliveredAt ? (
                       <p className="mt-1 text-xs text-moss">수신자 도착 시간: {formatDateTime(recipient.deliveredAt)}</p>
+                    ) : null}
+                    {recipient.latestNotification ? (
+                      <div className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-xs">
+                        <p className="font-semibold text-slate-700">
+                          외부 알림: {notificationStatusLabel(recipient.latestNotification.status)} ·{" "}
+                          {notificationChannelLabel(recipient.latestNotification.channel)}
+                        </p>
+                        {recipient.latestNotification.errorMessage ? (
+                          <p className="mt-1 text-rose-700">{recipient.latestNotification.errorMessage}</p>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ))}
@@ -165,18 +205,20 @@ export default function MessageDetailPage() {
           <div className="mt-8 whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 leading-7 text-slate-800">
             {message.content}
           </div>
-          {["PENDING", "SENT"].includes(message.status) ? (
+          {["PENDING", "SENT"].includes(message.status) || message.canDeleteFromMailbox ? (
             <div className="mt-6 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void copyPublicLink()}
-                disabled={busy}
-                className="focus-ring inline-flex items-center gap-2 rounded-md bg-moss px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                <Copy size={16} />
-                공개 링크 복사
-              </button>
-              {message.status === "PENDING" ? (
+              {["PENDING", "SENT"].includes(message.status) && message.viewerRole === "SENDER" ? (
+                <button
+                  type="button"
+                  onClick={() => void copyPublicLink()}
+                  disabled={busy}
+                  className="focus-ring inline-flex items-center gap-2 rounded-md bg-moss px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  <Copy size={16} />
+                  공개 링크 복사
+                </button>
+              ) : null}
+              {message.canCancel ? (
                 <button
                   type="button"
                   onClick={() => void cancelMessage()}
@@ -185,6 +227,17 @@ export default function MessageDetailPage() {
                 >
                   <XCircle size={16} />
                   예약 취소
+                </button>
+              ) : null}
+              {message.canDeleteFromMailbox ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteFromMailbox()}
+                  disabled={busy}
+                  className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <Trash2 size={16} />
+                  삭제
                 </button>
               ) : null}
             </div>
@@ -207,4 +260,36 @@ function toBrowserPublicUrl(publicUrl: string) {
   } catch {
     return publicUrl;
   }
+}
+
+function notificationStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: "대기",
+    SENT: "발송 완료",
+    FAILED: "발송 실패",
+    SKIPPED: "발송 생략",
+  };
+
+  return labels[status] ?? status;
+}
+
+function notificationChannelLabel(channel: string) {
+  const labels: Record<string, string> = {
+    IN_APP: "서비스 내부",
+    KAKAO_ALIMTALK: "카카오 알림톡",
+    SMS: "문자",
+    EMAIL: "이메일",
+  };
+
+  return labels[channel] ?? channel;
+}
+
+function recipientTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    SELF: "미래의 나",
+    FRIEND: "친구",
+    OTHER: "연락처",
+  };
+
+  return labels[type] ?? type;
 }

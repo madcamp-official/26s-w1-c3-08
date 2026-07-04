@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 
-const PENDING_TOKEN_KEY = "maeum.pendingArrivalToken";
+const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
 
 export default function LinkFailedPage() {
   const [arrivalToken, setArrivalToken] = useState<string | null>(null);

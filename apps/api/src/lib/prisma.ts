@@ -1,4 +1,4 @@
-import { PrismaClient } from "@maeum-arrival/database";
+import { PrismaClient } from "@maeari/database";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;

@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { config } from "./config/env.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { friendRoutes } from "./modules/friends/friend.routes.js";
 import { messageRoutes } from "./modules/messages/message.routes.js";
 import { publicMessageRoutes } from "./modules/public/public-message.routes.js";
 
@@ -27,6 +28,7 @@ export function createApp() {
   });
 
   app.use("/api", authRoutes);
+  app.use("/api", friendRoutes);
   app.use("/api", messageRoutes);
   app.use("/api", publicMessageRoutes);
 

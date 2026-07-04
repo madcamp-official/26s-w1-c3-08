@@ -3,9 +3,10 @@ import {
   MessageStatus,
   RecipientDeliveryStatus,
   RecipientType,
-} from "@maeum-arrival/database";
+} from "@maeari/database";
 import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
+import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
 import { prisma } from "../../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashPublicToken } from "../../lib/tokens.js";
 import {
@@ -13,6 +14,7 @@ import {
   moderateMessageWithRetry,
   type ModerationResult,
 } from "../moderation/moderation.service.js";
+import { assertActiveFriendship } from "../friends/friend.service.js";
 import type { CreateMessageInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
@@ -35,7 +37,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     });
   }
 
-  const receiver = normalizeReceiver(input, userId);
+  const receiver = await normalizeReceiver(input, userId);
 
   if (moderation.allowed === "unavailable") {
     const message = await prisma.message.create({
@@ -106,7 +108,10 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
 
 export async function listSentMessages(userId: string) {
   const messages = await prisma.message.findMany({
-    where: { senderId: userId },
+    where: {
+      senderId: userId,
+      senderDeletedAt: null,
+    },
     include: {
       recipients: {
         include: {
@@ -174,8 +179,10 @@ export async function listReceivedMessages(userId: string) {
   const recipients = await prisma.messageRecipient.findMany({
     where: {
       receiverUserId: userId,
+      receiverDeletedAt: null,
       message: {
         status: MessageStatus.SENT,
+        senderDeletedAt: null,
       },
     },
     include: {
@@ -218,6 +225,10 @@ export async function getMessageDetail(userId: string, messageId: string) {
       recipients: {
         include: {
           accessTokens: true,
+          notifications: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
       },
     },
@@ -228,9 +239,9 @@ export async function getMessageDetail(userId: string, messageId: string) {
   }
 
   const isSender = message.senderId === userId;
-  const recipient = message.recipients.find((item) => item.receiverUserId === userId);
+  const recipient = message.recipients.find((item) => item.receiverUserId === userId && !item.receiverDeletedAt);
 
-  if (!isSender && !recipient) {
+  if ((isSender && message.senderDeletedAt) || (!isSender && !recipient)) {
     throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 볼 권한이 없어요.", 403);
   }
 
@@ -254,9 +265,14 @@ export async function getMessageDetail(userId: string, messageId: string) {
     scheduledAt: isSender || !message.isDateHidden ? message.scheduledAt : null,
     sentAt: isSender || !message.isDateHidden ? message.sentAt : null,
     status: message.status,
+    viewerRole: isSender ? "SENDER" : "RECIPIENT",
+    canCancel:
+      isSender &&
+      (message.status === MessageStatus.PENDING || message.status === MessageStatus.MODERATION_FAILED),
+    canDeleteFromMailbox: isSender ? message.status === MessageStatus.CANCELED : Boolean(recipient),
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
-    senderName: !message.isSenderHidden || isSender ? message.sender.nickname : null,
+    senderName: message.isSenderHidden ? null : message.sender.nickname,
     recipients: isSender
       ? message.recipients.map((item) => ({
           id: item.id,
@@ -268,6 +284,16 @@ export async function getMessageDetail(userId: string, messageId: string) {
           deliveredAt: item.deliveredAt,
           readAt: item.readAt,
           hasPublicLink: item.accessTokens.some((token) => !token.revokedAt),
+          latestNotification: item.notifications[0]
+            ? {
+                channel: item.notifications[0].channel,
+                status: item.notifications[0].status,
+                errorCode: item.notifications[0].errorCode,
+                errorMessage: item.notifications[0].errorMessage,
+                attemptedAt: item.notifications[0].attemptedAt,
+                sentAt: item.notifications[0].sentAt,
+              }
+            : null,
         }))
       : [],
     moderationNextRetryAt: message.moderationNextRetryAt,
@@ -331,6 +357,55 @@ export async function cancelMessage(userId: string, messageId: string) {
   return { canceled: true };
 }
 
+export async function deleteMessageFromMailbox(userId: string, messageId: string) {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: {
+      recipients: {
+        select: {
+          id: true,
+          receiverUserId: true,
+          receiverDeletedAt: true,
+        },
+      },
+    },
+  });
+
+  if (!message) {
+    throw new AppError("MESSAGE_NOT_FOUND", "메시지를 찾을 수 없어요.", 404);
+  }
+
+  if (message.senderId === userId) {
+    if (message.status !== MessageStatus.CANCELED) {
+      throw new AppError("MESSAGE_NOT_DELETABLE", "취소된 메시지만 보낸 마음에서 삭제할 수 있어요.", 409);
+    }
+
+    if (!message.senderDeletedAt) {
+      await prisma.message.update({
+        where: { id: message.id },
+        data: { senderDeletedAt: new Date() },
+      });
+    }
+
+    return { deleted: true };
+  }
+
+  const recipient = message.recipients.find((item) => item.receiverUserId === userId);
+
+  if (!recipient) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 삭제할 권한이 없어요.", 403);
+  }
+
+  if (!recipient.receiverDeletedAt) {
+    await prisma.messageRecipient.update({
+      where: { id: recipient.id },
+      data: { receiverDeletedAt: new Date() },
+    });
+  }
+
+  return { deleted: true };
+}
+
 async function createModerationLog(messageId: string, moderation: ModerationResult, attemptNo: number, inputHash: string) {
   if (moderation.allowed === true) {
     await prisma.moderationLog.create({
@@ -375,7 +450,25 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
   });
 }
 
-function normalizeReceiver(input: CreateMessageInput, userId: string) {
+async function normalizeReceiver(input: CreateMessageInput, userId: string) {
+  if (input.receiverInfo.type === "FRIEND") {
+    const friendship = await assertActiveFriendship(userId, input.receiverInfo.userId ?? "", input.receiverInfo.friendshipId);
+
+    return {
+      receiverUserId: friendship.friend.id,
+      receiverType: RecipientType.FRIEND,
+      receiverName: friendship.friend.nickname,
+      receiverEmail: undefined,
+      receiverPhone: undefined,
+      receiverInfo: {
+        type: "FRIEND",
+        friendshipId: friendship.friendshipId,
+        userId: friendship.friend.id,
+        name: friendship.friend.nickname,
+      },
+    };
+  }
+
   const receiverType = input.receiverInfo.type === "SELF" ? RecipientType.SELF : RecipientType.OTHER;
   const receiverName = input.receiverInfo.type === "SELF" ? "미래의 나" : input.receiverInfo.name;
 
@@ -383,17 +476,14 @@ function normalizeReceiver(input: CreateMessageInput, userId: string) {
     receiverUserId: input.receiverInfo.type === "SELF" ? userId : undefined,
     receiverType,
     receiverName,
-    receiverEmail: normalizeOptional(input.receiverInfo.email),
-    receiverPhone: normalizeOptional(input.receiverInfo.phone),
+    receiverEmail: normalizeOptionalEmailContact(input.receiverInfo.email) ?? undefined,
+    receiverPhone: normalizeOptionalPhoneContact(input.receiverInfo.phone) ?? undefined,
     receiverInfo: {
       type: input.receiverInfo.type,
       name: receiverName,
-      email: normalizeOptional(input.receiverInfo.email),
-      phone: normalizeOptional(input.receiverInfo.phone),
+      email: normalizeOptionalEmailContact(input.receiverInfo.email) ?? undefined,
+      phone: normalizeOptionalPhoneContact(input.receiverInfo.phone) ?? undefined,
+      preferredChannel: input.receiverInfo.type === "OTHER" ? input.receiverInfo.preferredChannel ?? "AUTO" : undefined,
     },
   };
-}
-
-function normalizeOptional(value?: string) {
-  return value && value.trim().length > 0 ? value.trim() : undefined;
 }

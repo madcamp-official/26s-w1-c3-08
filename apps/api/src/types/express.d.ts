@@ -1,9 +1,9 @@
-import type { User } from "@maeum-arrival/database";
+import type { User } from "@maeari/database";
 
 declare global {
   namespace Express {
     interface Request {
-      user?: Pick<User, "id" | "kakaoId" | "nickname" | "email" | "onboardingNote">;
+      user?: Pick<User, "id" | "kakaoId" | "nickname" | "email" | "friendCode" | "onboardingNote">;
     }
   }
 }

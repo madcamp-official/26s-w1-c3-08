@@ -15,9 +15,10 @@ import {
   fetchKakaoProfile,
 } from "./kakao.service.js";
 import { linkMessageToUser } from "./link-message.service.js";
+import { createUniqueFriendCode } from "../friends/friend-code.js";
 
-const OAUTH_STATE_COOKIE = "maeum_oauth_state";
-const OAUTH_RETURN_ORIGIN_COOKIE = "maeum_oauth_return_origin";
+const OAUTH_STATE_COOKIE = "maeari_oauth_state";
+const OAUTH_RETURN_ORIGIN_COOKIE = "maeari_oauth_return_origin";
 
 export const startKakaoLogin = asyncHandler(async (request: Request, response: Response) => {
   const state = createOAuthState();
@@ -55,6 +56,7 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
 
   const token = await exchangeKakaoCode(code);
   const kakaoProfile = await fetchKakaoProfile(token.access_token);
+  const friendCode = await createUniqueFriendCode();
 
   const user = await prisma.user.upsert({
     where: { kakaoId: kakaoProfile.kakaoId },
@@ -62,6 +64,7 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
       kakaoId: kakaoProfile.kakaoId,
       nickname: kakaoProfile.nickname,
       email: kakaoProfile.email,
+      friendCode,
       profileImageUrl: kakaoProfile.profileImageUrl,
       lastLoginAt: new Date(),
     },
@@ -71,8 +74,15 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
       profileImageUrl: kakaoProfile.profileImageUrl,
       lastLoginAt: new Date(),
     },
-    select: { id: true },
+    select: { id: true, friendCode: true },
   });
+
+  if (!user.friendCode) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { friendCode: await createUniqueFriendCode() },
+    });
+  }
 
   response.clearCookie(OAUTH_STATE_COOKIE, { domain: config.cookieDomain, path: "/" });
   response.clearCookie(OAUTH_RETURN_ORIGIN_COOKIE, { domain: config.cookieDomain, path: "/" });
@@ -109,6 +119,7 @@ export const updateOnboardingNote = asyncHandler(async (request: Request, respon
       kakaoId: true,
       nickname: true,
       email: true,
+      friendCode: true,
       onboardingNote: true,
     },
   });

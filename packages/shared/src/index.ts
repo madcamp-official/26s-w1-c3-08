@@ -8,11 +8,14 @@ export const emotionTagLabels = {
   CUSTOM: "직접 입력",
 } as const;
 
-export type ReceiverType = "SELF" | "OTHER";
+export type ReceiverType = "SELF" | "FRIEND" | "OTHER";
 
 export type ReceiverInfo = {
   type: ReceiverType;
   name?: string;
   email?: string;
   phone?: string;
+  friendshipId?: string;
+  userId?: string;
+  preferredChannel?: "AUTO" | "SMS" | "EMAIL";
 };

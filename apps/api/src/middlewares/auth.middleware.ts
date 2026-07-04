@@ -4,7 +4,7 @@ import { config } from "../config/env.js";
 import { AppError } from "../lib/app-error.js";
 import { prisma } from "../lib/prisma.js";
 
-export const AUTH_COOKIE_NAME = "maeum_session";
+export const AUTH_COOKIE_NAME = "maeari_session";
 
 type SessionPayload = {
   sub: string;
@@ -29,6 +29,7 @@ export async function authMiddleware(request: Request, _response: Response, next
         kakaoId: true,
         nickname: true,
         email: true,
+        friendCode: true,
         onboardingNote: true,
       },
     });

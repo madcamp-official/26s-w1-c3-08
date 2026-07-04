@@ -1,4 +1,4 @@
-import { MessageStatus } from "@maeum-arrival/database";
+import { MessageStatus } from "@maeari/database";
 import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashPublicToken } from "../../lib/tokens.js";
@@ -69,5 +69,7 @@ export async function getPublicMessage(rawToken: string) {
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     linked: Boolean(accessToken.linkedUserId),
+    canSuppressEmailNotification: Boolean(accessToken.recipient.receiverEmail),
+    canSuppressSmsNotification: Boolean(accessToken.recipient.receiverPhone),
   };
 }

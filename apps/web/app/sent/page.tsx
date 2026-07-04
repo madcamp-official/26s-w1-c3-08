@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Link2, RefreshCw, XCircle } from "lucide-react";
+import { Copy, Link2, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -49,6 +49,7 @@ export default function SentPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadMessages(options?: { silent?: boolean }) {
     if (!options?.silent) {
@@ -104,6 +105,24 @@ export default function SentPage() {
       });
     } finally {
       setLinkingId(null);
+    }
+  }
+
+  async function deleteFromMailbox(id: string) {
+    setDeletingId(id);
+    setNotice(null);
+
+    try {
+      await apiFetch(`/messages/${id}`, { method: "DELETE" });
+      setNotice({ title: "보낸 마음에서 삭제했어요.", tone: "success" });
+      await loadMessages();
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof ApiError ? caught.message : "보낸 마음에서 삭제하지 못했어요.",
+        tone: "danger",
+      });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -240,6 +259,17 @@ export default function SentPage() {
                   >
                     <XCircle size={16} />
                     취소
+                  </button>
+                ) : null}
+                {message.status === "CANCELED" ? (
+                  <button
+                    type="button"
+                    onClick={() => void deleteFromMailbox(message.id)}
+                    disabled={deletingId === message.id}
+                    className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                  >
+                    <Trash2 size={16} />
+                    {deletingId === message.id ? "삭제 중" : "삭제"}
                   </button>
                 ) : null}
               </div>

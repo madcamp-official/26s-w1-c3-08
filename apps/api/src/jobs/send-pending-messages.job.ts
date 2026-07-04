@@ -1,4 +1,4 @@
-import { MessageStatus, RecipientDeliveryStatus } from "@maeum-arrival/database";
+import { MessageStatus } from "@maeari/database";
 import { domainEvents, MESSAGE_SENT_EVENT } from "../events/domain-events.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -34,18 +34,6 @@ export async function sendPendingMessages() {
           data: {
             status: MessageStatus.SENT,
             sentAt,
-          },
-        });
-
-        await tx.messageRecipient.updateMany({
-          where: {
-            id: {
-              in: recipientIds,
-            },
-          },
-          data: {
-            deliveryStatus: RecipientDeliveryStatus.SENT,
-            deliveredAt: sentAt,
           },
         });
       });

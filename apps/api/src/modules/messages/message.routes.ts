@@ -5,6 +5,7 @@ import {
   cancelMessageController,
   createMessagePublicLinkController,
   createMessageController,
+  deleteMessageFromMailboxController,
   getMessageDetailController,
   listReceivedMessagesController,
   listSentMessagesController,
@@ -19,3 +20,4 @@ messageRoutes.get("/messages/received", authMiddleware, listReceivedMessagesCont
 messageRoutes.get("/messages/:id", authMiddleware, getMessageDetailController);
 messageRoutes.post("/messages/:id/public-link", authMiddleware, createMessagePublicLinkController);
 messageRoutes.patch("/messages/:id/cancel", authMiddleware, cancelMessageController);
+messageRoutes.delete("/messages/:id", authMiddleware, deleteMessageFromMailboxController);

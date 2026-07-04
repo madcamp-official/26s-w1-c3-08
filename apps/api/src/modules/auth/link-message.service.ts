@@ -1,4 +1,4 @@
-import { MessageStatus } from "@maeum-arrival/database";
+import { MessageStatus } from "@maeari/database";
 import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashPublicToken } from "../../lib/tokens.js";

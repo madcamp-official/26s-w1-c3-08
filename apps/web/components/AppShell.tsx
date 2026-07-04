@@ -1,13 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Edit3, Inbox, Send, UserRound } from "lucide-react";
+import { Edit3, Inbox, Send, UserRound, UsersRound } from "lucide-react";
 
 const navItems = [
   { href: "/write", label: "쓰기", icon: Edit3 },
   { href: "/inbox", label: "받은 마음", icon: Inbox },
   { href: "/sent", label: "보낸 마음", icon: Send },
+  { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
@@ -16,11 +18,18 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     <div className="min-h-screen pb-20 md:pb-0">
       <header className="border-b border-slate-200 bg-white/88 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link href="/write" className="focus-ring flex items-center gap-3 rounded-md">
-            <span className="grid h-9 w-9 place-items-center rounded-md bg-petal text-sm font-bold text-white">
-              마음
+          <Link href="/" className="focus-ring flex items-center gap-3 rounded-md">
+            <span className="relative block h-10 w-10 overflow-hidden rounded-md border border-violet-100 bg-white shadow-sm">
+              <Image
+                src="/images/maeari-mark.png"
+                alt=""
+                fill
+                sizes="40px"
+                className="object-cover"
+                priority
+              />
             </span>
-            <span className="text-lg font-semibold text-ink">마음도착</span>
+            <span className="text-lg font-semibold text-ink">매아리</span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => {
@@ -40,7 +49,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-4 border-t border-slate-200 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t border-slate-200 bg-white md:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (

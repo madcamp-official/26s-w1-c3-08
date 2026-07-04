@@ -1,0 +1,2878 @@
+# 매아리 MVP 개발 계획서
+
+## 0. 문서 목적
+
+이 문서는 예약 메시지 서비스 **매아리**의 MVP를 실제 개발 가능한 단위로 정리한 전체 계획서입니다.
+
+서비스 기획, 기술 스택, 데이터베이스 설계, API 설계, AI 필터링, 스케줄러, 인프라 운영까지 한 번에 연결해 개발 순서와 산출물을 명확히 정의합니다.
+
+> 핵심 문장: **내가 잊고 있었던 글이, 내가 기억하지 못하는 순간에 찾아온다.**
+
+## 0.1 최종 반영 사항
+
+이 최종안에는 기존 MVP 계획에 더해 다음 UX 및 운영 로직을 반영합니다.
+
+- AI Moderation 차단 시 단순 실패가 아닌 카테고리 기반의 부드러운 피드백 제공
+- `getModerationFeedback(categories)` 함수를 통한 사용자 안내 문구 변환
+- 비회원이 공개 링크로 메시지를 열람한 뒤 가입하면 해당 메시지가 자동으로 수신함에 귀속되는 흐름
+- `/api/auth/link-message` API 추가
+- 공개 열람 token을 `sessionStorage`에 보관하고 로그인 완료 후 자동 매핑
+- 스케줄러는 `PENDING`에서 `SENT` 상태 변경만 담당
+- 상태 변경 직후 `EventEmitter`로 `NotificationProcessor`를 분리 실행
+- Nginx `proxy_read_timeout` 60초 이상 설정
+- 로컬/배포 환경을 구분하는 `.env` 관리 가이드 추가
+- OpenAI API 장애/타임아웃으로 AI 검사 자체가 실패하면 즉시 1회 자동 재시도
+- 2회 모두 검사 실패 시 `MODERATION_FAILED` 상태로 저장하고 하루 1회 자동 재검사
+- 일일 재검사에서 통과하면 다시 예약 발송 큐로 복귀
+- 실제 웹서비스 구현 시 mock 파일, dummy 데이터, fake provider를 만들지 않음
+- 외부 연동에 필요한 키, 도메인, redirect URI, secret은 모두 `.env`로 주입하고 사용자가 추후 제공
+- 가입 사용자끼리 친구 요청/수락을 통해 친구 관계를 만들고, 메시지 작성 시 이미 친구인 사용자를 수신자로 선택하는 흐름
+- 친구가 아닌 외부 수신자에게는 이메일 또는 전화번호 중 하나를 필수로 받고, 발송 시간이 되면 Gmail SMTP 또는 Solapi 기반 외부 발송 provider를 통해 이메일 또는 문자로 공개 열람 링크를 전달하는 흐름
+- 도착 시간 입력은 단일 `datetime-local` 입력에서 빠른 프리셋, 날짜 입력, 1분 단위 시간 직접 입력, 15분 단위 quick minute 선택, KST 도착 미리보기를 결합한 UX로 개선
+- 메인 대시보드 `/`를 추가하고 작성/발신함/수신함/친구 관리로 진입하는 첫 화면을 제공
+- 메시지 작성 완료 후 예약 완료 화면, 발신함 이동, 새 마음 쓰기, 메인 이동을 제공
+- OpenAI Moderation API 외에 매아리 서비스 정책 guardrail prompt 기반 2차 판정 추가
+- 한국어 욕설과 비하 표현 일부를 로컬 규칙으로 보강 차단
+- guardrail prompt와 parser의 JSON schema를 `allowed/categories/severity/feedback/rationale` 기준으로 맞추고 legacy `is_harmful` 응답도 normalize하도록 안정화
+- 취소된 보낸 마음과 받은 마음을 각 사용자 보관함에서 제거하는 soft delete UX 추가
+- 브라우저 favicon/app icon, 헤더 로고, 메인/로그인/공개 도착 링크 화면에 봉투 일러스트 적용
+- 운영 도메인 `maeari.madcamp-kaist.org`, Nginx reverse proxy, Certbot HTTPS, PM2 standalone web 운영 상태 반영
+
+---
+
+## 0.2 2026-07-04 구현 반영 내역
+
+이 날짜에 계획 문서의 설계 항목 중 실제 코드와 운영 서버에 반영된 사항은 다음과 같습니다.
+
+### 인증/도메인/운영
+
+- 운영 도메인 `maeari.madcamp-kaist.org`를 EC2 서버 Nginx에 연결했습니다.
+- Certbot으로 HTTPS 인증서를 적용했고, HTTP 요청은 HTTPS로 redirect됩니다.
+- Kakao OAuth redirect URI를 운영 기준 `https://maeari.madcamp-kaist.org/api/auth/kakao/callback`으로 맞추었습니다.
+- `.env.local`의 `WEB_ORIGIN`, `SERVICE_URL`, `KAKAO_REDIRECT_URI`, `NEXT_PUBLIC_SERVICE_URL`, `COOKIE_SECURE` 값을 운영 도메인 기준으로 정리했습니다.
+- API가 env 변경 전 값을 계속 들고 있던 문제를 확인하고 `maeari-api`, `maeari-scheduler`를 재시작해 반영했습니다.
+- Next.js 개발 서버를 public port에 띄웠을 때 CSS/JS 404와 500이 발생한 문제를 production standalone server 실행으로 복구했습니다.
+- `apps/web/package.json`의 build script가 `.next/static`과 `public`을 standalone 경로로 복사하도록 정리했습니다.
+
+### 친구/수신자 식별
+
+- `User.friendCode`, `FriendRequest`, `Friendship` 스키마를 추가했습니다.
+- 친구 코드 생성, 친구 요청 생성/수락/거절/취소, 친구 관계 삭제 API와 화면을 추가했습니다.
+- `/friends` 화면에서 내 친구 코드, 받은 요청, 보낸 요청, 친구 목록을 관리할 수 있게 했습니다.
+- `/write`에서 수신 대상 `친구`를 선택하면 수락된 친구 목록에서 수신자를 고를 수 있게 했습니다.
+- 친구에게 보내는 메시지는 `receiverType = FRIEND`, `receiverUserId = friend.id`, `receiverInfo.friendshipId` snapshot으로 저장합니다.
+- 친구 관계가 없거나 삭제된 경우 친구 수신자로 메시지를 만들 수 없도록 서버에서 검증합니다.
+
+### 외부 수신/알림
+
+- 친구가 아닌 타인 수신자는 이메일 또는 전화번호 중 하나가 필수입니다.
+- `NotificationProvider`, Gmail SMTP provider, Solapi SMS provider, MCP HTTP JSON-RPC fallback adapter를 추가했습니다.
+- `NotificationLog`에 provider, idempotencyKey, attemptCount, nextRetryAt 등을 추가해 중복 발송과 재시도 추적을 지원합니다.
+- provider 미설정 시 발송 성공으로 처리하지 않고 `SKIPPED`/`FAILED`로 기록합니다.
+- retryable 실패는 retry job에서 재시도할 수 있게 분리했습니다.
+- Gmail SMTP/Nodemailer는 EMAIL 채널의 1순위 provider입니다. `GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`를 필수로 검증합니다.
+- Solapi Node SDK는 SMS 채널의 1순위 provider입니다. `SOLAPI_SMS_ENABLED`가 비어 있어도 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`가 모두 있으면 자동 활성화됩니다.
+- 전화번호는 국내 번호 v1 기준으로 숫자만 남기고, `0`으로 시작하는 10~11자리만 허용합니다.
+- `preferredChannel=AUTO`는 이메일이 있으면 EMAIL, 이메일이 없고 전화번호만 있으면 SMS를 선택합니다.
+- `preferredChannel=EMAIL` 또는 `SMS`를 명시한 경우 해당 채널만 시도하고 다른 채널로 임의 우회하지 않습니다.
+- `ContactSuppression`에 `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256 연락처 hash를 저장해 EMAIL/SMS 수신거부를 채널별로 처리합니다.
+- `/api/public/notification-suppressions`와 `/arrival/[token]`의 채널별 버튼으로 이메일 또는 문자 알림 수신거부가 가능합니다.
+- 이메일과 문자 본문에는 사용자가 작성한 편지 본문을 절대 포함하지 않고 공개 열람 링크와 도착 안내만 포함합니다.
+
+### 작성/시간 UX
+
+- `/` 메인 대시보드를 추가했습니다.
+- `/write` 상단에 KST 현재 시각을 초 단위로 표시합니다.
+- 도착 날짜와 시간을 분리하고, 시간은 `type="time"` + `step=60`으로 1분 단위 직접 입력이 가능합니다.
+- 15분 단위 quick minute 버튼을 제공해 `00`, `15`, `30`, `45`분을 빠르게 선택할 수 있습니다.
+- 기존 30분 단위 select는 제거했습니다.
+- 작성 완료 후 입력을 그대로 남겨두는 대신 예약 완료 패널을 보여주고, 예약 상세/발신함/새 마음 쓰기/메인 이동을 제공합니다.
+- 공개 링크는 “수신자가 비회원이거나 알림 provider가 없을 때 도착 후 열람할 수 있는 수동 공유 링크”라는 용도를 화면에 설명했습니다.
+
+### AI 유해성 필터링
+
+- 기존 구현 위치는 `apps/api/src/modules/moderation/moderation.service.ts`입니다.
+- 새 정책 prompt는 `apps/api/src/modules/moderation/moderation-policy.ts`에 추가했습니다.
+- 기존 Moderations API는 유지하되, 통과한 메시지도 매아리 서비스 정책 guardrail prompt로 2차 판정합니다.
+- guardrail prompt는 “수신자에게 직접 전달되는 예약 메시지”라는 서비스 맥락을 설명하고, 욕설/혐오/비하/성적 모욕/사전식 욕설 목록을 차단하도록 지시합니다.
+- guardrail prompt의 응답 schema를 `allowed`, `categories`, `severity`, `feedback`, `rationale`로 통일했습니다.
+- parser는 이전 schema인 `is_harmful`, `confidence_score`, `violation_category`, `reason`도 normalize해 schema 불일치로 인한 `MODERATION_FAILED`를 줄입니다.
+- guardrail Chat Completions 호출에서 불필요한 `temperature` 고정값을 제거해 현재 모델 API와 호환되도록 했습니다.
+- 한국어 욕설과 비하 표현 일부는 `detectKoreanAbuse` 로컬 규칙으로 OpenAI 호출 전 차단합니다.
+- `OPENAI_GUARDRAIL_MODEL` 환경 변수를 추가했고 기본값은 `gpt-5.4-mini`입니다.
+- 스크린샷 사례처럼 욕설/비하 표현 목록이 메시지 본문에 들어간 경우 `allowed:false`로 차단되는 것을 확인했습니다.
+
+### 보관함 삭제 UX
+
+- 예약 취소와 보관함 삭제를 분리했습니다.
+- `Message.senderDeletedAt`을 추가해 발신자가 취소된 보낸 마음을 발신함에서 제거할 수 있게 했습니다.
+- `MessageRecipient.receiverDeletedAt`을 추가해 수신자가 받은 마음을 수신함에서 제거할 수 있게 했습니다.
+- `DELETE /api/messages/:id`는 실제 row를 삭제하지 않고 현재 사용자 관점의 soft delete timestamp만 기록합니다.
+- `/sent`, `/inbox`, `/messages/[id]` 화면에 삭제 가능 조건에 맞는 `삭제` 버튼을 추가했습니다.
+- 삭제된 항목은 목록 조회에서 제외하지만, 발송 이력, 공개 token, notification log는 감사 추적을 위해 보존합니다.
+
+### 브랜드 이미지
+
+- `images/`의 봉투 일러스트를 web asset으로 변환했습니다.
+- `app/icon.png`, `app/apple-icon.png`로 브라우저 탭 지구 아이콘을 서비스 아이콘으로 교체했습니다.
+- `public/images/maeari-mark.png`, `maeari-main-envelope.webp`, `maeari-login-envelope.webp`, `maeari-public-envelope.webp`를 생성했습니다.
+- 헤더 로고, 메인 히어로, 로그인 카드, 공개 도착 링크 화면에 이미지를 적용했습니다.
+
+### 검증
+
+- `pnpm --filter @maeari/api typecheck`
+- `pnpm --filter @maeari/api build`
+- `pnpm --filter @maeari/web typecheck`
+- `pnpm --filter @maeari/web build`
+- `curl -I https://maeari.madcamp-kaist.org/`
+- `curl -I https://maeari.madcamp-kaist.org/api/health`
+- `pm2 list`
+
+---
+
+## 0.3 구현 원칙
+
+실제 서비스 구현 단계에서는 아래 원칙을 적용합니다.
+
+```txt
+1. mock 파일을 만들지 않습니다.
+2. dummy 데이터를 만들지 않습니다.
+3. fake API provider 또는 fake 성공 응답을 만들지 않습니다.
+4. seed 데이터는 MVP 구현 범위에서 제외합니다.
+5. 외부 연동에 필요한 값은 코드에 하드코딩하지 않고 `.env`로만 주입합니다.
+6. `.env.example`에는 실제 값이나 가짜 값을 넣지 않고 필요한 key 목록만 제공합니다.
+7. 필수 환경 변수가 없으면 서버 시작 시 명확한 오류를 발생시킵니다.
+8. 아직 실제 provider 정보가 없는 기능은 성공한 것처럼 처리하지 않고 명확한 설정 누락 오류나 미설정 상태로 표현합니다.
+```
+
+이 원칙은 카카오 OAuth, OpenAI Moderation, PostgreSQL, JWT/Cookie, 배포 도메인, Nginx, Gmail SMTP, Solapi SMS, 향후 알림톡 연동에 모두 적용합니다.
+
+## 1. 서비스 개요
+
+### 1.1 서비스명
+
+**매아리**
+
+뜻: **매 순간 아껴둔 마음의 소리**
+
+### 1.2 서비스 한 줄 설명
+
+매 순간 아껴둔 마음의 소리를 미래의 특정 순간에 도착시키는 감성 중심형 예약 메시지 서비스입니다.
+
+### 1.3 서비스 목표
+
+매아리의 목적은 단순한 메시지 발송이 아닙니다.
+
+사용자가 현재의 마음, 기억, 감정, 응원, 감사, 축하를 미래의 특정 날짜까지 보관하고, 받는 사람이 예상하지 못한 순간에 그 마음을 다시 만날 수 있도록 돕는 것이 핵심입니다.
+
+즉, 매아리는 다음 경험을 제공합니다.
+
+- 지금의 감정을 미래로 보관합니다.
+- 빠른 메신저가 아닌 느린 소통의 가치를 제공합니다.
+- 기다림과 의외성이 주는 설렘을 만듭니다.
+- 따뜻하고 안전한 메시지 문화를 유지합니다.
+- 비회원도 링크를 통해 마음을 받을 수 있게 해 자연스러운 유입을 만듭니다.
+
+### 1.4 MVP 핵심 가치
+
+MVP 단계에서는 아래 문장을 제품 경험의 중심에 둡니다.
+
+> 오늘 쓴 마음이 가장 필요한 날, 생각하지 못한 순간에 도착하는 감성 메시지 보관함.
+
+---
+
+## 2. 제품 철학
+
+## 2.1 감정의 기록과 추억 보관
+
+매아리는 사용자가 작성한 메시지를 즉시 소비하지 않고 미래까지 보관합니다.
+
+이 메시지는 단순 텍스트가 아니라 사용자가 특정 시점에 남긴 감정의 기록입니다. 시간이 흐른 뒤 메시지를 다시 만나는 경험은 과거의 자신, 관계, 기억을 새롭게 바라보게 만듭니다.
+
+## 2.2 느린 소통이 만드는 깊은 연결
+
+기존 메신저는 즉각성과 속도를 중심으로 작동합니다.
+
+반면 매아리는 느리게 도착하는 메시지를 통해 더 오래 남는 소통을 지향합니다.
+
+대상은 다음과 같습니다.
+
+- 미래의 나
+- 가족
+- 연인
+- 친구
+- 고마웠던 사람
+- 응원이 필요한 사람
+
+## 2.3 기다림과 의외성이 주는 설렘
+
+예약 메시지는 기다림을 전제로 합니다.
+
+여기에 다음 옵션을 더해 감성적 경험을 강화합니다.
+
+- 발신인 숨기기
+- 도착일 숨기기
+- 기간 랜덤 발송
+- 도착 전 힌트 알림
+
+MVP에서는 `발신인 숨기기`, `도착일 숨기기`를 우선 구현하고, 기간 랜덤 발송과 힌트 알림은 확장 기능으로 둡니다.
+
+## 2.4 안전한 메시지 문화
+
+서비스의 감성적 방향을 유지하려면 유해 메시지를 그대로 전달하지 않는 구조가 필요합니다.
+
+따라서 메시지 저장 전 AI 기반 moderation을 수행합니다.
+
+차단 대상 예시는 다음과 같습니다.
+
+- 욕설
+- 혐오 표현
+- 위협
+- 괴롭힘
+- 폭력적 표현
+- 자해 유도
+- 성적 착취성 표현
+- 과도하게 공격적이거나 모욕적인 표현
+
+---
+
+## 3. MVP 범위
+
+## 3.1 MVP에서 반드시 구현할 기능
+
+| 영역 | 기능 | 설명 |
+| --- | --- | --- |
+| 인증 | 카카오 소셜 로그인 | 사용자가 별도 회원가입 없이 접근 가능하도록 구현 |
+| 사용자 | User 저장 | 카카오 계정 기반 사용자 생성 및 조회 |
+| 친구 | 친구 추가/수락 | 회원가입 후 친구 코드 또는 초대 링크로 친구 요청을 보내고 수락한 사용자끼리 관계 저장 |
+| 친구 | 친구 수신자 선택 | 메시지 작성 시 이미 친구인 사용자를 검색/선택해 수신자로 지정 |
+| 메시지 작성 | 예약 메시지 생성 | 제목, 본문, 감정 태그, 수신자 정보, 예약일 저장 |
+| 메시지 작성 보조 | KST 현재 시각 표시 | 작성 화면 상단에서 KST 기준 현재 시각을 초 단위로 확인 |
+| 메시지 작성 보조 | 쉬운 도착 시간 선택 | 빠른 프리셋, 날짜 입력, 1분 단위 시간 직접 입력, 15분 단위 quick minute 선택, KST 도착 미리보기 제공 |
+| 수신자 식별 | 타인 연락처 필수 | 타인에게 보내는 경우 이메일 또는 전화번호 중 하나를 필수로 저장 |
+| 외부 발송 | Gmail SMTP / Solapi / MCP fallback 발송 | 친구가 아닌 외부 수신자에게 도착 시점에 공개 링크를 이메일 또는 문자로 발송 |
+| 감성 옵션 | 발신인 숨기기 | 수신자가 발신자를 바로 알 수 없게 처리 |
+| 감성 옵션 | 도착일 숨기기 | 공개 열람 화면에서 정확한 예약일 노출 제어 |
+| AI 필터링 | OpenAI Moderation, 정책 guardrail prompt, 한국어 욕설/비하 표현 보강 | 저장 전 유해성 검사 |
+| AI 재시도 | 검사 실패 복구 | API 장애 시 즉시 1회 재시도, 이후 하루 1회 자동 재검사 |
+| 상태 관리 | PENDING, SENT, FAILED, BLOCKED, MODERATION_FAILED | 예약, 발송 완료, 실패, 유해성 차단, 검사 실패 상태 관리 |
+| 비회원 열람 | 고유 링크 | 수신자가 가입 없이 메시지를 열람할 수 있는 링크 제공 |
+| 가입 유도 | CTA | 비회원 열람 후 회원가입 유도 |
+| 가입 귀속 | 링크 메시지 보관 | 비회원 열람 후 가입하면 해당 메시지를 수신함에 자동 연결 |
+| 스케줄러 | 예약 메시지 처리 | 5분마다 예약 시간이 지난 메시지 조회 |
+| 인프라 | Nginx reverse proxy | HTTPS 요청을 내부 Node.js 서버로 전달 |
+
+## 3.2 MVP에서 제외하거나 후순위로 둘 기능
+
+| 기능 | 후순위 이유 |
+| --- | --- |
+| 카카오 알림톡 실제 발송 | 비즈니스 채널, 템플릿 승인, 발송 계약 필요 |
+| 알림톡 외 채널 고도화 | MVP는 Gmail SMTP 이메일과 Solapi 문자를 우선 구현하고, 카카오 알림톡은 후순위로 둠 |
+| 이미지 첨부 | 파일 스토리지, 이미지 moderation, 용량 정책 필요 |
+| 그룹 전송 | Message와 Recipient 모델 분리 필요 |
+| 익명 답장 | 악용 방지 정책과 신고 기능 필요 |
+| 감정 리포트 | 충분한 데이터 축적 이후 가치가 커짐 |
+| 기간 랜덤 발송 고도화 | 기본 예약 발송 안정화 후 확장 가능 |
+| 관리자 검수 화면 | 초기 100명 이하에서는 로그 기반 대응 가능 |
+
+---
+
+## 4. 기술 스택
+
+## 4.1 기본 요구 스택
+
+| 영역 | 기술 |
+| --- | --- |
+| Frontend | Next.js, TypeScript, Tailwind CSS |
+| Backend | Node.js, Express, TypeScript |
+| Database | PostgreSQL |
+| ORM | Prisma |
+| AI Integration | OpenAI Moderation API, OpenAI Chat Completions 기반 guardrail classifier |
+| Scheduler | node-cron |
+| Server | AWS EC2 Ubuntu 24.04 LTS, t3.medium |
+| Reverse Proxy | Nginx |
+| Process Manager | PM2 |
+
+## 4.2 스택 선택 이유
+
+### Next.js
+
+- 빠른 화면 개발 가능
+- SSR/CSR 선택 가능
+- 추후 SEO가 필요한 공개 메시지 진입 페이지에 대응 가능
+- TypeScript 기반으로 안정적인 개발 가능
+
+### Express
+
+- API 서버 구조가 단순하고 명확함
+- OAuth, 미들웨어, scheduler 분리에 유리함
+- MVP 규모에서 과한 프레임워크를 피할 수 있음
+
+### PostgreSQL
+
+- 관계형 데이터 관리에 적합
+- 예약 메시지, 사용자, 열람 토큰, 상태 관리에 안정적
+- Prisma와 궁합이 좋음
+
+### Prisma
+
+- 타입 안정성 제공
+- 마이그레이션 관리가 편함
+- MVP 이후 모델 확장에 유리함
+
+### OpenAI Moderation API
+
+- 유해성 검사 구현 속도가 빠름
+- 직접 금칙어 사전을 만드는 것보다 유연함
+- 메시지 저장 전 필터링 흐름에 붙이기 쉬움
+
+### OpenAI guardrail classifier
+
+- Moderations API가 서비스 맥락을 모르는 상태로 판단하는 한계를 보완합니다.
+- 매아리가 “수신자에게 직접 도착하는 예약 메시지”라는 점을 system prompt에 설명합니다.
+- 욕설 사전, 비하어 설명, 모욕적 표현 목록처럼 일반 moderation에서 통과할 수 있는 텍스트도 수신자에게 전달되면 차단하도록 정책화합니다.
+- 구조화된 JSON 응답으로 `allowed`, `categories`, `severity`, `feedback`, `rationale`을 받습니다.
+
+### node-cron
+
+- 단일 서버 MVP에 적합
+- 별도 queue 인프라 없이 예약 작업 구현 가능
+- 추후 BullMQ, SQS 등으로 대체 가능
+
+---
+
+## 5. 전체 아키텍처
+
+## 5.1 Monolithic 배포 구조
+
+MVP는 AWS EC2 단일 서버에서 운영합니다.
+
+현재 운영 대상은 Ubuntu 24.04 LTS 기반 EC2 `t3.medium`입니다.
+
+```txt
+User Browser
+  |
+  | HTTPS
+  v
+Nginx :80/:443
+  |
+  | /api/*
+  v
+Express API :4000
+  |
+  | Prisma
+  v
+PostgreSQL
+
+Nginx :80/:443
+  |
+  | /*
+  v
+Next.js Web :3000
+```
+
+## 5.2 런타임 프로세스
+
+운영 서버에서는 PM2로 다음 프로세스를 관리합니다.
+
+```txt
+maeari-web        -> Next.js frontend server
+maeari-api        -> Express API server
+maeari-scheduler  -> 예약 메시지 처리 scheduler
+```
+
+현재 운영 web은 Next.js standalone server이며, `next dev`가 아닙니다. 개발 서버를 운영 포트에 노출하면 `.next` 캐시와 devtools manifest 불일치로 정적 파일 404 또는 500이 발생할 수 있어 production build 산출물만 사용합니다.
+
+## 5.3 요청 흐름
+
+### 로그인 흐름
+
+```txt
+사용자
+  -> /login
+  -> 카카오 로그인 버튼 클릭
+  -> Express /auth/kakao
+  -> Kakao OAuth authorize
+  -> Express /auth/kakao/callback
+  -> User upsert
+  -> session or JWT 발급
+  -> frontend redirect
+```
+
+### 메시지 작성 흐름
+
+```txt
+사용자 메시지 작성
+  -> Frontend validation
+  -> POST /api/messages
+  -> Auth middleware
+  -> Request validation
+  -> 한국어 욕설/비하 표현 로컬 규칙 검사
+  -> OpenAI Moderation 1차 검사
+  -> 매아리 guardrail prompt 2차 검사
+  -> API 실패 시 즉시 재시도
+  -> 통과 시 PENDING 저장
+  -> 공개 열람 token 생성
+  -> 검사 API 2회 실패 시 MODERATION_FAILED 저장
+  -> 유해성 차단 시 저장하지 않고 MESSAGE_BLOCKED_BY_MODERATION 응답
+```
+
+### 예약 발송 흐름
+
+```txt
+node-cron 실행
+  -> 현재 시각 조회
+  -> scheduledAt <= now AND status = PENDING 메시지 조회
+  -> PENDING 메시지를 SENT로 상태 변경
+  -> message.sent event 발행
+  -> NotificationProcessor가 후속 알림 처리
+  -> 상태 변경 실패 시 FAILED
+```
+
+---
+
+## 6. 프로젝트 디렉토리 구조
+
+## 6.1 권장 구조
+
+```txt
+maeari/
+├── apps/
+│   ├── web/
+│   │   ├── app/
+│   │   │   ├── page.tsx
+│   │   │   ├── icon.png
+│   │   │   ├── apple-icon.png
+│   │   │   ├── login/
+│   │   │   ├── onboarding/
+│   │   │   ├── write/
+│   │   │   ├── inbox/
+│   │   │   ├── sent/
+│   │   │   ├── friends/
+│   │   │   ├── arrival/
+│   │   │   │   └── [token]/
+│   │   │   └── my/
+│   │   ├── components/
+│   │   │   └── AppShell.tsx
+│   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   ├── messages/
+│   │   │   └── onboarding/
+│   │   ├── lib/
+│   │   ├── public/
+│   │   │   └── images/
+│   │   ├── styles/
+│   │   ├── next.config.ts
+│   │   ├── tailwind.config.ts
+│   │   └── package.json
+│   │
+│   └── api/
+│       ├── src/
+│       │   ├── app.ts
+│       │   ├── server.ts
+│       │   ├── scheduler.ts
+│       │   ├── config/
+│       │   ├── middlewares/
+│       │   │   ├── auth.middleware.ts
+│       │   │   ├── error.middleware.ts
+│       │   │   └── validate.middleware.ts
+│       │   ├── modules/
+│       │   │   ├── auth/
+│       │   │   │   ├── auth.controller.ts
+│       │   │   │   ├── auth.routes.ts
+│       │   │   │   └── kakao.service.ts
+│       │   │   ├── messages/
+│       │   │   │   ├── message.controller.ts
+│       │   │   │   ├── message.routes.ts
+│       │   │   │   ├── message.service.ts
+│       │   │   │   └── message.validation.ts
+│       │   │   ├── friends/
+│       │   │   │   ├── friend-code.ts
+│       │   │   │   ├── friend.controller.ts
+│       │   │   │   ├── friend.routes.ts
+│       │   │   │   ├── friend.service.ts
+│       │   │   │   └── friend.validation.ts
+│       │   │   ├── moderation/
+│       │   │   │   ├── moderation-feedback.ts
+│       │   │   │   ├── moderation-policy.ts
+│       │   │   │   └── moderation.service.ts
+│       │   │   └── public/
+│       │   │       ├── public-message.controller.ts
+│       │   │       └── public-message.routes.ts
+│       │   ├── jobs/
+│       │   │   ├── retry-failed-moderation.job.ts
+│       │   │   ├── retry-pending-notifications.job.ts
+│       │   │   └── send-pending-messages.job.ts
+│       │   ├── processors/
+│       │   │   ├── notification-provider.ts
+│       │   │   └── notification.processor.ts
+│       │   ├── lib/
+│       │   │   ├── prisma.ts
+│       │   │   └── logger.ts
+│       │   └── types/
+│       ├── tsconfig.json
+│       └── package.json
+│
+├── packages/
+│   ├── database/
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma
+│   │   │   └── migrations/
+│   │   ├── src/
+│   │   │   └── client.ts
+│   │   └── package.json
+│   │
+│   ├── shared/
+│   │   ├── src/
+│   │   │   ├── enums.ts
+│   │   │   ├── types.ts
+│   │   │   └── validation.ts
+│   │   └── package.json
+│   │
+│   └── config/
+│       ├── eslint/
+│       └── tsconfig/
+│
+├── infra/
+│   └── nginx/
+│       └── maeari.conf.template
+│
+├── scripts/
+│   ├── deploy.sh
+│   └── migrate.sh
+│
+├── docker-compose.yml
+├── package.json
+├── pnpm-workspace.yaml
+├── .env.example
+└── README.md
+```
+
+## 6.2 구조 선택 이유
+
+- `apps/web`: 사용자 화면 전용
+- `apps/api`: Express API와 scheduler 엔트리포인트
+- `packages/database`: Prisma schema와 client를 중앙 관리
+- `packages/shared`: frontend/backend 공통 타입 관리
+- `infra/nginx`: 배포 설정 파일을 코드로 관리
+- `scripts`: 서버 배포와 DB 마이그레이션 자동화 준비
+
+---
+
+## 7. 데이터베이스 설계
+
+최종 운영 기준 DB 스키마는 별도 산출물로 분리했습니다.
+
+- 설계 문서: `MAEARI_DB_SCHEMA.md`
+- 실제 Prisma schema: `packages/database/prisma/schema.prisma`
+
+최종안은 기존 단일 `Message.receiverId` 중심 초안보다 확장성을 높이기 위해 `Message`와 `MessageRecipient`를 분리합니다. MVP에서는 메시지 하나에 수신자 하나만 생성하고, 추후 그룹 전송에서는 같은 `Message`에 여러 `MessageRecipient`를 연결합니다.
+
+## 7.1 핵심 엔티티
+
+실제 기준은 `packages/database/prisma/schema.prisma`입니다. 현재 MVP schema의 핵심 모델은 다음과 같습니다.
+
+| 모델 | 책임 |
+| --- | --- |
+| `User` | 카카오 로그인 사용자, 친구 코드, 온보딩 정보 |
+| `FriendRequest` | 친구 코드 기반 요청, 수락/거절/취소/만료 상태 |
+| `Friendship` | 수락된 친구 관계, 정렬된 user pair unique |
+| `Message` | 제목, 본문, 감정 태그, 예약 시간, 숨김 옵션, moderation 상태, 발신함 삭제 timestamp |
+| `MessageRecipient` | 수신자별 snapshot, `SELF`/`FRIEND`/`OTHER`, 발송 상태, 가입자 귀속, 수신함 삭제 timestamp |
+| `MessageAccessToken` | 공개 링크 token hash, 열람 횟수, 가입 후 귀속 정보 |
+| `ModerationLog` | OpenAI Moderation 및 guardrail 검사 이력 |
+| `NotificationLog` | IN_APP/Gmail SMTP/Solapi/MCP fallback 발송 이력, retry, idempotency |
+| `ContactSuppression` | EMAIL/SMS 수신거부 연락처 HMAC hash |
+
+## 7.2 현재 Prisma schema 기준 요약
+
+```txt
+User
+  -> Message(sender)
+  -> MessageRecipient(receiverUser)
+  -> FriendRequest(requester/addressee)
+  -> Friendship(userA/userB)
+
+Message
+  -> MessageRecipient[]
+  -> ModerationLog[]
+  -> senderDeletedAt으로 발신자 보관함 soft delete
+
+MessageRecipient
+  -> MessageAccessToken[]
+  -> NotificationLog[]
+  -> receiverDeletedAt으로 수신자 보관함 soft delete
+
+MessageAccessToken
+  -> tokenHash만 저장하고 raw token은 URL에만 노출
+
+NotificationLog
+  -> channel, provider, idempotencyKey, attemptCount, nextRetryAt, providerMessageId
+
+ContactSuppression
+  -> unique(channel, contactHash)
+```
+
+### Moderation 관련 필드 의미
+
+`BLOCKED`와 `MODERATION_FAILED`는 서로 다른 상태입니다.
+
+```txt
+BLOCKED
+  -> OpenAI Moderation API가 정상 응답했고 flagged=true로 판단한 상태
+  -> 사용자에게 표현 수정 안내
+  -> 발송하지 않음
+
+MODERATION_FAILED
+  -> OpenAI API 장애, timeout, 네트워크 오류 등으로 검사 자체가 완료되지 못한 상태
+  -> 즉시 2회 시도 후에도 실패했을 때 저장
+  -> 공개 링크를 발급하지 않음
+  -> 하루 한 번 자동 재검사
+  -> 재검사 통과 시 PENDING으로 복귀
+```
+
+검사 실패 상태의 메시지는 미검증 콘텐츠이므로 수신자에게 공개하지 않습니다. 따라서 `MessageAccessToken`은 moderation 통과 후 `PENDING`으로 전환될 때 생성하는 것을 원칙으로 합니다.
+
+보관함 삭제는 실제 row 삭제가 아니라 사용자별 soft delete입니다. 발신함에서는 `Message.senderDeletedAt`, 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 목록에서 제외합니다. 이 방식은 공개 링크 token, notification log, moderation log, 발송 감사 추적을 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
+
+## 7.3 receiverInfo JSON 예시
+
+MVP에서는 메시지와 수신자를 분리해 `MessageRecipient`를 생성합니다. `receiverInfo`는 작성 시점 입력값의 snapshot이며, 가입자 귀속은 `MessageRecipient.receiverUserId`로 관리합니다.
+
+```json
+{
+  "type": "SELF",
+  "name": "미래의 나",
+  "email": "<self-email>",
+  "phone": null
+}
+```
+
+타인에게 보내는 경우:
+
+```json
+{
+  "type": "OTHER",
+  "name": "<receiver-name>",
+  "email": "<receiver-email>",
+  "phone": "<receiver-phone>",
+  "preferredChannel": "AUTO"
+}
+```
+
+친구에게 보내는 경우:
+
+```json
+{
+  "type": "FRIEND",
+  "friendshipId": "uuid",
+  "userId": "uuid"
+}
+```
+
+가입 후 메시지가 수신함에 귀속되면 DB는 다음처럼 해석됩니다.
+
+```txt
+MessageRecipient.receiverInfo    -> 최초 작성자가 입력한 수신자 정보 snapshot
+MessageRecipient.receiverUserId  -> 실제 가입한 User.id
+MessageAccessToken               -> 어떤 token이 어떤 User에게 귀속되었는지 기록
+```
+
+## 7.4 추후 확장 시 추가할 모델
+
+그룹 전송과 가입자 수신함을 위한 핵심 분리는 이미 반영되어 있습니다. 이후에는 다음 모델을 추가할 수 있습니다.
+
+- Reply
+- Attachment
+- NotificationPreference
+- AbuseReport
+- ModerationLog
+- EmotionReport
+
+## 7.5 친구 및 외부 수신 확장 스키마
+
+친구에게 보내는 메시지와 외부 연락처로 보내는 메시지는 수신자 식별 방식이 다릅니다. 따라서 `MessageRecipient`를 계속 중심 모델로 사용하되, `RecipientType`을 `SELF`, `FRIEND`, `OTHER`로 확장합니다.
+
+### User 확장
+
+```prisma
+model User {
+  id         String  @id @default(uuid()) @db.Uuid
+  kakaoId    String  @unique @db.VarChar(64)
+  nickname   String  @db.VarChar(80)
+  email      String? @db.VarChar(255)
+  friendCode String  @unique @db.VarChar(20)
+
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestRequester")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestAddressee")
+  friendshipsAsA         Friendship[]    @relation("FriendshipUserA")
+  friendshipsAsB         Friendship[]    @relation("FriendshipUserB")
+}
+```
+
+`friendCode`는 가입 직후 서버가 생성합니다. 사용자는 이 코드를 복사하거나 초대 링크로 공유하고, 다른 사용자는 코드를 입력해 친구 요청을 보냅니다. 닉네임 전체 검색은 동명이인과 개인정보 노출 위험이 있으므로 MVP에서는 제공하지 않습니다.
+
+### 친구 요청과 친구 관계
+
+```prisma
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+  EXPIRED
+}
+
+model FriendRequest {
+  id          String              @id @default(uuid()) @db.Uuid
+  requesterId String             @db.Uuid
+  addresseeId String             @db.Uuid
+  status      FriendRequestStatus @default(PENDING)
+  message     String?             @db.VarChar(120)
+  expiresAt   DateTime            @db.Timestamptz(3)
+  respondedAt DateTime?           @db.Timestamptz(3)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
+
+  requester User @relation("FriendRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendRequestAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
+  @@index([expiresAt])
+}
+
+model Friendship {
+  id          String    @id @default(uuid()) @db.Uuid
+  userAId     String    @db.Uuid
+  userBId     String    @db.Uuid
+  createdById String    @db.Uuid
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId, deletedAt])
+  @@index([userBId, deletedAt])
+}
+```
+
+`Friendship.userAId`, `userBId`는 항상 UUID 문자열 오름차순으로 저장합니다. 이렇게 하면 A->B, B->A가 중복 생성되지 않습니다. 친구 삭제는 `deletedAt` soft delete로 처리해 과거 메시지의 수신자 snapshot과 감사 로그를 보존합니다.
+
+### MessageRecipient 확장
+
+```prisma
+enum RecipientType {
+  SELF
+  FRIEND
+  OTHER
+}
+
+model MessageRecipient {
+  id             String        @id @default(uuid()) @db.Uuid
+  messageId      String        @db.Uuid
+  receiverUserId String?       @db.Uuid
+  receiverType   RecipientType
+  receiverName   String?       @db.VarChar(80)
+  receiverEmail  String?       @db.VarChar(255)
+  receiverPhone  String?       @db.VarChar(32)
+  receiverInfo   Json?
+}
+```
+
+친구 수신자는 `receiverType = FRIEND`, `receiverUserId = 친구 User.id`로 저장합니다. `receiverInfo`에는 작성 시점의 친구 닉네임과 `friendshipId` snapshot을 저장합니다. 친구 삭제 후에도 이미 예약된 메시지는 기존 수신자에게 도착하되, 발신자가 발송 전 취소할 수 있습니다.
+
+외부 수신자는 `receiverType = OTHER`로 저장하고, `receiverEmail` 또는 `receiverPhone` 중 하나가 반드시 있어야 합니다. 둘 다 있고 `preferredChannel = AUTO`인 경우 MVP 기본 발송 우선순위는 `EMAIL -> SMS`입니다. 사용자가 SMS를 명시 선택한 경우 SMS만 시도하며 EMAIL fallback은 하지 않습니다.
+
+### NotificationLog 확장
+
+Gmail SMTP, Solapi SMS, MCP fallback을 포함한 외부 알림의 재시도와 idempotency를 위해 `NotificationLog`에 다음 필드를 추가합니다.
+
+```prisma
+model NotificationLog {
+  id                 String  @id @default(uuid()) @db.Uuid
+  messageRecipientId String  @db.Uuid
+  channel            NotificationChannel
+  status             NotificationStatus
+  provider           String? @db.VarChar(80)
+  idempotencyKey     String  @unique @db.VarChar(160)
+  attemptCount       Int     @default(0)
+  nextRetryAt        DateTime? @db.Timestamptz(3)
+  providerMessageId  String? @db.VarChar(160)
+  payload            Json?
+  errorCode          String? @db.VarChar(120)
+  errorMessage       String? @db.Text
+}
+```
+
+`idempotencyKey`는 `messageRecipientId:eventType:channel` 형식으로 생성합니다. 같은 수신자에게 같은 도착 알림이 중복 발송되지 않도록 provider 호출 전 `NotificationLog`를 먼저 생성하고, 이미 같은 key가 있으면 기존 로그를 재사용합니다.
+
+## 7.6 친구/외부 수신 오류 및 실패 관리
+
+친구 기능 오류 코드는 다음 기준으로 통일합니다.
+
+| 코드 | HTTP | 상황 |
+| --- | --- | --- |
+| `FRIEND_CODE_NOT_FOUND` | 404 | 입력한 친구 코드에 해당하는 사용자가 없음 |
+| `FRIEND_SELF_NOT_ALLOWED` | 400 | 자기 자신에게 친구 요청 |
+| `FRIEND_REQUEST_ALREADY_PENDING` | 409 | 같은 대상에게 대기 중인 요청이 이미 있음 |
+| `FRIENDSHIP_ALREADY_EXISTS` | 409 | 이미 친구 관계가 있음 |
+| `FRIEND_REQUEST_NOT_FOUND` | 404 | 처리할 친구 요청을 찾을 수 없음 |
+| `FRIEND_REQUEST_FORBIDDEN` | 403 | 요청 수신자가 아닌 사용자가 수락/거절 시도 |
+| `FRIEND_REQUEST_EXPIRED` | 410 | 요청 유효 기간 만료 |
+| `FRIENDSHIP_NOT_FOUND` | 404 | 친구 삭제 또는 친구 수신자 선택 시 관계 없음 |
+
+외부 발송 실패 코드는 다음 기준으로 기록합니다.
+
+| 코드 | 재시도 | 처리 |
+| --- | --- | --- |
+| `NOTIFICATION_PROVIDER_NOT_CONFIGURED` | 아니오 | `SKIPPED`, 수신자 `FAILED` |
+| `CONTACT_SUPPRESSED` | 아니오 | `SKIPPED`, 수신자 `FAILED` |
+| `SMTP_AUTH_FAILED` | 아니오 | `FAILED`, Gmail 계정/앱 비밀번호 확인 |
+| `SMTP_RATE_LIMITED` | 예 | 지수 backoff 후 재시도 |
+| `SMTP_TEMPORARY_FAILURE` | 예 | 지수 backoff 후 재시도 |
+| `SMTP_SEND_FAILED` | 아니오 | provider 거절 사유 저장 |
+| `SOLAPI_AUTH_FAILED` | 아니오 | `FAILED`, Solapi API key/secret 확인 |
+| `SOLAPI_INSUFFICIENT_BALANCE` | 아니오 | `FAILED`, 잔액 충전 필요 |
+| `SOLAPI_INVALID_SENDER` | 아니오 | `FAILED`, 발신번호 등록/형식 확인 |
+| `SOLAPI_INVALID_RECEIVER` | 아니오 | `FAILED`, 수신번호 형식 확인 |
+| `SOLAPI_RATE_LIMITED` | 예 | 지수 backoff 후 재시도 |
+| `SOLAPI_NETWORK_ERROR` | 예 | 지수 backoff 후 재시도 |
+| `SOLAPI_SERVER_ERROR` | 예 | 지수 backoff 후 재시도 |
+| `MCP_TOOL_UNAVAILABLE` | 예 | `PENDING`, `nextRetryAt` 설정 |
+| `MCP_PROVIDER_AUTH_FAILED` | 아니오 | `FAILED`, 운영 설정 확인 필요 |
+| `MCP_PROVIDER_RATE_LIMITED` | 예 | 지수 backoff 후 재시도 |
+| `MCP_PROVIDER_TIMEOUT` | 예 | 지수 backoff 후 재시도 |
+| `MCP_PROVIDER_REJECTED` | 아니오 | provider 거절 사유 저장 |
+| `INVALID_RECEIVER_CONTACT` | 아니오 | 입력값 검증 실패, 메시지 생성 차단 |
+| `DELIVERY_RETRY_EXHAUSTED` | 아니오 | 최종 실패 처리 |
+
+---
+
+## 8. 인증 설계
+
+## 8.1 카카오 OAuth 흐름
+
+```txt
+1. 사용자가 프론트엔드에서 카카오 로그인 버튼 클릭
+2. 브라우저가 /api/auth/kakao 로 이동
+3. API 서버가 Kakao OAuth authorize URL로 redirect
+4. 사용자가 카카오 인증 완료
+5. Kakao가 /api/auth/kakao/callback?code=... 로 redirect
+6. API 서버가 code로 access token 요청
+7. access token으로 사용자 정보 조회
+8. kakaoId 기준 User upsert
+9. 자체 session cookie 또는 JWT 발급
+10. 프론트엔드 메인 화면으로 redirect
+11. 프론트엔드 인증 완료 페이지에서 sessionStorage의 pending arrival token 확인
+12. token이 있으면 POST /api/auth/link-message 호출
+13. 성공 시 해당 메시지를 로그인한 사용자의 수신함에 자동 귀속
+```
+
+주의할 점은 `sessionStorage`는 브라우저에서만 접근 가능하다는 것입니다.
+
+따라서 Express의 `/api/auth/kakao/callback`은 로그인 처리 후 프론트엔드의 `/auth/callback` 또는 `/auth/complete`로 redirect하고, 해당 프론트엔드 페이지가 `sessionStorage`를 읽어 `/api/auth/link-message`를 호출합니다.
+
+## 8.2 인증 방식
+
+MVP에서는 두 가지 선택지가 있습니다.
+
+### 선택지 A: HttpOnly Secure Cookie 기반 session
+
+장점:
+
+- 브라우저 환경에서 보안성이 좋음
+- token을 localStorage에 저장하지 않음
+- SSR과 궁합이 좋음
+
+단점:
+
+- session store 설계 필요
+
+### 선택지 B: JWT Access Token
+
+장점:
+
+- 구현이 단순함
+- API 테스트가 쉬움
+
+단점:
+
+- localStorage 저장 시 XSS 위험
+- refresh token 정책이 필요함
+
+### MVP 권장안
+
+초기에는 **HttpOnly Secure Cookie + signed JWT** 방식을 권장합니다.
+
+서버는 JWT를 쿠키에 담아 내려주고, 프론트엔드는 직접 토큰을 다루지 않습니다.
+
+---
+
+## 9. API 설계
+
+## 9.1 Auth API
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| GET | `/api/auth/kakao` | 불필요 | 카카오 OAuth 로그인 시작 |
+| GET | `/api/auth/kakao/callback` | 불필요 | 카카오 OAuth callback 처리 |
+| POST | `/api/auth/link-message` | 필요 | 공개 링크로 열람한 메시지를 로그인 사용자 수신함에 귀속 |
+| POST | `/api/auth/logout` | 필요 | 로그아웃 |
+| GET | `/api/me` | 필요 | 현재 로그인 사용자 조회 |
+
+## 9.2 Message API
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| POST | `/api/messages` | 필요 | 메시지 작성 및 예약 |
+| GET | `/api/messages/sent` | 필요 | 내가 보낸 메시지 목록 |
+| GET | `/api/messages/received` | 필요 | 내가 받은 메시지 목록 |
+| GET | `/api/messages/:id` | 필요 | 메시지 상세 조회 |
+| PATCH | `/api/messages/:id/cancel` | 필요 | 예약 메시지 취소 |
+| DELETE | `/api/messages/:id` | 필요 | 취소된 보낸 마음 또는 받은 마음을 내 보관함에서 제거 |
+
+## 9.3 Public API
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| GET | `/api/public/messages/:token` | 불필요 | 비회원 링크로 메시지 조회 |
+
+## 9.3.1 Friend API
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| GET | `/api/friends` | 필요 | 내 친구 목록 조회 |
+| GET | `/api/friends/requests` | 필요 | 받은/보낸 친구 요청 목록 조회 |
+| POST | `/api/friends/requests` | 필요 | 친구 코드로 친구 요청 생성 |
+| PATCH | `/api/friends/requests/:id/accept` | 필요 | 받은 친구 요청 수락 및 Friendship 생성 |
+| PATCH | `/api/friends/requests/:id/reject` | 필요 | 받은 친구 요청 거절 |
+| PATCH | `/api/friends/requests/:id/cancel` | 필요 | 내가 보낸 대기 요청 취소 |
+| DELETE | `/api/friends/:friendshipId` | 필요 | 친구 관계 soft delete |
+
+친구 요청 생성 request:
+
+```json
+{
+  "friendCode": "ABCD-1234",
+  "message": "나야, 친구 추가해줘"
+}
+```
+
+친구 목록 response:
+
+```json
+{
+  "friends": [
+    {
+      "friendshipId": "uuid",
+      "userId": "uuid",
+      "nickname": "김윤서",
+      "profileImageUrl": null,
+      "createdAt": "2026-07-04T01:00:00.000Z"
+    }
+  ]
+}
+```
+
+## 9.3.2 Notification Provider API
+
+외부 발송은 공개 HTTP API로 직접 노출하지 않고 `NotificationProcessor` 내부에서 실행합니다. `ExternalNotificationProvider` dispatcher는 Gmail SMTP, Solapi SMS, MCP fallback provider를 같은 내부 인터페이스로 다룹니다.
+
+```ts
+type SendNotificationInput = {
+  channel: "SMS" | "EMAIL";
+  to: string;
+  receiverName: string | null;
+  publicUrl: string;
+  subject?: string;
+  text: string;
+  html?: string;
+  idempotencyKey: string;
+};
+
+type SendNotificationResult = {
+  status: "SENT" | "RETRYABLE_FAILED" | "FAILED";
+  provider: string;
+  providerMessageId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+};
+```
+
+EMAIL 채널은 Gmail SMTP provider를 우선 사용하고, Gmail SMTP가 꺼져 있으면 MCP email tool을 fallback으로 사용합니다. SMS 채널은 Solapi provider를 우선 사용하고, Solapi가 꺼져 있으면 MCP SMS tool을 fallback으로 사용합니다. 해당 채널에 사용할 provider가 하나도 없으면 성공 처리하지 않고 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`, `errorCode = NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
+
+## 9.4 Auth Link Message API
+
+비회원이 `/arrival/[token]`으로 메시지를 열람한 뒤 카카오 로그인을 완료하면, 프론트엔드가 이 API를 호출해 메시지를 로그인한 사용자의 수신함에 귀속합니다.
+
+### Request
+
+```json
+{
+  "token": "public-access-token"
+}
+```
+
+### 처리 규칙
+
+- 인증된 사용자만 호출할 수 있습니다.
+- route token을 `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256으로 처리한 `MessageAccessToken.tokenHash`가 존재해야 합니다.
+- token이 만료되지 않아야 합니다.
+- token이 폐기되지 않아야 합니다.
+- 연결된 메시지가 `SENT` 상태여야 합니다.
+- 이미 다른 사용자에게 귀속된 token이면 `409 Conflict`를 반환합니다.
+- 정상 처리 시 `MessageRecipient.receiverUserId`를 로그인한 `User.id`로 업데이트합니다.
+- `MessageAccessToken.linkedUserId`, `linkedAt`을 기록합니다.
+- 같은 사용자가 같은 token으로 재호출하면 idempotent하게 성공 응답을 반환합니다.
+
+### Response
+
+```json
+{
+  "messageId": "uuid",
+  "linked": true,
+  "redirectTo": "/inbox"
+}
+```
+
+### Error Response 예시
+
+```json
+{
+  "error": {
+    "code": "MESSAGE_TOKEN_ALREADY_LINKED",
+    "message": "이미 다른 계정에 보관된 마음이에요."
+  }
+}
+```
+
+### link-message service 현재 구현 요약
+
+현재 구현 파일은 `apps/api/src/modules/auth/link-message.service.ts`입니다.
+
+```txt
+1. token 필수 검증
+2. hashPublicToken(token)으로 tokenHash 생성
+3. MessageAccessToken.tokenHash 조회
+4. revokedAt, expiresAt, message.status=SENT 검증
+5. 이미 다른 사용자에게 linkedUserId가 있으면 409
+6. 같은 사용자가 재호출하면 idempotent success
+7. transaction으로 MessageRecipient.receiverUserId 업데이트
+8. MessageAccessToken.linkedUserId, linkedAt 업데이트
+9. /inbox redirect 정보 반환
+```
+
+## 9.5 메시지 작성 Request 예시
+
+친구에게 보내는 경우:
+
+```json
+{
+  "receiverInfo": {
+    "type": "FRIEND",
+    "friendshipId": "uuid",
+    "userId": "uuid"
+  },
+  "title": "언젠가 너에게 도착할 말",
+  "content": "오늘의 고마움을 미래의 너에게 남겨두고 싶어.",
+  "emotionTag": "THANKS",
+  "scheduledAt": "2026-12-25T09:00:00.000Z",
+  "isSenderHidden": false,
+  "isDateHidden": true
+}
+```
+
+친구가 아닌 외부 수신자에게 보내는 경우:
+
+```json
+{
+  "receiverInfo": {
+    "type": "OTHER",
+    "name": "<receiver-name>",
+    "email": "<receiver-email>",
+    "phone": null,
+    "preferredChannel": "AUTO"
+  },
+  "title": "언젠가 너에게 도착할 말",
+  "content": "오늘의 고마움을 미래의 너에게 남겨두고 싶어.",
+  "emotionTag": "THANKS",
+  "scheduledAt": "2026-12-25T09:00:00.000Z",
+  "isSenderHidden": false,
+  "isDateHidden": true
+}
+```
+
+`receiverInfo.type = OTHER`이면 `email` 또는 `phone` 중 하나가 반드시 필요합니다. `preferredChannel = AUTO`일 때는 이메일이 있으면 EMAIL, 이메일이 없고 전화번호만 있으면 SMS를 선택합니다.
+
+## 9.6 메시지 작성 Response 예시
+
+```json
+{
+  "message": {
+    "id": "uuid",
+    "title": "언젠가 너에게 도착할 말",
+    "status": "PENDING",
+    "scheduledAt": "2026-12-25T09:00:00.000Z",
+    "isSenderHidden": false,
+    "isDateHidden": true
+  },
+  "publicUrl": "https://${SERVICE_DOMAIN}/arrival/<public-token>"
+}
+```
+
+위 응답은 AI 검사를 통과한 경우입니다. OpenAI API 장애로 2회 모두 검사에 실패하면 메시지는 `MODERATION_FAILED`로 임시 저장되고 `publicUrl`은 `null`로 반환합니다.
+
+---
+
+## 10. AI 유해성 필터링 설계
+
+## 10.1 목적
+
+매아리는 따뜻한 메시지 경험을 핵심 가치로 삼습니다.
+
+따라서 메시지가 DB에 저장되기 전 OpenAI Moderation API를 호출하여 유해성을 검사합니다.
+
+## 10.2 검사 대상
+
+아래 필드를 하나의 moderation input으로 묶어 검사합니다.
+
+- title
+- content
+- emotionTag
+
+수신자 이름이나 연락처는 개인정보가 포함될 수 있으므로 moderation 대상에 넣지 않는 것을 권장합니다.
+
+현재 구현에서는 `buildModerationInputText`가 다음처럼 라벨을 붙여 OpenAI Moderations API에 넘깁니다.
+
+```txt
+제목: <title>
+
+감정 태그: <emotionTag 또는 없음>
+
+본문:
+<content>
+```
+
+라벨을 붙이는 이유는 모델이 제목, 감정 태그, 본문을 구분해 더 안정적으로 판단하도록 돕기 위해서입니다.
+
+## 10.3 차단 기준
+
+현재 구현은 단일 OpenAI Moderation 결과만으로 결정하지 않고 다음 순서로 검사합니다.
+
+```txt
+1. 로컬 한국어 욕설/비하 표현 보강 검사
+2. OpenAI Moderations API 검사
+3. 매아리 서비스 정책 guardrail prompt 기반 2차 검사
+```
+
+OpenAI Moderation 결과에서 `flagged = true`인 경우 저장하지 않습니다. `flagged = false`이더라도 guardrail prompt가 `allowed = false`를 반환하면 저장하지 않습니다.
+
+운영 정책상 특히 강하게 차단해야 하는 범위는 다음과 같습니다.
+
+예시:
+
+- hate
+- hate/threatening
+- harassment
+- harassment/threatening
+- self-harm
+- self-harm/intent
+- self-harm/instructions
+- sexual/minors
+- violence
+- violence/graphic
+- profanity
+- degrading name-calling
+- body-shaming
+- disability/intelligence insults
+- sexual insults
+- slur dictionaries or copied abusive-term lists
+
+### 10.3.1 매아리 guardrail prompt
+
+OpenAI Moderations API는 범용 safety classifier이므로, “예약 메시지가 실제 수신자에게 직접 도착한다”는 제품 맥락을 알지 못합니다. 따라서 다음 파일에 서비스 전용 prompt를 둡니다.
+
+```txt
+apps/api/src/modules/moderation/moderation-policy.ts
+```
+
+guardrail prompt의 핵심 정책:
+
+- 매아리는 한국어 중심의 private scheduled message service입니다.
+- 판단 대상은 작성자의 의도 추정이 아니라 수신자에게 전달될 메시지 자체입니다.
+- 욕설, 성적 모욕, 비하적 별명, 혐오/괴롭힘, 신체/지능/장애/사회적 지위 비하를 차단합니다.
+- 욕설 사전, 비하어 목록, 모욕적 단어의 설명도 메시지 본문으로 전달되면 차단합니다.
+- 안전하지 않은 단어가 교육/설명 목적으로 보이더라도, 매아리에서는 수신자에게 그대로 전달되므로 차단하는 쪽으로 판단합니다.
+- 결과는 strict JSON으로 받습니다.
+
+응답 schema:
+
+```json
+{
+  "allowed": false,
+  "categories": ["harassment", "degrading-name-calling"],
+  "severity": "medium",
+  "feedback": "받는 사람이 편안하게 읽을 수 있도록 표현을 조금 더 부드럽게 다듬어 주세요.",
+  "rationale": "The message contains a list of insulting and degrading expressions."
+}
+```
+
+이 prompt는 AI의 “판단력”에만 의존하지 않고, 매아리의 제품 정책을 명시적으로 전달하기 위한 장치입니다.
+
+현재 parser는 위 schema를 1차 기준으로 사용합니다. 또한 배포 중 남아 있을 수 있는 legacy prompt 응답인 `is_harmful`, `confidence_score`, `violation_category`, `reason` 형식도 normalize해, schema mismatch 자체가 메시지 전달 실패로 이어지지 않도록 처리합니다.
+
+### 10.3.2 로컬 한국어 보강 규칙
+
+스크린샷 사례처럼 명백한 한국어 욕설/비하 표현이 포함된 경우에는 OpenAI 호출 전 로컬 규칙으로도 차단합니다.
+
+현재 보강 대상 예시:
+
+- 일반 욕설: `씨발`, `시발`, `병신`, `좆`, `지랄`, `개새끼` 등
+- 비하 표현: `땅딸보`, `똥개`, `똥꼬충`, `딸피` 등
+- 성적 모욕 또는 비하 맥락 표현: `딸딸이`, `마스터베이션 아미` 등
+- 띄어쓰기, 일부 변형, 영문 표기를 정규화한 뒤 검사
+
+이 목록은 완전한 금칙어 사전이 아니라, 실제 통과 사례를 바탕으로 추가되는 최소 안전망입니다. 넓은 문맥 판단은 guardrail prompt가 담당합니다.
+
+## 10.4 차단 UX 피드백 정책
+
+Moderation 결과가 `flagged = true`인 경우 사용자에게 내부 카테고리명을 그대로 노출하지 않습니다.
+
+대신 `categories` 결과를 해석해 모호하지만 충분히 행동 가능한 안내 문구로 변환합니다. 목표는 사용자가 왜 막혔는지 대략 이해하고, 더 안전하고 따뜻한 표현으로 다시 작성할 수 있게 돕는 것입니다.
+
+### getModerationFeedback 함수 초안
+
+```ts
+type ModerationCategories = Record<string, boolean>;
+
+export function getModerationFeedback(categories: ModerationCategories): string {
+  const hasAny = (...keys: string[]) => keys.some((key) => categories[key]);
+
+  if (hasAny("hate", "hate/threatening", "harassment", "harassment/threatening")) {
+    return "상대방에게 상처를 줄 수 있는 표현이 포함되어 있어요. 조금 더 부드러운 말로 바꿔볼까요?";
+  }
+
+  if (hasAny("self-harm", "self-harm/intent", "self-harm/instructions", "violence", "violence/graphic")) {
+    return "더 따뜻하고 안전한 표현으로 다듬어보는 건 어떨까요?";
+  }
+
+  if (hasAny("sexual", "sexual/minors")) {
+    return "받는 사람이 편안하게 읽을 수 있도록 표현을 조금 더 조심스럽게 다듬어 주세요.";
+  }
+
+  return "이 메시지는 그대로 전달하기 어려운 표현을 포함하고 있어요. 조금 더 따뜻한 말로 다시 적어볼까요?";
+}
+```
+
+### Moderation service 응답 형태
+
+```ts
+type ModerationResult =
+  | {
+      allowed: true;
+    }
+  | {
+      allowed: false;
+      feedback: string;
+      blockedCategories: string[];
+    }
+  | {
+      allowed: "unavailable";
+      retryAfter: Date;
+      reason: string;
+    };
+```
+
+`blockedCategories`는 서버 로그와 운영 진단용으로만 사용하고, 프론트엔드에는 `feedback`만 노출합니다.
+
+### Moderation service 초안
+
+```ts
+import OpenAI from "openai";
+import { config } from "../../config";
+import { getModerationFeedback } from "./moderation-feedback";
+
+const openai = new OpenAI({
+  apiKey: config.openaiApiKey,
+});
+
+export async function moderateMessage(input: {
+  title: string;
+  content: string;
+  emotionTag?: string | null;
+}): Promise<ModerationResult> {
+  const text = [input.title, input.content, input.emotionTag]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const response = await openai.moderations.create({
+    model: config.openaiModerationModel,
+    input: text,
+  });
+
+  const result = response.results[0];
+
+  if (!result?.flagged) {
+    return { allowed: true };
+  }
+
+  const categories = result.categories as unknown as Record<string, boolean>;
+  const blockedCategories = Object.entries(categories)
+    .filter(([, blocked]) => blocked)
+    .map(([category]) => category);
+
+  return {
+    allowed: false,
+    feedback: getModerationFeedback(categories),
+    blockedCategories,
+  };
+}
+```
+
+### 즉시 재시도 wrapper 초안
+
+OpenAI API 장애, timeout, 네트워크 오류처럼 검사 자체가 실패한 경우에는 즉시 한 번 더 시도합니다. `flagged=true`는 검사 성공 결과이므로 재시도 대상이 아닙니다.
+
+```ts
+const MODERATION_MAX_ATTEMPTS = 2;
+
+export async function moderateMessageWithRetry(input: {
+  title: string;
+  content: string;
+  emotionTag?: string | null;
+}): Promise<ModerationResult> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MODERATION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await moderateMessage(input);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < MODERATION_MAX_ATTEMPTS) {
+        await sleep(500);
+      }
+    }
+  }
+
+  return {
+    allowed: "unavailable",
+    retryAfter: addDays(new Date(), 1),
+    reason: getModerationFailureReason(lastError),
+  };
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getModerationFailureReason(error: unknown) {
+  if (error instanceof Error) {
+    return error.message.slice(0, 500);
+  }
+
+  return "unknown moderation error";
+}
+```
+
+### 차단 응답 예시
+
+```json
+{
+  "error": {
+    "code": "MESSAGE_BLOCKED_BY_MODERATION",
+    "message": "상대방에게 상처를 줄 수 있는 표현이 포함되어 있어요. 조금 더 부드러운 말로 바꿔볼까요?"
+  }
+}
+```
+
+## 10.5 검사 실패 처리 정책
+
+OpenAI API 호출이 실패했을 때 정책을 정해야 합니다.
+
+### 구분 기준
+
+```txt
+flagged=true
+  -> AI 검사는 성공했지만 유해 가능성이 감지됨
+  -> BLOCKED 또는 저장 차단
+  -> 사용자가 문구를 수정해야 함
+
+API failure
+  -> AI 검사 자체가 완료되지 않음
+  -> 즉시 2회까지 자동 시도
+  -> 2회 모두 실패하면 MODERATION_FAILED
+  -> 하루 1회 자동 재검사
+```
+
+### 정책 A: Fail Closed
+
+AI 검사 실패 시 메시지 저장을 막습니다.
+
+장점:
+
+- 안전성 우선
+
+단점:
+
+- OpenAI 장애 시 사용자가 메시지를 작성할 수 없음
+
+### 정책 B: Fail Open
+
+AI 검사 실패 시 메시지를 저장합니다.
+
+장점:
+
+- 사용자 경험 유지
+
+단점:
+
+- 유해 메시지가 통과될 수 있음
+
+### 최종 권장안: Fail Safe Queue
+
+매아리의 서비스 철학상 유해성 검사를 통과하지 못한 메시지는 수신자에게 전달하지 않습니다.
+
+다만 OpenAI API 장애처럼 검사 자체가 실패한 경우 사용자의 작성 내용을 완전히 잃지 않도록 `MODERATION_FAILED` 상태로 보관합니다.
+
+정책은 다음과 같습니다.
+
+```txt
+1. 사용자가 메시지 작성
+2. OpenAI Moderation 1차 검사
+3. API 실패 시 500ms 후 2차 검사
+4. 2차도 API 실패 시 Message.status = MODERATION_FAILED
+5. publicUrl은 발급하지 않음
+6. 사용자에게 "안전 검사를 잠시 완료하지 못했어요" 상태 표시
+7. 하루 한 번 moderation retry job이 재검사
+8. 재검사 통과 시 Message.status = PENDING
+9. scheduledAt이 이미 지난 경우 다음 발송 scheduler tick에서 SENT 처리
+10. 재검사에서 flagged=true면 BLOCKED 처리하고 사용자 수정 안내
+```
+
+응답 메시지 예시:
+
+```txt
+지금은 메시지 안전 검사를 완료하지 못했어요.
+작성한 마음은 임시로 보관했고, 하루에 한 번 자동으로 다시 검사할게요.
+```
+
+### 검사 실패 저장 응답 예시
+
+```json
+{
+  "message": {
+    "id": "uuid",
+    "title": "언젠가 너에게 도착할 말",
+    "status": "MODERATION_FAILED",
+    "moderationNextRetryAt": "2026-07-04T09:00:00.000Z"
+  },
+  "publicUrl": null,
+  "notice": "안전 검사를 잠시 완료하지 못했어요. 하루에 한 번 자동으로 다시 검사할게요."
+}
+```
+
+### 메시지 작성 service 처리 분기
+
+```ts
+const moderation = await moderateMessageWithRetry({
+  title: input.title,
+  content: input.content,
+  emotionTag: input.emotionTag,
+});
+
+if (moderation.allowed === false) {
+  throw new AppError("MESSAGE_BLOCKED_BY_MODERATION", moderation.feedback, 422);
+}
+
+if (moderation.allowed === "unavailable") {
+  const message = await prisma.message.create({
+    data: {
+      senderId: userId,
+      receiverInfo: input.receiverInfo,
+      title: input.title,
+      content: input.content,
+      emotionTag: input.emotionTag,
+      scheduledAt: input.scheduledAt,
+      isSenderHidden: input.isSenderHidden,
+      isDateHidden: input.isDateHidden,
+      status: "MODERATION_FAILED",
+      moderationAttemptCount: 2,
+      moderationLastCheckedAt: new Date(),
+      moderationNextRetryAt: moderation.retryAfter,
+      moderationFailureReason: moderation.reason,
+    },
+  });
+
+  return {
+    message,
+    publicUrl: null,
+    notice: "안전 검사를 잠시 완료하지 못했어요. 하루에 한 번 자동으로 다시 검사할게요.",
+  };
+}
+
+const message = await prisma.message.create({
+  data: {
+    senderId: userId,
+    receiverInfo: input.receiverInfo,
+    title: input.title,
+    content: input.content,
+    emotionTag: input.emotionTag,
+    scheduledAt: input.scheduledAt,
+    isSenderHidden: input.isSenderHidden,
+    isDateHidden: input.isDateHidden,
+    status: "PENDING",
+    moderationAttemptCount: 1,
+    moderationLastCheckedAt: new Date(),
+    accessTokens: {
+      create: {
+        token: createPublicToken(),
+      },
+    },
+  },
+});
+```
+
+---
+
+## 11. 스케줄러 설계
+
+## 11.1 기본 조건
+
+발송 스케줄러는 5분마다 실행합니다.
+
+```txt
+*/5 * * * *
+```
+
+AI 검사 실패 재검사 스케줄러는 하루 한 번 실행합니다.
+
+```txt
+0 3 * * *
+```
+
+## 11.2 조회 조건
+
+발송 스케줄러 조회 조건:
+
+```txt
+status = PENDING
+scheduledAt <= now
+```
+
+AI 검사 실패 재검사 조회 조건:
+
+```txt
+status = MODERATION_FAILED
+moderationNextRetryAt <= now
+```
+
+## 11.3 처리 흐름
+
+```txt
+1. scheduler tick 시작
+2. in-memory lock 확인
+3. PENDING 메시지 조회
+4. 각 메시지를 처리
+5. scheduler는 메시지 상태를 SENT로 변경
+6. 상태 변경 직후 message.sent event 발행
+7. NotificationProcessor가 event를 받아 알림 처리
+8. 처리 중 오류 발생 시 FAILED 또는 notification 실패 로그 기록
+9. lock 해제
+```
+
+스케줄러의 책임은 `PENDING`에서 `SENT`로 상태를 변경하는 데 한정합니다. 실제 카카오 알림톡, SMS, 이메일, 내부 알림 저장은 `NotificationProcessor`가 담당합니다.
+
+## 11.4 중복 실행 방지
+
+단일 서버에서는 in-memory lock으로 충분합니다.
+
+```txt
+isRunning = true 인 동안 다음 cron tick은 skip
+```
+
+추후 서버가 2대 이상이 되면 다음 방식으로 전환합니다.
+
+- PostgreSQL advisory lock
+- Redis lock
+- BullMQ
+- AWS SQS
+
+## 11.5 EventEmitter 기반 알림 분리 구조
+
+스케줄러는 예약 시간이 된 메시지를 `SENT`로 바꾸고 `message.sent` event만 발행합니다. 실제 서비스 내 알림, Gmail SMTP 이메일, Solapi 문자, MCP fallback 발송, 실패 재시도는 `NotificationProcessor`가 담당합니다.
+
+Gmail SMTP, Solapi, MCP fallback 중 해당 채널에 사용할 provider가 없으면 fake 발송 성공을 만들지 않습니다. 외부 수신자에게 실제 알림을 보낼 수 없는 경우 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`로 저장해 발송 성공처럼 보이지 않게 합니다.
+
+```ts
+import { EventEmitter } from "node:events";
+
+export const domainEvents = new EventEmitter();
+
+export const MESSAGE_SENT_EVENT = "message.sent";
+
+export type MessageSentEventPayload = {
+  messageId: string;
+  recipientIds: string[];
+  sentAt: Date;
+};
+```
+
+### Scheduler 책임
+
+```ts
+domainEvents.emit(MESSAGE_SENT_EVENT, {
+  messageId: message.id,
+  recipientIds,
+  sentAt,
+});
+```
+
+### NotificationProcessor 책임
+
+```ts
+domainEvents.on(MESSAGE_SENT_EVENT, async (payload) => {
+  await notificationProcessor.handleMessageSent(payload);
+});
+```
+
+`NotificationProcessor`는 다음 작업을 담당합니다.
+
+- 가입 수신자에게 서비스 내 알림 생성
+- 친구 수신자에게 서비스 내 알림 생성
+- 외부 수신자에게 공개 링크를 포함한 이메일 또는 문자 발송
+- `receiverInfo.preferredChannel = AUTO`이면 이메일을 우선 사용하고, 이메일이 없을 때 SMS를 사용
+- NotificationLog 저장
+- provider 호출 전 idempotency key로 중복 발송 방지
+- retryable 실패 시 `NotificationLog.status = PENDING`, `nextRetryAt` 기록
+- 최종 실패 시 `NotificationLog.status = FAILED`, `MessageRecipient.deliveryStatus = FAILED`
+- 알림 실패 시 메시지 상태를 되돌리지 않고 알림 실패 로그만 남김
+- provider 미설정으로 외부 알림이 나가지 않은 경우 수신자 발송 상태를 실패로 표시
+
+외부 발송 메시지 본문에는 실제 편지 본문을 넣지 않습니다. 이메일/SMS에는 “마음이 도착했어요” 안내, 수신자 이름, 공개 열람 링크만 포함합니다. 발신인 숨김이 켜져 있으면 발신자 이름을 알림 payload와 발송 문구에 포함하지 않습니다.
+
+## 11.5.1 외부 알림 provider 발송 처리 흐름
+
+```txt
+1. NotificationProcessor가 message.sent event 수신
+2. MessageRecipient와 최신 MessageAccessToken 조회
+3. 친구/자기 자신 수신자는 IN_APP 로그 생성 후 deliveredAt 기록
+4. 외부 수신자는 이메일/전화번호 존재 여부와 preferredChannel로 channel 결정
+5. NotificationLog를 PENDING으로 먼저 생성하거나 기존 idempotencyKey 로그 재사용
+6. 선택된 channel의 연락처를 정규화하고 ContactSuppression 조회
+7. 수신거부된 연락처이면 provider 호출 없이 NotificationLog=SKIPPED, errorCode=CONTACT_SUPPRESSED
+8. EMAIL은 Gmail SMTP 우선, SMS는 Solapi 우선으로 호출하고 필요 시 MCP fallback 호출
+9. 성공 시 NotificationLog=SENT, providerMessageId 저장, MessageRecipient=SENT
+10. retryable 실패 시 NotificationLog=PENDING, nextRetryAt 저장
+11. non-retryable 실패 또는 재시도 한도 초과 시 NotificationLog=FAILED, MessageRecipient=FAILED
+```
+
+재시도 job은 `NotificationLog.status = PENDING AND nextRetryAt <= now` 조건으로 실행합니다. 재시도 간격은 1분, 5분, 30분 순서의 지수 backoff를 기본값으로 사용하고, 최대 3회까지 시도합니다.
+
+## 11.6 AI 검사 실패 재검사 Job
+
+`MODERATION_FAILED` 상태의 메시지는 OpenAI API 장애 또는 timeout으로 검사 자체가 완료되지 못한 메시지입니다. 이 메시지는 아직 안전 검사를 통과하지 않았으므로 공개 링크를 발급하지 않고 발송하지 않습니다.
+
+하루 한 번 재검사 job이 실행되며, 결과에 따라 다음처럼 처리합니다.
+
+```txt
+MODERATION_FAILED
+├── 재검사 통과
+│   ├── Message.status = PENDING
+│   ├── MessageAccessToken 생성
+│   ├── moderationFailureReason 초기화
+│   └── scheduledAt이 이미 지났다면 다음 5분 scheduler에서 SENT 처리
+│
+├── 재검사에서 flagged=true
+│   ├── Message.status = BLOCKED
+│   ├── moderationFailureReason에 feedback 저장
+│   └── 발송하지 않음
+│
+└── 재검사 API 실패
+    ├── Message.status = MODERATION_FAILED 유지
+    ├── moderationAttemptCount 증가
+    ├── moderationLastCheckedAt 갱신
+    └── moderationNextRetryAt = now + 1 day
+```
+
+### 재검사 job 초안
+
+```ts
+export async function retryFailedModerationMessages() {
+  const messages = await prisma.message.findMany({
+    where: {
+      status: "MODERATION_FAILED",
+      moderationNextRetryAt: {
+        lte: new Date(),
+      },
+    },
+    take: 50,
+    orderBy: {
+      moderationNextRetryAt: "asc",
+    },
+  });
+
+  for (const message of messages) {
+    const moderation = await moderateMessageWithRetry({
+      title: message.title,
+      content: message.content,
+      emotionTag: message.emotionTag,
+    });
+
+    if (moderation.allowed === true) {
+      await prisma.message.update({
+        where: { id: message.id },
+        data: {
+          status: "PENDING",
+          moderationLastCheckedAt: new Date(),
+          moderationNextRetryAt: null,
+          moderationFailureReason: null,
+          accessTokens: {
+            create: {
+              token: createPublicToken(),
+            },
+          },
+        },
+      });
+
+      continue;
+    }
+
+    if (moderation.allowed === false) {
+      await prisma.message.update({
+        where: { id: message.id },
+        data: {
+          status: "BLOCKED",
+          moderationLastCheckedAt: new Date(),
+          moderationNextRetryAt: null,
+          moderationFailureReason: moderation.feedback,
+        },
+      });
+
+      continue;
+    }
+
+    await prisma.message.update({
+      where: { id: message.id },
+      data: {
+        moderationAttemptCount: {
+          increment: 2,
+        },
+        moderationLastCheckedAt: new Date(),
+        moderationNextRetryAt: moderation.retryAfter,
+        moderationFailureReason: moderation.reason,
+      },
+    });
+  }
+}
+```
+
+---
+
+## 12. 프론트엔드 화면 설계
+
+## 12.1 주요 화면
+
+| 화면 | 경로 | 설명 |
+| --- | --- | --- |
+| 메인 | `/` | KST 현재 시각, 작성/발신함/수신함/친구 관리 진입, 브랜드 히어로 |
+| 로그인 | `/login` | 카카오 로그인 진입 |
+| 온보딩 | `/onboarding` | 감성 질문 및 첫 작성 유도 |
+| 메시지 작성 | `/write` | 편지 작성, KST 현재 시각 확인, 예약일, 옵션 설정 |
+| 발신함 | `/sent` | 내가 보낸 메시지 관리 |
+| 수신함 | `/inbox` | 내가 받은 메시지 목록 |
+| 친구 | `/friends` | 친구 코드 확인, 친구 요청, 요청 수락/거절, 친구 삭제 |
+| 공개 열람 | `/arrival/[token]` | 비회원 메시지 확인 |
+| 마이페이지 | `/my` | 내 정보와 로그아웃 |
+
+## 12.2 메시지 작성 화면 구성
+
+필수 입력:
+
+- 수신 대상
+- 친구 수신자인 경우 친구 선택
+- 수신자 이름
+- 외부 수신자인 경우 이메일 또는 전화번호 중 하나
+- 제목
+- 본문
+- 감정 태그
+- 도착 날짜/시간
+
+상단 보조 정보:
+
+- KST 기준 현재 시각
+- 초 단위 실시간 갱신
+- 예약 시간 선택 시 현재 시각을 바로 비교할 수 있는 기준 정보 제공
+
+수신 대상 선택:
+
+- `미래의 나`: 현재 로그인 사용자에게 도착
+- `친구`: 이미 수락된 친구 목록에서 선택
+- `연락처로 보내기`: 이메일 또는 전화번호 입력
+
+도착 시간 선택:
+
+- 빠른 선택 chip: `오늘 밤 9시`, `내일 아침 9시`, `내일 밤 9시`, `1주 뒤`, `1개월 뒤`
+- 직접 설정: 날짜 입력과 1분 단위 시간 입력을 분리
+- 보조 선택: `00분`, `15분`, `30분`, `45분` quick minute 버튼 제공
+- 선택 결과를 `YYYY년 M월 D일 요일 HH:mm KST` 형식으로 즉시 미리보기
+- 키보드 사용자를 위해 날짜/시간 직접 입력을 유지
+- 현재보다 과거이거나 너무 가까운 시간은 제출 전 클라이언트와 서버에서 모두 차단
+
+옵션:
+
+- 발신인 숨기기
+- 도착일 숨기기
+
+상태:
+
+- 작성 중
+- AI 검사 중
+- AI 검사 재시도 중
+- AI 검사 실패
+- 자동 재검사 대기
+- 예약 완료
+- 유해성 차단
+- 서버 오류
+
+예약 완료 상태에서는 작성 폼을 계속 보여주기보다 완료 패널을 우선 노출합니다. 완료 패널에는 예약 상태, 예약 시간, 공개 링크의 용도, 발신함 이동, 새 마음 쓰기, 메인 이동을 함께 제공합니다. 공개 링크는 자동 발송 수단이 아니라 수신자가 비회원이거나 외부 provider가 아직 연결되지 않았을 때 도착 후 수동으로 열람할 수 있는 fallback 링크입니다.
+
+AI 검사 실패 상태에서는 `publicUrl`을 보여주지 않습니다. 대신 “작성한 마음은 임시로 보관했고, 하루에 한 번 자동으로 다시 검사할게요.” 안내와 함께 발신함으로 이동할 수 있게 합니다.
+
+## 12.2.1 브랜드 이미지 적용
+
+오늘 반영된 봉투 일러스트는 화면별 목적에 맞춰 다음처럼 사용합니다.
+
+- 브라우저 탭과 모바일 홈 화면: `apps/web/app/icon.png`, `apps/web/app/apple-icon.png`
+- 헤더 로고와 작은 브랜드 표식: `apps/web/public/images/maeari-mark.png`
+- 메인 대시보드 히어로: `apps/web/public/images/maeari-main-envelope.webp`
+- 로그인 카드: `apps/web/public/images/maeari-login-envelope.webp`
+- 공개 도착 링크 화면: `apps/web/public/images/maeari-public-envelope.webp`
+
+## 12.2.2 도착 시간 UX 개선 근거
+
+단일 `datetime-local` 입력은 브라우저마다 UI가 다르고, 사용자가 “언제 보내고 싶은지”보다 “정확한 날짜와 시간을 직접 계산”해야 해서 예약 메시지 경험에 부담을 줍니다. 검색한 디자인 시스템 가이드를 기준으로 다음 원칙을 적용합니다.
+
+- Material Design 3는 date picker를 날짜 또는 기간 선택 도구로, time picker를 특정 시간 선택 도구로 분리해 설명합니다.
+- GOV.UK Design System은 사용자가 가까운 미래 날짜를 고르거나 요일 관계를 봐야 할 때 calendar control이 적합하지만, JavaScript calendar를 유일한 입력 수단으로 만들지 말고 직접 입력도 허용하라고 안내합니다.
+- U.S. Web Design System은 date picker에서도 날짜를 수동 입력할 수 있게 하고 날짜 형식 힌트를 제공하라고 안내합니다. time picker는 일정 예약처럼 일정한 간격의 시간 선택에 적합하다고 설명합니다.
+
+따라서 매아리는 다음 UX를 채택합니다.
+
+```txt
+빠른 프리셋으로 감성적 의도를 먼저 선택
+  -> 필요하면 날짜/시간을 직접 수정
+  -> 분 단위는 직접 입력하되 15분 버튼으로 빠르게 보정
+  -> KST 기준 도착 미리보기로 확정 전 검토
+  -> 서버에는 UTC ISO string으로 저장
+```
+
+참고 자료:
+
+- https://m3.material.io/components/date-pickers
+- https://m3.material.io/components/time-pickers
+- https://design-system.service.gov.uk/patterns/dates/
+- https://designsystem.digital.gov/components/date-picker/
+- https://designsystem.digital.gov/components/time-picker/
+
+## 12.3 공개 열람 화면 구성
+
+수신자가 링크로 들어오면 다음 흐름을 제공합니다.
+
+```txt
+1. 오늘, 누군가의 마음이 도착했어요.
+2. 지금 열어볼까요?
+3. 메시지 열람
+4. 발신인 숨김 여부 반영
+5. 도착일 숨김 여부 반영
+6. 회원가입 CTA 표시
+```
+
+CTA 문구 예시:
+
+```txt
+이 마음을 오래 보관하고 싶다면 매아리에 저장해 보세요.
+```
+
+## 12.4 비회원 열람 후 가입 연결 플로우
+
+비회원이 공개 열람 링크 `/arrival/[token]`으로 들어온 뒤 카카오 로그인을 하면, 열람 중이던 메시지가 자동으로 새 계정의 수신함에 들어와야 합니다.
+
+### 프론트엔드 처리 흐름
+
+```txt
+1. /arrival/[token] 접속
+2. token을 sessionStorage에 저장
+3. 사용자가 "마음 보관하기" 또는 "카카오로 시작하기" 클릭
+4. /api/auth/kakao 로 이동
+5. 카카오 로그인 완료
+6. /api/auth/kakao/callback 처리 후 frontend /auth/callback 으로 redirect
+7. /auth/callback 페이지에서 sessionStorage token 확인
+8. token이 있으면 POST /api/auth/link-message 호출
+9. 성공하면 sessionStorage token 삭제
+10. /inbox 로 이동
+```
+
+### `/arrival/[token]` token 저장 예시
+
+```ts
+"use client";
+
+import { useEffect } from "react";
+
+type ArrivalTokenCaptureProps = {
+  token: string;
+};
+
+export function ArrivalTokenCapture({ token }: ArrivalTokenCaptureProps) {
+  useEffect(() => {
+    if (token) {
+      sessionStorage.setItem("maeari.pendingArrivalToken", token);
+    }
+  }, [token]);
+
+  return null;
+}
+```
+
+### `/auth/callback` 연결 예시
+
+```ts
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
+
+export default function AuthCallbackPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function linkPendingMessage() {
+      const token = sessionStorage.getItem(PENDING_TOKEN_KEY);
+
+      if (!token) {
+        router.replace("/write");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/link-message`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      if (response.ok) {
+        sessionStorage.removeItem(PENDING_TOKEN_KEY);
+        router.replace("/inbox");
+        return;
+      }
+
+      router.replace("/arrival/link-failed");
+    }
+
+    void linkPendingMessage();
+  }, [router]);
+
+  return null;
+}
+```
+
+### 백엔드 매핑 규칙
+
+`/api/auth/link-message`는 token으로 `MessageAccessToken`을 찾은 뒤 연결된 `MessageRecipient`의 `receiverUserId`를 현재 로그인한 사용자로 업데이트합니다.
+
+```txt
+raw route token
+  -> hashPublicToken(token)
+  -> MessageAccessToken.tokenHash
+  -> MessageAccessToken.messageRecipientId
+  -> MessageRecipient.receiverUserId = currentUser.id
+  -> MessageAccessToken.linkedUserId = currentUser.id
+  -> MessageAccessToken.linkedAt = now
+```
+
+이렇게 하면 비회원 링크로 받은 메시지도 가입 직후 수신함에서 자연스럽게 다시 볼 수 있습니다.
+
+---
+
+## 13. 인프라 설계
+
+## 13.1 서버 환경
+
+| 항목 | 값 |
+| --- | --- |
+| Provider | AWS EC2 |
+| Instance | t3.medium |
+| OS | Ubuntu 24.04 LTS |
+| RAM | 4GB |
+| Web Port | `${WEB_PORT}` |
+| API Port | `${API_PORT}` |
+| DB | PostgreSQL local or managed |
+| Proxy | Nginx |
+
+## 13.2 Nginx 라우팅 정책
+
+```txt
+https://${SERVICE_DOMAIN}/*
+  -> localhost:${WEB_PORT}
+
+https://${SERVICE_DOMAIN}/api/*
+  -> localhost:${API_PORT}/api/*
+```
+
+Nginx는 OpenAI API 호출, 카카오 OAuth callback, 느린 모바일 네트워크 상황을 고려해 `proxy_read_timeout`을 60초 이상으로 설정합니다.
+
+Nginx 설정 파일에는 실제 도메인을 직접 쓰지 않습니다. `infra/nginx/maeari.conf.template` 형태로 관리하고, 배포 시 `.env.production`의 값을 사용해 `envsubst` 또는 배포 스크립트에서 치환합니다.
+
+### Nginx site config template 초안
+
+```nginx
+server {
+    listen 80;
+    server_name ${SERVICE_DOMAIN} ${WWW_SERVICE_DOMAIN};
+
+    client_max_body_size 2m;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:${API_PORT}/api/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 15s;
+        proxy_send_timeout 75s;
+        proxy_read_timeout 75s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${WEB_PORT};
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_connect_timeout 15s;
+        proxy_send_timeout 75s;
+        proxy_read_timeout 75s;
+    }
+}
+```
+
+## 13.3 HTTPS
+
+Certbot을 사용합니다.
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d "$SERVICE_DOMAIN" -d "$WWW_SERVICE_DOMAIN"
+```
+
+현재 운영 서버에서는 `maeari.madcamp-kaist.org` 단일 도메인으로 인증서를 발급했습니다.
+
+```bash
+sudo certbot --nginx -d maeari.madcamp-kaist.org
+```
+
+## 13.4 PM2 프로세스
+
+```bash
+pm2 start apps/api/dist/server.js --name maeari-api
+pm2 start apps/api/dist/scheduler.js --name maeari-scheduler
+pm2 start apps/web/.next/standalone/apps/web/server.js --name maeari-web
+pm2 save
+pm2 startup
+```
+
+현재 개발 서버에서는 API와 scheduler가 `pnpm dev:api`, `pnpm dev:scheduler`로 떠 있지만, web은 CSS/JS 정적 파일 안정성을 위해 production standalone server로 실행합니다. 운영 안정화를 위해 API와 scheduler도 `pnpm --filter @maeari/api build` 후 `dist/server.js`, `dist/scheduler.js` 실행으로 전환하는 것을 권장합니다.
+
+---
+
+## 14. 환경 변수 설계
+
+## 14.1 공통 환경 변수
+
+`.env.example`에는 아래 key만 두고 값은 비워둡니다. 실제 값은 `.env.local` 또는 `.env.production`에 사용자가 직접 제공합니다.
+
+```env
+NODE_ENV=
+DATABASE_URL=
+SERVICE_DOMAIN=
+WWW_SERVICE_DOMAIN=
+
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+```
+
+## 14.2 API 환경 변수
+
+```env
+API_PORT=
+WEB_PORT=
+WEB_ORIGIN=
+SERVICE_URL=
+JWT_SECRET=
+COOKIE_DOMAIN=
+COOKIE_SECURE=
+
+KAKAO_CLIENT_ID=
+KAKAO_CLIENT_SECRET=
+KAKAO_REDIRECT_URI=
+
+OPENAI_API_KEY=
+OPENAI_MODERATION_MODEL=
+OPENAI_GUARDRAIL_MODEL=
+
+PUBLIC_TOKEN_PEPPER=
+DELIVERY_CRON=
+MODERATION_RETRY_CRON=
+MODERATION_MAX_ATTEMPTS=
+NOTIFICATION_RETRY_CRON=
+NOTIFICATION_MAX_ATTEMPTS=
+
+GMAIL_SMTP_ENABLED=
+GMAIL_SMTP_HOST=
+GMAIL_SMTP_PORT=
+GMAIL_SMTP_SECURE=
+GMAIL_SMTP_USER=
+GMAIL_SMTP_APP_PASSWORD=
+GMAIL_SMTP_FROM_NAME=
+GMAIL_SMTP_FROM_ADDRESS=
+GMAIL_SMTP_CONNECTION_TIMEOUT_MS=
+
+SMTP_ENABLED=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURE=
+SMTP_EMAIL=
+SMTP_PASSWORD=
+SMTP_FROM_NAME=
+SMTP_FROM_ADDRESS=
+
+SOLAPI_SMS_ENABLED=
+SOLAPI_API_KEY=
+SOLAPI_API_SECRET=
+SOLAPI_SENDER_NUMBER=
+
+MCP_NOTIFICATION_ENABLED=
+MCP_NOTIFICATION_SERVER=
+MCP_NOTIFICATION_API_KEY=
+MCP_NOTIFICATION_AUTH_HEADER=
+MCP_NOTIFICATION_AUTH_SCHEME=
+MCP_NOTIFICATION_TIMEOUT_MS=
+MCP_EMAIL_TOOL=
+MCP_SMS_TOOL=
+```
+
+`GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`가 필수입니다. `SMTP_EMAIL`, `SMTP_PASSWORD`, `SMTP_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM_NAME`, `SMTP_FROM_ADDRESS` alias도 호환됩니다.
+
+`SOLAPI_SMS_ENABLED=true`이면 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`가 필수입니다. `SOLAPI_SMS_ENABLED`가 비어 있으면 세 값이 모두 있을 때 자동으로 활성화됩니다. 발신번호는 하이픈 없이 숫자만 허용합니다.
+
+`MCP_NOTIFICATION_ENABLED=false`이면 MCP 관련 server/tool/auth 값이 비어 있어도 서버는 시작할 수 있습니다. Gmail SMTP 또는 Solapi가 꺼진 채널에 fallback provider도 없으면 외부 발송을 성공 처리하지 않고 `NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다. `MCP_NOTIFICATION_ENABLED=true`이면 `MCP_NOTIFICATION_SERVER`, `MCP_NOTIFICATION_API_KEY`, `MCP_EMAIL_TOOL`, `MCP_SMS_TOOL`은 필수입니다.
+
+## 14.3 Web 환경 변수
+
+```env
+NEXT_PUBLIC_API_BASE_URL=
+NEXT_PUBLIC_SERVICE_URL=
+```
+
+## 14.4 .env 파일 관리 가이드
+
+환경 변수 파일은 로컬과 배포를 분리합니다.
+
+```txt
+.env.example       -> 커밋 가능, key 목록만 포함하고 값은 비움
+.env.local         -> 로컬 개발용, 커밋 금지
+.env.production    -> 서버 배포용, 커밋 금지
+```
+
+`.gitignore`에는 다음 값을 포함합니다.
+
+```gitignore
+.env
+.env.local
+.env.production
+apps/*/.env
+apps/*/.env.local
+packages/*/.env
+```
+
+`.env.local` 또는 `.env.production` 값이 제공되기 전에는 실제 서버 실행이 성공한 것처럼 보이면 안 됩니다. 구현 코드는 빌드 가능해야 하지만, 런타임 시작 시 필수 환경 변수가 없으면 `requireEnv` 단계에서 명확히 실패해야 합니다.
+
+금지 사항:
+
+- 코드에 임시 API key를 넣기
+- 코드에 임시 도메인을 넣기
+- fake Kakao 사용자 만들기
+- fake OpenAI moderation 결과 만들기
+- dummy 메시지/사용자 seed 만들기
+- 외부 provider 호출이 성공한 것처럼 DB에 기록하기
+
+### API 환경 로딩 코드 예시
+
+```ts
+import path from "node:path";
+import dotenv from "dotenv";
+
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : ".env.local";
+
+dotenv.config({
+  path: path.resolve(process.cwd(), envFile),
+});
+
+const gmailSmtpEnabled =
+  optionalBooleanEnvFrom(["GMAIL_SMTP_ENABLED", "SMTP_ENABLED"]) ??
+  Boolean(optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]) && optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]));
+const solapiSmsEnabled =
+  optionalBooleanEnvFrom(["SOLAPI_SMS_ENABLED"]) ??
+  Boolean(optionalEnv("SOLAPI_API_KEY") && optionalEnv("SOLAPI_API_SECRET") && optionalEnv("SOLAPI_SENDER_NUMBER"));
+const mcpNotificationEnabled = optionalBooleanEnv("MCP_NOTIFICATION_ENABLED", false);
+
+export const config = {
+  nodeEnv: requireEnv("NODE_ENV"),
+  apiPort: requireNumberEnv("API_PORT"),
+  webPort: requireNumberEnv("WEB_PORT"),
+  serviceDomain: requireEnv("SERVICE_DOMAIN"),
+  wwwServiceDomain: requireEnv("WWW_SERVICE_DOMAIN"),
+  webOrigin: requireEnv("WEB_ORIGIN"),
+  serviceUrl: requireEnv("SERVICE_URL"),
+  databaseUrl: requireEnv("DATABASE_URL"),
+  jwtSecret: requireEnv("JWT_SECRET"),
+  cookieDomain: optionalEnv("COOKIE_DOMAIN"),
+  cookieSecure: requireBooleanEnv("COOKIE_SECURE"),
+  kakaoClientId: requireEnv("KAKAO_CLIENT_ID"),
+  kakaoClientSecret: requireEnv("KAKAO_CLIENT_SECRET"),
+  kakaoRedirectUri: requireEnv("KAKAO_REDIRECT_URI"),
+  openaiApiKey: requireEnv("OPENAI_API_KEY"),
+  openaiModerationModel: requireEnv("OPENAI_MODERATION_MODEL"),
+  openaiGuardrailModel: optionalEnv("OPENAI_GUARDRAIL_MODEL") ?? "gpt-5.4-mini",
+  publicTokenPepper: requireEnv("PUBLIC_TOKEN_PEPPER"),
+  deliveryCron: requireEnv("DELIVERY_CRON"),
+  moderationRetryCron: requireEnv("MODERATION_RETRY_CRON"),
+  moderationMaxAttempts: requireNumberEnv("MODERATION_MAX_ATTEMPTS"),
+  notificationRetryCron: optionalEnv("NOTIFICATION_RETRY_CRON") ?? "*/5 * * * *",
+  notificationMaxAttempts: optionalNumberEnv("NOTIFICATION_MAX_ATTEMPTS", 3),
+  gmailSmtpEnabled,
+  gmailSmtpHost: optionalEnvFrom(["GMAIL_SMTP_HOST", "SMTP_HOST"]) ?? "smtp.gmail.com",
+  gmailSmtpPort: optionalNumberEnvFrom(["GMAIL_SMTP_PORT", "SMTP_PORT"], 465),
+  gmailSmtpSecure: optionalBooleanEnvFrom(["GMAIL_SMTP_SECURE", "SMTP_SECURE"]) ?? true,
+  gmailSmtpUser: gmailSmtpEnabled ? requireEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]) : optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]),
+  gmailSmtpAppPassword: gmailSmtpEnabled ? requireEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]) : optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]),
+  gmailSmtpFromName: optionalEnvFrom(["GMAIL_SMTP_FROM_NAME", "SMTP_FROM_NAME"]) ?? "매아리",
+  gmailSmtpFromAddress: optionalEnvFrom(["GMAIL_SMTP_FROM_ADDRESS", "SMTP_FROM_ADDRESS"]),
+  gmailSmtpConnectionTimeoutMs: optionalNumberEnv("GMAIL_SMTP_CONNECTION_TIMEOUT_MS", 10000),
+  solapiSmsEnabled,
+  solapiApiKey: solapiSmsEnabled ? requireEnv("SOLAPI_API_KEY") : optionalEnv("SOLAPI_API_KEY"),
+  solapiApiSecret: solapiSmsEnabled ? requireEnv("SOLAPI_API_SECRET") : optionalEnv("SOLAPI_API_SECRET"),
+  solapiSenderNumber: solapiSmsEnabled ? requirePhoneNumberEnv("SOLAPI_SENDER_NUMBER") : optionalPhoneNumberEnv("SOLAPI_SENDER_NUMBER"),
+  mcpNotificationEnabled,
+  mcpNotificationServer: mcpNotificationEnabled ? requireEnv("MCP_NOTIFICATION_SERVER") : optionalEnv("MCP_NOTIFICATION_SERVER"),
+  mcpNotificationApiKey: mcpNotificationEnabled ? requireEnv("MCP_NOTIFICATION_API_KEY") : optionalEnv("MCP_NOTIFICATION_API_KEY"),
+  mcpNotificationAuthHeader: optionalEnv("MCP_NOTIFICATION_AUTH_HEADER") ?? "Authorization",
+  mcpNotificationAuthScheme: optionalEnv("MCP_NOTIFICATION_AUTH_SCHEME") ?? "Bearer",
+  mcpNotificationTimeoutMs: optionalNumberEnv("MCP_NOTIFICATION_TIMEOUT_MS", 10000),
+  mcpEmailTool: mcpNotificationEnabled ? requireEnv("MCP_EMAIL_TOOL") : optionalEnv("MCP_EMAIL_TOOL"),
+  mcpSmsTool: mcpNotificationEnabled ? requireEnv("MCP_SMS_TOOL") : optionalEnv("MCP_SMS_TOOL"),
+};
+
+function requireEnv(key: string): string {
+  const value = process.env[key];
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+
+  return value;
+}
+
+function optionalEnv(key: string): string | undefined {
+  const value = process.env[key];
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function requireEnvFrom(keys: string[]): string {
+  const value = optionalEnvFrom(keys);
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${keys.join(" or ")}`);
+  }
+
+  return value;
+}
+
+function optionalEnvFrom(keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = optionalEnv(key);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function requireNumberEnv(key: string): number {
+  const value = Number(requireEnv(key));
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`Environment variable must be a number: ${key}`);
+  }
+
+  return value;
+}
+
+function optionalNumberEnv(key: string, fallback: number): number {
+  const raw = optionalEnv(key);
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const value = Number(raw);
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`Environment variable must be a number: ${key}`);
+  }
+
+  return value;
+}
+
+function optionalNumberEnvFrom(keys: string[], fallback: number): number {
+  const raw = optionalEnvFrom(keys);
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const value = Number(raw);
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`Environment variable must be a number: ${keys.join(" or ")}`);
+  }
+
+  return value;
+}
+
+function requireBooleanEnv(key: string): boolean {
+  const value = requireEnv(key);
+
+  if (value !== "true" && value !== "false") {
+    throw new Error(`Environment variable must be "true" or "false": ${key}`);
+  }
+
+  return value === "true";
+}
+
+function optionalBooleanEnv(key: string, fallback: boolean): boolean {
+  const value = optionalEnv(key);
+
+  if (!value) {
+    return fallback;
+  }
+
+  if (value !== "true" && value !== "false") {
+    throw new Error(`Environment variable must be "true" or "false": ${key}`);
+  }
+
+  return value === "true";
+}
+
+function optionalBooleanEnvFrom(keys: string[]): boolean | undefined {
+  const value = optionalEnvFrom(keys);
+
+  if (!value) {
+    return undefined;
+  }
+
+  if (value !== "true" && value !== "false") {
+    throw new Error(`Environment variable must be "true" or "false": ${keys.join(" or ")}`);
+  }
+
+  return value === "true";
+}
+
+function requirePhoneNumberEnv(key: string): string {
+  const value = requireEnv(key).replace(/\D/g, "");
+
+  if (!/^0\d{9,10}$/.test(value)) {
+    throw new Error(`Environment variable must be a domestic phone number without hyphens: ${key}`);
+  }
+
+  return value;
+}
+
+function optionalPhoneNumberEnv(key: string): string | undefined {
+  const value = optionalEnv(key);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.replace(/\D/g, "");
+
+  if (!/^0\d{9,10}$/.test(normalized)) {
+    throw new Error(`Environment variable must be a domestic phone number without hyphens: ${key}`);
+  }
+
+  return normalized;
+}
+```
+
+### 운영 서버 권장 방식
+
+운영 서버에서는 `.env.production` 파일 권한을 제한합니다.
+
+```bash
+chmod 600 .env.production
+```
+
+PM2 실행 시에는 `NODE_ENV=production`을 명시합니다.
+
+```bash
+NODE_ENV=production pm2 start apps/api/dist/server.js --name maeari-api
+NODE_ENV=production pm2 start apps/api/dist/scheduler.js --name maeari-scheduler
+NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --name maeari-web
+```
+
+---
+
+## 15. 보안 계획
+
+## 15.1 인증 보안
+
+- HttpOnly cookie 사용
+- Secure cookie는 production에서 활성화
+- SameSite=Lax 또는 Strict 적용
+- JWT secret은 충분히 긴 랜덤 값 사용
+- JWT secret, Kakao secret, OpenAI key, token pepper는 코드에 하드코딩하지 않고 `.env`에서만 로드
+
+## 15.2 API 보안
+
+- request body size 제한
+- CORS origin 제한
+- helmet 적용
+- rate limit 적용
+- Prisma 사용으로 SQL injection 방지
+
+## 15.3 공개 링크 보안
+
+- message id를 URL에 직접 노출하지 않음
+- random token 사용
+- raw public token은 DB에 저장하지 않고 hash 값만 저장
+- token hash pepper는 `PUBLIC_TOKEN_PEPPER` 환경 변수로만 주입
+- token 만료 정책 추가 가능
+- openCount 저장
+- 열람 로그 확장 가능
+
+## 15.4 개인정보
+
+- MVP에서는 최소 정보만 저장
+- phone/email은 필요할 때만 수집
+- 관리자 화면에서 본문 노출 제한
+- 로그에 메시지 본문을 남기지 않음
+
+---
+
+## 16. 개발 단계별 계획
+
+## Step 1. 프로젝트 구조 및 DB 설계
+
+### 목표
+
+개발의 기반이 되는 monorepo 구조와 Prisma schema를 만든다.
+
+### 작업 항목
+
+- 프로젝트 루트 package 구성
+- `apps/web` 생성
+- `apps/api` 생성
+- `packages/database` 생성
+- `packages/shared` 생성
+- PostgreSQL 연결 설정
+- Prisma schema 작성
+- 비회원 메시지 가입 귀속을 위한 `MessageRecipient.receiverUserId`, `linkedUserId`, `linkedAt` 설계
+- 값이 비어 있는 `.env.example` 작성
+- `.env.local`, `.env.production`은 생성하지 않고 사용자가 직접 제공하도록 안내
+- 로컬 개발용 `docker-compose.yml` 작성 시 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`를 `.env`에서만 참조
+- mock 파일, dummy 데이터, seed 파일 생성 금지
+
+### 산출물
+
+- 디렉토리 구조
+- `schema.prisma`
+- `.env.example`
+- `docker-compose.yml`
+
+### 완료 기준
+
+- `prisma generate` 성공
+- `prisma migrate dev` 성공
+- User와 Message 관계가 정상 생성
+- Message.sender, Message.receiver 관계가 정상 생성
+- 공개 링크 token과 가입 사용자 귀속 정보를 저장할 수 있음
+- AI 검사 실패 상태와 재검사 예약 시각을 저장할 수 있음
+- Message status enum 정상 사용 가능
+- `.env.example`에는 key만 있고 실제 값이나 가짜 값이 없음
+- mock/dummy/seed 파일이 없음
+
+---
+
+## Step 2. AI 필터링 및 메시지 작성 API
+
+### 목표
+
+사용자가 작성한 메시지를 저장하기 전에 AI 유해성 검사를 수행하고, 통과한 메시지만 예약 상태로 저장한다.
+
+### 작업 항목
+
+- Express app 기본 구성
+- Prisma client 연결
+- auth middleware 초안
+- message validation 작성
+- OpenAI moderation service 작성
+- `getModerationFeedback(categories)` 작성
+- 매아리 guardrail prompt 작성
+- 한국어 욕설/비하 표현 로컬 보강 규칙 작성
+- `moderateMessageWithRetry` 작성
+- message service 작성
+- POST `/api/messages` 구현
+- POST `/api/auth/link-message` 구현
+- DELETE `/api/messages/:id` 구현
+- public access token 생성 로직 구현
+- guardrail 응답 parser와 legacy schema normalize 로직 구현
+- 에러 핸들링 middleware 구현
+- OpenAI/Kakao/JWT/DB 값은 모두 config loader를 통해 `.env`에서만 읽도록 구현
+- OpenAI 응답을 fake success로 대체하는 코드 작성 금지
+
+### 산출물
+
+- `moderation.service.ts`
+- `moderation-feedback.ts`
+- `moderation-policy.ts`
+- `moderation-retry.ts`
+- `message.validation.ts`
+- `message.service.ts`
+- `message.controller.ts`
+- `message.routes.ts`
+- `link-message.service.ts`
+- `auth.routes.ts`
+
+### 완료 기준
+
+- 정상 메시지는 `PENDING` 상태로 저장됨
+- 유해 메시지는 DB에 저장되지 않음
+- 유해 메시지는 categories 기반의 친절한 UX 문구를 반환함
+- OpenAI Moderations API가 통과시킨 메시지도 매아리 guardrail prompt가 차단하면 저장하지 않음
+- 사전식 욕설/비하어 목록처럼 범용 moderation에서 놓칠 수 있는 메시지를 정책 prompt와 로컬 규칙으로 보강 차단함
+- guardrail 응답은 현재 schema와 legacy `is_harmful` schema 모두 안정적으로 파싱됨
+- OpenAI API 실패 시 즉시 1회 자동 재시도
+- 2회 모두 검사 실패 시 `MODERATION_FAILED` 상태로 저장하고 검사 실패 UX를 반환
+- `MODERATION_FAILED` 메시지는 publicUrl을 발급하지 않음
+- `OPENAI_API_KEY`가 없으면 서버 시작 또는 요청 처리 시 명확한 설정 오류를 반환함
+- mock moderation 결과를 사용하지 않음
+- 공개 열람 URL token 생성 가능
+- 공개 링크로 열람한 메시지가 가입 후 로그인 사용자 수신함에 귀속됨
+- 취소된 보낸 마음은 `senderDeletedAt`으로 발신함에서 제거 가능
+- 받은 마음은 `receiverDeletedAt`으로 수신함에서 제거 가능
+
+---
+
+## Step 3. 스케줄러 로직
+
+### 목표
+
+예약 시간이 지난 메시지를 주기적으로 찾아 `SENT` 상태로 변경한다.
+
+### 작업 항목
+
+- `node-cron` 설치
+- scheduler entrypoint 작성
+- pending message job 작성
+- failed moderation retry job 작성
+- DB 조회 조건 구현
+- 상태 변경 트랜잭션 작성
+- `EventEmitter` 기반 domain event 작성
+- `NotificationProcessor` 작성
+- 실패 처리 구현
+- 중복 실행 방지 lock 추가
+- 로그 출력
+- 실제 외부 알림 provider 정보가 없는 상태에서 알림 발송 성공으로 기록하지 않음
+
+### 산출물
+
+- `scheduler.ts`
+- `send-pending-messages.job.ts`
+- `retry-failed-moderation.job.ts`
+- `domain-events.ts`
+- `notification.processor.ts`
+
+### 완료 기준
+
+- 5분마다 job 실행
+- `scheduledAt <= now`인 `PENDING` 메시지가 `SENT`로 변경됨
+- 스케줄러는 알림 발송을 직접 처리하지 않음
+- `SENT` 변경 직후 `message.sent` event가 발행됨
+- `NotificationProcessor`가 event를 받아 후속 알림 처리를 수행함
+- 하루 한 번 `MODERATION_FAILED` 메시지를 재검사함
+- 재검사 통과 시 `PENDING`으로 복귀하고 공개 링크를 발급함
+- 재검사에서 유해성 차단 시 `BLOCKED`로 전환함
+- 오류 발생 시 `FAILED` 처리
+- 같은 job이 겹쳐 실행되지 않음
+- NotificationProcessor는 fake provider나 dummy 알림 파일 없이 동작함
+
+---
+
+## Step 4. Nginx 인프라 설정
+
+### 목표
+
+도메인으로 들어온 HTTPS 요청을 Next.js와 Express API로 안정적으로 전달한다.
+
+### 작업 항목
+
+- `infra/nginx/maeari.conf.template` 작성
+- `/api` proxy 설정
+- frontend proxy 설정
+- websocket upgrade header 설정
+- `proxy_read_timeout` 60초 이상 설정
+- proxy timeout 설정
+- client body size 설정
+- SSL 인증서 적용 위치 주석 작성
+- 로컬/배포 `.env` 파일 구분 가이드 작성
+- 도메인, HTTPS, cookie, upstream port 값은 하드코딩하지 않고 배포 환경 변수 또는 Nginx 변수로 분리
+
+### 산출물
+
+- Nginx site config template
+- `.env.example`
+- `.gitignore` env 규칙
+- API config loader 초안
+
+### 완료 기준
+
+- `.env.production` 값으로 렌더링한 뒤 `nginx -t` 통과 가능한 설정
+- `/api/*` 요청은 Express 서버로 전달
+- 그 외 요청은 Next.js 서버로 전달
+- HTTPS 적용 가능
+- 운영 환경에서 `.env.production`을 기준으로 서버 실행 가능
+- 운영 secret이나 실제 도메인 값이 repository에 커밋되지 않음
+
+---
+
+## Step 5. 친구 추가 및 친구 수신자 선택
+
+### 목표
+
+회원가입한 사용자가 친구 코드를 통해 친구 요청을 보내고, 수락된 친구를 메시지 수신자로 선택할 수 있게 한다.
+
+### 작업 항목
+
+- `FriendRequest`, `Friendship`, `User.friendCode` Prisma schema 추가
+- 친구 코드 생성 유틸 작성
+- 친구 요청 생성/수락/거절/취소/삭제 service 작성
+- 친구 API route/controller/validation 작성
+- `/friends` 화면 작성
+- `/write` 수신 대상에 `친구` 탭과 친구 선택 UI 추가
+- 친구 수신자 메시지 생성 시 friendship 유효성 검증
+- 친구 삭제 후에도 기존 메시지 snapshot 유지
+
+### 완료 기준
+
+- 자기 자신에게 친구 요청 불가
+- 이미 친구이거나 pending 요청이 있으면 중복 요청 불가
+- 친구 요청 수신자만 수락/거절 가능
+- 수락 시 정렬된 `userAId`, `userBId`로 중복 없는 `Friendship` 생성
+- 친구 선택 메시지는 `receiverType = FRIEND`, `receiverUserId = 친구 User.id`로 저장
+- 친구 수신자는 도착 시 서비스 내 알림과 수신함에서 메시지를 확인 가능
+
+---
+
+## Step 6. Gmail SMTP 이메일 / Solapi 문자 발송
+
+### 목표
+
+친구가 아닌 외부 수신자에게 발송 시간이 되면 공개 열람 링크를 Gmail SMTP 이메일 또는 Solapi 문자로 전달한다.
+
+### 작업 항목
+
+- `NotificationProvider` interface 작성
+- `GmailSmtpNotificationProvider` 작성
+- `SolapiSmsNotificationProvider` 작성
+- `McpNotificationProvider` fallback adapter 작성
+- Gmail SMTP와 Solapi 설정 env 추가: `GMAIL_SMTP_*`, `SOLAPI_*`
+- MCP 설정 env는 fallback adapter로 유지: `MCP_NOTIFICATION_ENABLED`, `MCP_NOTIFICATION_SERVER`, `MCP_EMAIL_TOOL`, `MCP_SMS_TOOL`
+- `NotificationLog` idempotency/retry 필드 추가
+- `ContactSuppression` 기반 EMAIL/SMS 수신거부 pre-flight 추가
+- 외부 수신자 channel 선택 로직 작성
+- Notification retry job 작성
+- provider 성공/실패/errorCode mapping 작성
+- 발송 문구 template 작성
+- 메시지 상세/발신함에서 외부 발송 상태와 실패 사유 표시
+- `/write` 외부 수신자 email/phone/preferredChannel UI 추가
+- `/arrival/[token]` 채널별 수신거부 버튼 추가
+
+### 완료 기준
+
+- 외부 수신자는 이메일 또는 전화번호 중 하나 없이는 메시지 생성 불가
+- provider 미설정 시 발송 성공으로 표시하지 않고 `SKIPPED/FAILED` 기록
+- Gmail SMTP, Solapi 또는 MCP fallback 발송 성공 시 `NotificationLog=SENT`, `MessageRecipient=SENT`
+- retryable 실패는 최대 3회 재시도
+- non-retryable 실패는 최종 실패로 기록
+- 같은 수신자/이벤트/channel 조합은 idempotency key로 중복 발송되지 않음
+- SMS/EMAIL 본문에는 편지 본문이 포함되지 않음
+
+---
+
+## Step 7. 도착 시간 UX 개선
+
+### 목표
+
+사용자가 날짜/시간을 직접 계산하지 않아도 쉽게 도착 시간을 설정하도록 메시지 작성 화면을 개선한다.
+
+### 작업 항목
+
+- `datetime-local` 단일 입력을 빠른 프리셋 + 날짜 입력 + 1분 단위 시간 입력으로 교체
+- 15분 단위 quick minute button 생성
+- 선택한 값을 KST 기준 미리보기로 표시
+- 프리셋 선택 시 `scheduledAt` 자동 계산
+- 직접 입력 변경 시 preview와 submit payload 동기화
+- 서버 validation은 UTC ISO string 기준 미래 시간 검증 유지
+
+### 완료 기준
+
+- 빠른 프리셋 클릭만으로 예약 시간이 설정됨
+- 직접 날짜/시간 입력 가능
+- 사용자는 시/분을 1분 단위로 직접 입력 가능
+- 15분 단위 quick minute 버튼으로 흔한 분 값을 빠르게 선택 가능
+- KST 도착 미리보기가 표시됨
+- 과거 시간 또는 현재보다 너무 가까운 시간은 제출 불가
+- 모바일/데스크톱에서 텍스트와 컨트롤이 겹치지 않음
+
+---
+
+## 17. MVP 이후 확장 계획
+
+## Phase 2. 친구 및 실제 외부 발송 안정화
+
+- 친구 추천 또는 연락처 기반 친구 찾기
+- Gmail SMTP, Solapi provider 운영 모니터링
+- SMS/EMAIL provider 교체와 운영 모니터링 고도화
+- NotificationLog 재시도 대시보드
+- 카카오 알림톡 연동
+
+## Phase 3. 감성 기능 강화
+
+- 기간 랜덤 발송
+- 도착 전 힌트 알림
+- 익명 답장
+- 메시지 봉투/테마 선택
+
+## Phase 4. 보관함 고도화
+
+- 취소된 보낸 마음 삭제와 받은 마음 삭제의 기본 soft delete는 구현 완료
+- 감정 태그 기반 필터
+- 월별 감정 리포트
+- 받은 메시지 아카이브
+- 보관함 삭제 복구, 일괄 삭제, 오래된 메시지 정리 정책
+- 미래의 나에게 쓴 편지 모아보기
+
+## Phase 5. 운영 도구
+
+- 관리자 페이지
+- 유해 메시지 moderation log
+- 신고 기능
+- 계정 정지 정책
+- 발송 통계 대시보드
+
+---
+
+## 18. 예상 리스크와 대응
+
+| 리스크 | 설명 | 대응 |
+| --- | --- | --- |
+| OpenAI API 장애 | 메시지 작성이 막힐 수 있음 | Fail Closed 정책과 재시도 안내 |
+| Kakao OAuth 설정 오류 | 로그인 불가 | 개발/운영 redirect URI 분리 |
+| 예약 job 중복 실행 | 메시지 중복 발송 가능 | in-memory lock, 추후 DB lock |
+| 공개 링크 유출 | 누구나 열람 가능 | 충분히 긴 token, 만료 정책 |
+| 친구 요청 악용 | 모르는 사용자에게 반복 요청 가능 | 친구 코드 기반 요청, pending 중복 차단, 요청 취소/거절, 추후 차단 기능 |
+| 외부 연락처 오입력 | 이메일/SMS가 잘못된 대상에게 갈 수 있음 | 형식 검증, 확인 UI, 공개 링크에는 편지 본문 미포함 |
+| 외부 provider 발송 장애 | 도착 시점에 이메일/문자 발송 실패 가능 | NotificationLog PENDING 재시도, 최종 실패 상태 노출, fake 성공 금지 |
+| EC2 단일 서버 한계 | Next.js, API, scheduler, DB 동시 운영 부담 | PM2 memory limit, swap, managed DB 고려 |
+| 알림톡 미연동 | 카카오톡 기반 알림 부족 | MVP에서는 Gmail SMTP 이메일과 Solapi 문자 발송으로 시작 |
+
+---
+
+## 19. 개발 우선순위
+
+1. DB schema와 프로젝트 구조를 먼저 확정한다.
+2. 카카오 로그인보다 메시지 생성 도메인 모델을 먼저 안정화한다.
+3. 메시지 작성 API에는 반드시 AI moderation을 포함한다.
+4. 친구 관계 모델과 친구 선택 수신 흐름을 추가한다.
+5. 비회원 열람 링크를 초기에 설계해 바이럴 유입의 기반을 만든다.
+6. 예약 스케줄러는 메시지 상태 변경과 알림 발송 처리를 분리한다.
+7. 사용할 외부 provider가 없을 때 성공 처리하지 않는 외부 발송 실패 정책을 유지한다.
+8. Nginx와 PM2 설정은 MVP 배포 가능한 수준으로 단순하게 유지한다.
+
+---
+
+## 20. 최종 실행 순서
+
+```txt
+1. Step 1: 프로젝트 구조 및 Prisma DB 설계
+2. Step 2: AI 필터링 및 메시지 작성 API
+3. Step 3: 예약 메시지 scheduler
+4. Step 4: Nginx reverse proxy 설정
+5. Step 5: 친구 추가/친구 선택 수신 구현
+6. Step 6: Gmail SMTP 이메일 / Solapi 문자 발송 구현
+7. Step 7: 도착 시간 UX 개선
+8. 로컬 테스트
+9. EC2 배포
+10. HTTPS 적용
+11. 카카오 OAuth 운영 redirect URI 등록
+12. 소규모 사용자 테스트
+13. 알림톡 연동 검토
+```
+
+---
+
+## 21. 다음 작업
+
+이 계획서를 기준으로 실제 개발은 다음 순서로 진행합니다.
+
+**다음 단계: Step 1. 프로젝트 구조 및 DB 설계**
+
+Step 1에서 작성할 실제 파일은 다음과 같습니다.
+
+- `package.json`
+- `pnpm-workspace.yaml`
+- `packages/database/prisma/schema.prisma`
+- `.env.example`
+- `docker-compose.yml`

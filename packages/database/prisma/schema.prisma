@@ -19,6 +19,7 @@ enum MessageStatus {
 
 enum RecipientType {
   SELF
+  FRIEND
   OTHER
 }
 
@@ -65,11 +66,20 @@ enum NotificationStatus {
   SKIPPED
 }
 
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+  EXPIRED
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   kakaoId         String    @unique @db.VarChar(64)
   nickname        String    @db.VarChar(80)
   email           String?   @db.VarChar(255)
+  friendCode      String    @unique @db.VarChar(20)
   profileImageUrl String?   @db.VarChar(2048)
   onboardingNote  String?   @db.Text
   lastLoginAt     DateTime? @db.Timestamptz(3)
@@ -80,6 +90,11 @@ model User {
   sentMessages        Message[]            @relation("MessageSender")
   receivedRecipients  MessageRecipient[]   @relation("RecipientUser")
   claimedAccessTokens MessageAccessToken[] @relation("AccessTokenClaimedBy")
+  sentFriendRequests  FriendRequest[]      @relation("FriendRequestRequester")
+  receivedFriendRequests FriendRequest[]   @relation("FriendRequestAddressee")
+  friendshipsAsA      Friendship[]         @relation("FriendshipUserA")
+  friendshipsAsB      Friendship[]         @relation("FriendshipUserB")
+  createdFriendships  Friendship[]         @relation("FriendshipCreatedBy")
 
   @@index([email])
   @@index([createdAt])
@@ -97,6 +112,7 @@ model Message {
   canceledAt               DateTime?     @db.Timestamptz(3)
   failedAt                 DateTime?     @db.Timestamptz(3)
   failureReason            String?       @db.Text
+  senderDeletedAt          DateTime?     @db.Timestamptz(3)
   isSenderHidden           Boolean       @default(false)
   isDateHidden             Boolean       @default(false)
   status                   MessageStatus @default(PENDING)
@@ -114,6 +130,7 @@ model Message {
   moderationLogs ModerationLog[]
 
   @@index([senderId, createdAt])
+  @@index([senderId, senderDeletedAt])
   @@index([status, scheduledAt])
   @@index([status, moderationNextRetryAt])
   @@index([createdAt])
@@ -131,6 +148,7 @@ model MessageRecipient {
   deliveryStatus RecipientDeliveryStatus @default(WAITING)
   deliveredAt    DateTime?               @db.Timestamptz(3)
   readAt         DateTime?               @db.Timestamptz(3)
+  receiverDeletedAt DateTime?            @db.Timestamptz(3)
   createdAt      DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime                @updatedAt @db.Timestamptz(3)
 
@@ -141,6 +159,7 @@ model MessageRecipient {
 
   @@index([messageId])
   @@index([receiverUserId, readAt])
+  @@index([receiverUserId, receiverDeletedAt])
   @@index([deliveryStatus])
   @@index([receiverEmail])
   @@index([receiverPhone])
@@ -198,11 +217,15 @@ model NotificationLog {
   eventType          NotificationEventType @default(MESSAGE_SENT)
   channel            NotificationChannel
   status             NotificationStatus    @default(PENDING)
+  provider           String?               @db.VarChar(80)
+  idempotencyKey     String                @unique @db.VarChar(160)
+  attemptCount       Int                   @default(0)
   providerMessageId  String?               @db.VarChar(160)
   payload            Json?
   errorCode          String?               @db.VarChar(120)
   errorMessage       String?               @db.Text
   scheduledAt        DateTime?             @db.Timestamptz(3)
+  nextRetryAt        DateTime?             @db.Timestamptz(3)
   attemptedAt        DateTime?             @db.Timestamptz(3)
   sentAt             DateTime?             @db.Timestamptz(3)
   createdAt          DateTime              @default(now()) @db.Timestamptz(3)
@@ -212,5 +235,56 @@ model NotificationLog {
 
   @@index([messageRecipientId, channel])
   @@index([status, scheduledAt])
+  @@index([status, nextRetryAt])
   @@index([eventType, createdAt])
+}
+
+model ContactSuppression {
+  id                       String              @id @default(uuid()) @db.Uuid
+  channel                  NotificationChannel
+  contactHash              String              @db.Char(64)
+  sourceMessageRecipientId String?             @db.Uuid
+  reason                   String?             @db.VarChar(120)
+  createdAt                DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@unique([channel, contactHash])
+  @@index([createdAt])
+}
+
+model FriendRequest {
+  id          String              @id @default(uuid()) @db.Uuid
+  requesterId String              @db.Uuid
+  addresseeId String              @db.Uuid
+  status      FriendRequestStatus @default(PENDING)
+  message     String?             @db.VarChar(120)
+  expiresAt   DateTime            @db.Timestamptz(3)
+  respondedAt DateTime?           @db.Timestamptz(3)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
+
+  requester User @relation("FriendRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendRequestAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
+  @@index([expiresAt])
+}
+
+model Friendship {
+  id          String    @id @default(uuid()) @db.Uuid
+  userAId     String    @db.Uuid
+  userBId     String    @db.Uuid
+  createdById String    @db.Uuid
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  userA     User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  createdBy User @relation("FriendshipCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId, deletedAt])
+  @@index([userBId, deletedAt])
+  @@index([createdById])
 }

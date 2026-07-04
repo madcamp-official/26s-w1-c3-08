@@ -79,7 +79,7 @@ export async function fetchKakaoProfile(accessToken: string) {
   const nickname =
     profile.kakao_account?.profile?.nickname ??
     profile.properties?.nickname ??
-    "마음도착 사용자";
+    "매아리 사용자";
 
   return {
     kakaoId: String(profile.id),

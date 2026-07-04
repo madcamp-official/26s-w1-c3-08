@@ -2,12 +2,14 @@ import cron from "node-cron";
 import { config } from "./config/env.js";
 import { registerDomainEventHandlers } from "./events/register-events.js";
 import { retryFailedModerationMessages } from "./jobs/retry-failed-moderation.job.js";
+import { retryPendingNotifications } from "./jobs/retry-pending-notifications.job.js";
 import { sendPendingMessages } from "./jobs/send-pending-messages.job.js";
 
 registerDomainEventHandlers();
 
 let deliveryRunning = false;
 let moderationRetryRunning = false;
+let notificationRetryRunning = false;
 
 function runDeliveryOnce(source: string) {
   if (deliveryRunning) {
@@ -49,10 +51,32 @@ function runModerationRetryOnce(source: string) {
     });
 }
 
+function runNotificationRetryOnce(source: string) {
+  if (notificationRetryRunning) {
+    return;
+  }
+
+  notificationRetryRunning = true;
+  void retryPendingNotifications()
+    .then((result) => {
+      if (result.processed > 0) {
+        console.log(`retryPendingNotifications processed ${result.processed} notification(s) from ${source}`);
+      }
+    })
+    .catch((error) => {
+      console.error("retryPendingNotifications failed", error);
+    })
+    .finally(() => {
+      notificationRetryRunning = false;
+    });
+}
+
 cron.schedule(config.deliveryCron, () => runDeliveryOnce("cron"));
 cron.schedule(config.moderationRetryCron, () => runModerationRetryOnce("cron"));
+cron.schedule(config.notificationRetryCron, () => runNotificationRetryOnce("cron"));
 
 runDeliveryOnce("startup");
 runModerationRetryOnce("startup");
+runNotificationRetryOnce("startup");
 
-console.log("maeum-arrival scheduler started");
+console.log("maeari scheduler started");

@@ -1,4 +1,4 @@
-import type { Message, MessageAccessToken, MessageRecipient, User } from "@maeum-arrival/database";
+import type { Message, MessageAccessToken, MessageRecipient, User } from "@maeari/database";
 import { config } from "../../config/env.js";
 
 type RecipientWithAccessToken = MessageRecipient & {

@@ -1,8 +1,8 @@
-# 마음도착 MVP IA
+# 매아리 MVP IA
 
 ## 0. 문서 목적
 
-이 문서는 `MAEUM_ARRIVAL_PLAN.md`를 바탕으로 작성한 **마음도착 MVP Information Architecture**입니다.
+이 문서는 `MAEARI_PLAN.md`를 바탕으로 작성한 **매아리 MVP Information Architecture**입니다.
 
 목표는 실제 화면 설계, 라우팅, API 연동, 상태 처리, 비회원 열람 후 가입 귀속 흐름을 한눈에 볼 수 있도록 tree 형태로 구체화하는 것입니다.
 
@@ -13,7 +13,7 @@
 ## 1.1 사용자 유형
 
 ```txt
-마음도착 사용자
+매아리 사용자
 ├── 비회원 사용자
 │   ├── 공개 링크로 메시지를 열람하는 수신자
 │   ├── 카카오 로그인 전 신규 사용자
@@ -29,13 +29,16 @@
 └── 시스템 사용자
     ├── node-cron scheduler
     ├── NotificationProcessor
+    ├── Gmail SMTP provider
+    ├── Solapi SMS provider
+    ├── MCP fallback provider
     └── OpenAI Moderation API
 ```
 
 ## 1.2 MVP 핵심 사용자 여정
 
 ```txt
-마음도착 MVP 여정
+매아리 MVP 여정
 ├── 1. 카카오 로그인
 ├── 2. 온보딩 질문 확인
 ├── 3. 메시지 작성
@@ -47,8 +50,11 @@
 ├── 9. 예약 시간 도래
 ├── 10. Scheduler가 SENT 처리
 ├── 11. NotificationProcessor 후속 처리
-├── 12. 수신자가 공개 링크로 열람
-└── 13. 비회원 수신자가 가입하면 메시지 자동 보관
+├── 12. 친구/자기 자신 수신자는 수신함에서 확인
+├── 13. 외부 수신자는 Gmail SMTP 또는 Solapi SMS로 공개 링크 수신
+├── 14. 수신자가 공개 링크로 열람
+├── 15. 필요 시 이메일/문자 알림 수신거부
+└── 16. 비회원 수신자가 가입하면 메시지 자동 보관
 ```
 
 ---
@@ -56,7 +62,7 @@
 ## 2. 전체 서비스 IA Tree
 
 ```txt
-마음도착
+매아리
 ├── Public Area
 │   ├── /login
 │   │   ├── 카카오 로그인 진입
@@ -93,6 +99,14 @@
 │       └── 실패 시 /arrival/link-failed 이동
 │
 ├── Authenticated Area
+│   ├── /
+│   │   ├── 메인 대시보드
+│   │   ├── KST 현재 시각
+│   │   ├── 마음 쓰기 진입
+│   │   ├── 보낸 마음 진입
+│   │   ├── 받은 마음 진입
+│   │   └── 친구 관리 진입
+│   │
 │   ├── /onboarding
 │   │   ├── 감성 질문
 │   │   ├── 첫 메시지 작성 유도
@@ -103,11 +117,15 @@
 │   │   ├── 메시지 작성
 │   │   │   ├── 수신 대상 선택
 │   │   │   │   ├── 미래의 나
-│   │   │   │   └── 타인
-│   │   │   ├── 수신자 정보 입력
+│   │   │   │   ├── 친구
+│   │   │   │   └── 연락처
+│   │   │   ├── 친구 선택 또는 외부 수신자 정보 입력
+│   │   │   ├── 이메일/전화번호 중 하나 이상 입력
+│   │   │   ├── 선호 채널: 자동 선택 / 이메일 / 문자
 │   │   │   ├── 제목 입력
 │   │   │   ├── 본문 입력
 │   │   │   ├── 감정 태그 선택
+│   │   │   ├── KST 현재 시각 표시
 │   │   │   └── 예약 날짜/시간 선택
 │   │   │
 │   │   ├── 감성 옵션
@@ -126,6 +144,14 @@
 │   │       ├── /sent
 │   │       ├── /messages/[id]
 │   │       └── 공개 링크 공유 UI
+│   │
+│   ├── /friends
+│   │   ├── 내 친구 코드
+│   │   ├── 친구 코드로 요청 보내기
+│   │   ├── 받은 요청 수락/거절
+│   │   ├── 보낸 요청 취소
+│   │   ├── 친구 목록
+│   │   └── 친구 삭제
 │   │
 │   ├── /sent
 │   │   ├── 내가 보낸 메시지 목록
@@ -187,7 +213,11 @@
     ├── NotificationProcessor
     │   ├── message.sent event 수신
     │   ├── 가입 수신자 알림 생성
-    │   ├── 비회원 공개 링크 발송 준비
+    │   ├── 외부 수신자 channel 결정
+    │   ├── ContactSuppression pre-flight
+    │   ├── Gmail SMTP 이메일 발송
+    │   ├── Solapi SMS 발송
+    │   ├── MCP fallback 발송
     │   ├── NotificationLog 저장
     │   └── 알림 실패 로그 기록
     │
@@ -235,6 +265,9 @@
 
 ```txt
 로그인 사용자 Navigation
+├── 홈
+│   └── /
+│
 ├── 마음 쓰기
 │   └── /write
 │
@@ -243,6 +276,9 @@
 │
 ├── 발신함
 │   └── /sent
+│
+├── 친구
+│   └── /friends
 │
 └── 내 정보
     └── /my
@@ -263,6 +299,10 @@ Mobile Bottom Navigation
 ├── 보낸 마음
 │   ├── icon: send
 │   └── route: /sent
+│
+├── 친구
+│   ├── icon: users
+│   └── route: /friends
 │
 └── 내 정보
     ├── icon: user
@@ -287,7 +327,7 @@ Mobile Bottom Navigation
 │   └── session 만료 후 redirect
 │
 ├── 주요 UI
-│   ├── 서비스명: 마음도착
+│   ├── 서비스명: 매아리
 │   ├── 감성 카피
 │   ├── 카카오 로그인 버튼
 │   └── 약관/개인정보 안내 링크
@@ -310,7 +350,7 @@ Mobile Bottom Navigation
 │   └── 로그인 완료 후 후처리
 │
 ├── 처리 로직
-│   ├── sessionStorage.maeum.pendingArrivalToken 확인
+│   ├── sessionStorage.maeari.pendingArrivalToken 확인
 │   ├── token 있음
 │   │   ├── POST /api/auth/link-message
 │   │   ├── 성공: token 삭제
@@ -362,11 +402,20 @@ Mobile Bottom Navigation
 │   ├── 미래의 나
 │   │   ├── receiverInfo.type = SELF
 │   │   └── 기본 수신자명: 미래의 나
-│   └── 타인
+│   ├── 친구
+│   │   ├── receiverInfo.type = FRIEND
+│   │   ├── 친구 목록에서 선택
+│   │   ├── friendshipId snapshot 저장
+│   │   └── receiverUserId = friend.id
+│   └── 연락처
 │       ├── receiverInfo.type = OTHER
 │       ├── 이름
 │       ├── 이메일
-│       └── 전화번호는 MVP 선택값
+│       ├── 전화번호
+│       ├── 이메일 또는 전화번호 중 하나 필수
+│       ├── 전화번호는 010-1234-5678 형태로 표시
+│       ├── submit payload는 숫자만 전송
+│       └── 선호 채널: AUTO / EMAIL / SMS
 │
 ├── Section 2. 메시지 내용
 │   ├── 제목
@@ -380,8 +429,12 @@ Mobile Bottom Navigation
 │       └── 사랑
 │
 ├── Section 3. 도착 설정
+│   ├── KST 현재 시각 초 단위 표시
+│   ├── 빠른 프리셋
 │   ├── 날짜 선택
-│   ├── 시간 선택
+│   ├── 시/분 1분 단위 직접 입력
+│   ├── 15분 단위 quick minute 버튼
+│   ├── KST 도착 미리보기
 │   ├── 과거 시간 선택 방지
 │   └── timezone 안내
 │
@@ -396,7 +449,11 @@ Mobile Bottom Navigation
 │   ├── 제목 길이
 │   ├── 본문 길이
 │   ├── scheduledAt 미래 여부
-│   └── receiverInfo 형식
+│   ├── receiverInfo 형식
+│   ├── FRIEND는 활성 친구 관계 필요
+│   ├── OTHER + AUTO는 이메일 또는 전화번호 중 하나 필요
+│   ├── OTHER + EMAIL은 이메일 필요
+│   └── OTHER + SMS는 전화번호 필요
 │
 ├── 제출 액션
 │   └── POST /api/messages
@@ -410,7 +467,9 @@ Mobile Bottom Navigation
 │
 ├── 성공 상태
 │   ├── 예약 완료 메시지
+│   ├── publicUrl 용도 안내
 │   ├── publicUrl 복사
+│   ├── 메인으로 이동
 │   ├── 발신함으로 이동
 │   └── 새 마음 쓰기
 │
@@ -529,7 +588,7 @@ Mobile Bottom Navigation
 │
 ├── 접근 권한
 │   ├── senderId === currentUser.id
-│   └── receiverId === currentUser.id
+│   └── MessageRecipient.receiverUserId === currentUser.id
 │
 ├── 데이터 요청
 │   └── GET /api/messages/:id
@@ -571,12 +630,13 @@ Mobile Bottom Navigation
 │
 ├── 진입 경로
 │   ├── 공유 링크
-│   ├── 향후 알림톡 링크
-│   └── 향후 SMS 링크
+│   ├── Gmail SMTP 이메일 링크
+│   ├── Solapi SMS 링크
+│   └── 향후 알림톡 링크
 │
 ├── 초기 처리
 │   ├── route param token 추출
-│   ├── sessionStorage.maeum.pendingArrivalToken 저장
+│   ├── sessionStorage.maeari.pendingArrivalToken 저장
 │   └── GET /api/public/messages/:token
 │
 ├── 열람 gate
@@ -595,8 +655,15 @@ Mobile Bottom Navigation
 │       ├── isDateHidden=false: 날짜 표시
 │       └── isDateHidden=true: 도착일 숨김 문구
 │
+├── 수신거부
+│   ├── canSuppressEmailNotification=true이면 이메일 알림 수신거부 버튼 표시
+│   ├── canSuppressSmsNotification=true이면 문자 알림 수신거부 버튼 표시
+│   ├── POST /api/public/notification-suppressions
+│   ├── body: { token, channel }
+│   └── 원본 연락처가 아닌 HMAC contactHash 저장
+│
 ├── 가입 유도
-│   ├── 이 마음을 오래 보관하고 싶다면 마음도착에 저장해 보세요
+│   ├── 이 마음을 오래 보관하고 싶다면 매아리에 저장해 보세요
 │   └── CTA: 카카오로 시작하기
 │       └── GET /api/auth/kakao
 │
@@ -660,7 +727,7 @@ Auth
 │       ├── token 검증
 │       ├── 만료 확인
 │       ├── 중복 귀속 확인
-│       ├── Message.receiverId 업데이트
+│       ├── MessageRecipient.receiverUserId 업데이트
 │       └── MessageAccessToken.linkedUserId 업데이트
 │
 └── 로그아웃
@@ -673,6 +740,9 @@ Auth
 Message Create
 ├── 입력
 │   ├── receiverInfo
+│   │   ├── SELF
+│   │   ├── FRIEND
+│   │   └── OTHER: name, email?, phone?, preferredChannel
 │   ├── title
 │   ├── content
 │   ├── emotionTag
@@ -685,7 +755,12 @@ Message Create
 │   ├── required fields
 │   ├── content length
 │   ├── scheduledAt future only
-│   └── receiverInfo schema
+│   ├── receiverInfo schema
+│   ├── 친구 수신자는 활성 Friendship 필요
+│   ├── 외부 수신자는 email 또는 phone 중 하나 필요
+│   ├── EMAIL 선택 시 email 필요
+│   ├── SMS 선택 시 phone 필요
+│   └── 전화번호는 국내 10~11자리 숫자만 허용
 │
 ├── AI Moderation
 │   ├── title/content/emotionTag 검사
@@ -723,7 +798,7 @@ Message Create
 ```txt
 Message Receive
 ├── 가입자 수신
-│   ├── Message.receiverId 존재
+│   ├── MessageRecipient.receiverUserId 존재
 │   ├── /inbox 노출
 │   └── GET /api/messages/received
 │
@@ -736,7 +811,7 @@ Message Receive
 └── 가입 후 귀속
     ├── sessionStorage token 확인
     ├── POST /api/auth/link-message
-    ├── Message.receiverId 연결
+    ├── MessageRecipient.receiverUserId 연결
     ├── MessageAccessToken.linkedUserId 연결
     └── /inbox 이동
 ```
@@ -761,8 +836,12 @@ Scheduled Delivery
 └── 후속 처리
     └── NotificationProcessor
         ├── 가입자 알림 생성
-        ├── 비회원 링크 발송 준비
+        ├── 외부 수신자 channel 결정
+        ├── EMAIL: Gmail SMTP 우선, MCP fallback
+        ├── SMS: Solapi 우선, MCP fallback
+        ├── ContactSuppression 조회
         ├── NotificationLog 저장
+        ├── retryable 실패는 nextRetryAt 기록
         └── 실패 로그 기록
 ```
 
@@ -797,6 +876,35 @@ Moderation Retry
     ├── moderationAttemptCount 증가
     ├── moderationLastCheckedAt 갱신
     └── moderationNextRetryAt = now + 1 day
+```
+
+## 5.6 이메일/문자 알림 수신거부
+
+```txt
+Notification Suppression
+├── 진입
+│   └── /arrival/[token] 공개 열람 화면
+│
+├── 표시 조건
+│   ├── canSuppressEmailNotification=true
+│   └── canSuppressSmsNotification=true
+│
+├── 요청
+│   └── POST /api/public/notification-suppressions
+│       ├── token
+│       └── channel: EMAIL 또는 SMS
+│
+├── 서버 처리
+│   ├── tokenHash로 MessageAccessToken 조회
+│   ├── channel에 맞는 receiverEmail 또는 receiverPhone 확인
+│   ├── 연락처 정규화
+│   ├── PUBLIC_TOKEN_PEPPER로 HMAC-SHA256 hash 생성
+│   └── ContactSuppression upsert
+│
+└── 이후 발송
+    ├── NotificationProcessor가 발송 전 ContactSuppression 조회
+    ├── hash가 있으면 provider 호출 생략
+    └── NotificationLog.status = SKIPPED, errorCode = CONTACT_SUPPRESSED
 ```
 
 ---
@@ -909,6 +1017,10 @@ Moderation
 
 ```txt
 Frontend Routes
+├── /
+│   ├── GET /api/me
+│   └── 주요 authenticated route link
+│
 ├── /login
 │   └── GET /api/auth/kakao
 │
@@ -921,7 +1033,17 @@ Frontend Routes
 │
 ├── /write
 │   ├── GET /api/me
+│   ├── GET /api/friends
 │   └── POST /api/messages
+│
+├── /friends
+│   ├── GET /api/friends
+│   ├── GET /api/friends/requests
+│   ├── POST /api/friends/requests
+│   ├── PATCH /api/friends/requests/:id/accept
+│   ├── PATCH /api/friends/requests/:id/reject
+│   ├── PATCH /api/friends/requests/:id/cancel
+│   └── DELETE /api/friends/:friendshipId
 │
 ├── /sent
 │   ├── GET /api/messages/sent
@@ -935,7 +1057,8 @@ Frontend Routes
 │   └── PATCH /api/messages/:id/cancel
 │
 ├── /arrival/[token]
-│   └── GET /api/public/messages/:token
+│   ├── GET /api/public/messages/:token
+│   └── POST /api/public/notification-suppressions
 │
 └── /my
     ├── GET /api/me
@@ -946,7 +1069,7 @@ Frontend Routes
 
 ## 8. 데이터-화면 매핑 IA
 
-최종 Prisma schema는 `packages/database/prisma/schema.prisma`를 기준으로 합니다. 자세한 모델 설명은 `MAEUM_ARRIVAL_DB_SCHEMA.md`에 정리합니다.
+최종 Prisma schema는 `packages/database/prisma/schema.prisma`를 기준으로 합니다. 자세한 모델 설명은 `MAEARI_DB_SCHEMA.md`에 정리합니다.
 
 ```txt
 Database Models
@@ -956,7 +1079,8 @@ Database Models
 │   ├── /my
 │   ├── /write sender
 │   ├── /sent sender
-│   └── /inbox receiver
+│   ├── /inbox receiver
+│   └── /friends friend code and relation
 │
 ├── Message
 │   ├── /write 생성
@@ -968,11 +1092,34 @@ Database Models
 │   ├── Scheduler 상태 변경
 │   └── ModerationRetryScheduler 재검사
 │
-└── MessageAccessToken
-    ├── /write 생성 결과 publicUrl
-    ├── /arrival/[token] 조회 key
-    ├── /auth/callback sessionStorage token
-    └── /api/auth/link-message 귀속 처리
+├── MessageRecipient
+│   ├── /write 수신자 snapshot
+│   ├── /sent 수신자별 발송 상태
+│   ├── /inbox 귀속 사용자
+│   └── NotificationProcessor channel 결정
+│
+├── MessageAccessToken
+│   ├── /write 생성 결과 publicUrl
+│   ├── /arrival/[token] 조회 key
+│   ├── /auth/callback sessionStorage token
+│   └── /api/auth/link-message 귀속 처리
+│
+├── NotificationLog
+│   ├── NotificationProcessor 발송 이력
+│   ├── Gmail SMTP provider 결과
+│   ├── Solapi SMS provider 결과
+│   └── retry job 대상
+│
+├── ContactSuppression
+│   ├── /arrival/[token] 수신거부 결과
+│   └── NotificationProcessor pre-flight 조회
+│
+├── FriendRequest
+│   └── /friends 요청 관리
+│
+└── Friendship
+    ├── /friends 친구 목록
+    └── /write 친구 수신자 선택
 ```
 
 ---
@@ -1026,6 +1173,7 @@ Exception IA
 ```txt
 IA Priority
 ├── P0
+│   ├── /
 │   ├── /login
 │   ├── /auth/callback
 │   ├── /write
@@ -1034,12 +1182,18 @@ IA Priority
 │   ├── /inbox
 │   ├── POST /api/messages
 │   ├── GET /api/public/messages/:token
+│   ├── POST /api/public/notification-suppressions
 │   └── POST /api/auth/link-message
 │
 ├── P1
+│   ├── /friends
 │   ├── /messages/[id]
 │   ├── /my
+│   ├── 친구 요청/수락/거절/취소 API
 │   ├── PATCH /api/messages/:id/cancel
+│   ├── Gmail SMTP 이메일 발송
+│   ├── Solapi SMS 발송
+│   ├── ContactSuppression pre-flight
 │   ├── AI moderation feedback states
 │   ├── AI 검사 실패 상태
 │   ├── 하루 1회 moderation retry job
@@ -1050,7 +1204,8 @@ IA Priority
     ├── 감정 태그 필터
     ├── 읽음 상태
     ├── 공개 링크 실패 전용 화면
-    └── NotificationLog 화면은 MVP 이후
+    ├── NotificationLog 화면은 MVP 이후
+    └── 카카오 알림톡 연동
 ```
 
 ---
@@ -1068,6 +1223,8 @@ Development Order
 │
 ├── 2. Message Create
 │   ├── /write
+│   ├── 친구 수신자 선택
+│   ├── 외부 수신자 email/phone/preferredChannel 입력
 │   ├── POST /api/messages
 │   ├── moderation feedback
 │   ├── moderation immediate retry
@@ -1078,6 +1235,7 @@ Development Order
 │   ├── /arrival/[token]
 │   ├── sessionStorage token 저장
 │   ├── GET /api/public/messages/:token
+│   ├── POST /api/public/notification-suppressions
 │   └── 가입 CTA
 │
 ├── 4. Link Message
@@ -1091,10 +1249,20 @@ Development Order
 │   ├── /messages/[id]
 │   └── cancel action
 │
-└── 6. System
+├── 6. Friends
+│   ├── /friends
+│   ├── friendCode
+│   ├── FriendRequest
+│   └── Friendship
+│
+└── 7. System
     ├── scheduler
     ├── moderation retry scheduler
     ├── domainEvents
     ├── NotificationProcessor
+    ├── Gmail SMTP provider
+    ├── Solapi SMS provider
+    ├── MCP fallback provider
+    ├── notification retry scheduler
     └── failure logging
 ```
