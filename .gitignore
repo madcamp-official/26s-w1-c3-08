@@ -15,6 +15,8 @@ packages/*/.env
 packages/*/.env.local
 packages/*/.env.production
 
+backups/
+
 *.log
 *.tsbuildinfo
 .DS_Store

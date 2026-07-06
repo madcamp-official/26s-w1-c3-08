@@ -1,4 +1,4 @@
-# 매아리 DB Schema 및 신규 DB 마이그레이션 계획
+# 매아리 DB Schema 및 운영 DB 상태
 
 ## 0. 기준 파일과 현재 상태
 
@@ -8,25 +8,28 @@
 
 현재 운영/개발 DB 기준:
 
-- 현재 DB 이름: `maeum_arrival`
-- 현재 적용된 최신 migration: `20260705013000_reports_and_suspensions`
-- 코드에 존재하는 최신 migration: `20260706090000_user_contacts_and_sender_contact`
-- 2026-07-06 점검 당시 주요 row count:
-  - `User`: 4
-  - `Message`: 24
-  - `MessageRecipient`: 24
-  - `MessageAccessToken`: 29
-  - `ModerationLog`: 24
-  - `NotificationLog`: 18
+- 현재 DB 이름: `maeari`
+- 현재 DB 사용자: `maeari`
+- 현재 적용된 최신 migration: `20260706123000_friend_invite_links`
+- Docker Postgres healthcheck 기준 DB/USER도 `maeari`로 전환 완료
+- 2026-07-06 현재 주요 row count:
+  - `User`: 5
+  - `Message`: 30
+  - `MessageRecipient`: 30
+  - `MessageAccessToken`: 37
+  - `NotificationLog`: 23
   - `ContactSuppression`: 1
   - `FriendRequest`: 1
   - `Friendship`: 1
-  - `UserContact`, `UserContactVerification`: 현재 DB에는 아직 없음
+  - `UserContact`: 4
+  - `FriendInviteLink`: 0
 
-새 DB 이전 목표:
+신규 DB 이전 결과:
 
 - 새 DB 이름은 `maeari`로 사용합니다.
-- 기존 DB `maeum_arrival`은 rollback용으로 보존합니다.
+- 기존 DB `maeum_arrival`과 임시 `maeari_dryrun` DB는 final dump 검증 후 제거했습니다.
+- final dump 백업은 `backups/maeum_arrival_final_20260706_090800.dump`로 보존합니다.
+- 기존 bootstrap role `maeum`은 Postgres system-required 객체 때문에 삭제할 수 없어 `NOLOGIN`으로 잠근 상태로 남깁니다.
 - `PUBLIC_TOKEN_PEPPER`는 반드시 기존 값 그대로 유지합니다. 공개 링크 token hash, 수신거부 contact hash, OTP hash 정책이 이 값에 의존합니다.
 
 ---
@@ -39,16 +42,19 @@
 
 ```txt
 User
-  -> 카카오 로그인 계정, 친구 코드, 정지/삭제 상태, 발신 연락처
+  -> 카카오 로그인 계정, 친구 코드, 정지/삭제 상태
 
 UserContact
-  -> 사용자가 소유 인증한 이메일/전화번호
+  -> 사용자가 소유 인증한 이메일/전화번호. PHONE은 마음쓰기 권한, EMAIL은 이메일 수신 연결에 사용
 
 UserContactVerification
-  -> 발신 연락처 인증 OTP hash와 만료/시도 이력
+  -> 연락처 인증 OTP hash와 만료/시도 이력
+
+PhoneVerificationAttempt / PhoneVerificationLock / PhoneNumberLookupCache
+  -> PHONE 인증 abuse 방어, 잠금, Twilio Lookup cache
 
 Message
-  -> 편지 본문, 예약/도착 상태, 발신자, 발신 연락처 snapshot, 숨김 옵션, AI 검사 상태
+  -> 편지 본문, 예약/도착 상태, 발신자, 서버가 선택한 인증 PHONE snapshot, 숨김 옵션, AI 검사 상태
 
 MessageRecipient
   -> 수신자별 정보, 귀속 사용자, 열람 상태, 발송 상태
@@ -68,7 +74,7 @@ ContactSuppression
 - 공개 링크 raw token은 DB에 저장하지 않습니다.
 - `MessageAccessToken.tokenHash`에는 `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256만 저장합니다.
 - 수신거부 테이블에는 raw 이메일/전화번호를 저장하지 않습니다.
-- `UserContact.value`에는 사용자가 인증한 발신 연락처 원문을 저장하지만, 메시지 snapshot에는 `maskedValue`와 `contactHash`만 저장합니다.
+- `UserContact.value`에는 사용자가 인증한 연락처 원문을 저장하지만, 메시지 snapshot에는 `maskedValue`와 `contactHash`만 저장합니다.
 - 이메일/SMS 알림 본문에는 사용자가 작성한 편지 본문을 넣지 않고 열람 링크만 보냅니다.
 
 ---
@@ -131,6 +137,9 @@ Friendship
 ├── userA: User
 ├── userB: User
 └── createdBy: User
+
+FriendInviteLink
+└── inviter: User
 ```
 
 ---
@@ -145,7 +154,7 @@ Friendship
 
 - `kakaoId`: 카카오 고유 id
 - `nickname`: 서비스 표시명
-- `email`: 카카오에서 받은 선택 이메일. 신규 발신 연락처의 초기 backfill 원천으로 사용합니다.
+- `email`: 카카오에서 받은 선택 이메일. 이메일 수신 연결용 `UserContact` backfill 원천으로 사용합니다.
 - `friendCode`: 친구 요청에 사용하는 사용자별 고유 코드
 - `profileImageUrl`: 카카오 프로필 이미지
 - `onboardingNote`: 온보딩 답변
@@ -153,11 +162,11 @@ Friendship
 - `suspendedAt`, `suspensionReason`: 관리자 계정 정지 상태
 - `deletedAt`: 계정 soft delete 대비
 
-`User.email`은 로그인 provider snapshot이며, 앞으로 발신 연락처 소유 판단은 `UserContact`를 기준으로 합니다.
+`User.email`은 로그인 provider snapshot이며, 이메일 수신 연결 판단은 인증된 `UserContact(type=EMAIL)`를 기준으로 합니다.
 
 ## 3.2 UserContact
 
-사용자가 소유 인증한 발신 연락처를 저장합니다.
+사용자가 소유 인증한 연락처를 저장합니다. PHONE은 마음쓰기 권한 확인에만 쓰이고, 메시지 수신/전달 자체에는 직접 사용하지 않습니다. EMAIL은 비회원 이메일 수신자가 기존 사용자와 연결될 때 사용합니다.
 
 주요 필드:
 
@@ -168,7 +177,7 @@ Friendship
   - PHONE: 숫자만 남긴 국내 번호
 - `contactHash`: `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256
 - `label`: 사용자 표시 라벨
-- `isPrimary`: 메시지 작성 시 기본 선택 연락처
+- `isPrimary`: active verified PHONE을 하나로 유지하기 위한 내부 우선순위
 - `verifiedAt`: 인증 완료 시각
 - `verificationSource`: `KAKAO`, `OTP` 등 인증 출처
 - `deletedAt`: 연락처 soft delete
@@ -181,7 +190,7 @@ Friendship
 
 ## 3.3 UserContactVerification
 
-발신 연락처 인증 OTP 이력을 저장합니다.
+연락처 인증 OTP 이력을 저장합니다.
 
 주요 필드:
 
@@ -395,6 +404,86 @@ OpenAI moderation 검사 이력을 저장합니다.
 
 `@@unique([userAId, userBId])`로 중복 관계 생성을 막습니다.
 
+## 3.15 FriendInviteLink
+
+친구 초대 링크를 저장합니다.
+
+주요 필드:
+
+- `inviterId`: 초대 링크를 만든 사용자
+- `tokenHash`: raw token을 저장하지 않고 `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256만 저장
+- `tokenPreview`: UI에서 식별을 돕는 짧은 preview
+- `expiresAt`: 기본 24시간 유효
+- `maxClaims`: v1 기본 1회 사용
+- `claimCount`: claim 완료 횟수
+- `revokedAt`: 사용자가 폐기한 시각
+
+정책:
+
+- `/friends`에서 링크를 만들면 원문 token은 응답 URL에만 포함합니다.
+- `/friends/invite/[token]`은 token hash로 초대 링크를 찾아 초대자와 만료 상태를 보여줍니다.
+- 로그인 사용자가 claim하면 기존 친구 관계/자기 자신/만료/폐기/사용 완료 여부를 검사하고 `Friendship`을 생성합니다.
+- 로그인 전 초대 링크를 열면 frontend가 `sessionStorage.maeari.pendingFriendInviteToken`에 token을 저장하고, `/auth/callback`에서 claim을 재시도합니다.
+
+## 3.16 PhoneVerificationAttempt
+
+PHONE 인증 요청 이력을 저장합니다. 원본 IP와 전화번호는 저장하지 않습니다.
+
+주요 필드:
+
+- `userId`
+- `ipHash`: `PUBLIC_TOKEN_PEPPER` 기반 HMAC hash
+- `contactHash`: strict normalized phone의 HMAC hash
+- `status`: `REQUESTED`, `SENT`, `BLOCKED`, `SEND_FAILED`
+- `reason`
+- `createdAt`
+
+정책:
+
+- guard 통과 직후 `REQUESTED`로 생성합니다.
+- Solapi OTP 발송 성공 시 `SENT`, provider 실패 시 `SEND_FAILED`, rate limit/Lookup 차단 시 `BLOCKED`로 기록합니다.
+- rate limit 집계는 `REQUESTED`/`SENT` 중심으로 수행해 실제 발송 실패를 성공 요청처럼 과도하게 카운트하지 않습니다.
+
+## 3.17 PhoneVerificationLock
+
+PHONE 인증 abuse 방어용 잠금 상태를 저장합니다.
+
+주요 필드:
+
+- `scope`: `IP` 또는 `CONTACT`
+- `scopeHash`: IP hash 또는 contact hash
+- `reason`: `CONTACT_RATE_LIMIT`, `IP_DISTINCT_CONTACT_RATE_LIMIT` 등
+- `lockedUntil`
+
+정책:
+
+- 동일 연락처는 10분 내 3회 초과 요청 시 24시간 CONTACT lock입니다.
+- 동일 IP에서 1시간 내 서로 다른 전화번호 5개 초과 요청 시 1시간 IP lock입니다.
+- 유효 lock이 있으면 OTP row와 Solapi 발송을 만들지 않고 429를 반환합니다.
+
+## 3.18 PhoneNumberLookupCache
+
+Twilio Lookup v2 결과 cache입니다. Lookup 비용을 줄이되 raw 전화번호와 raw provider response는 저장하지 않습니다.
+
+주요 필드:
+
+- `provider`: v1은 `TWILIO`
+- `contactHash`
+- `valid`
+- `lineType`
+- `carrierName`
+- `allowed`
+- `reason`
+- `checkedAt`, `expiresAt`
+
+정책:
+
+- `PHONE_LOOKUP_ENABLED=true`일 때만 사용합니다.
+- 통과 조건은 `valid=true`, `country_code=KR`, `line_type_intelligence.type=mobile`입니다.
+- landline, fixedVoip, nonFixedVoip, unknown, invalid는 `CONTACT_PHONE_INVALID`로 차단합니다.
+- timeout, network error, 5xx는 cache하지 않고 `PHONE_LOOKUP_UNAVAILABLE`로 fail-closed 처리합니다.
+- 기본 cache TTL은 30일입니다.
+
 ---
 
 ## 4. 주요 상태
@@ -443,33 +532,42 @@ CANCELED
 
 ## 5. 주요 흐름과 DB 변경
 
-## 5.1 발신 연락처 인증
+## 5.1 연락처 인증과 마음쓰기 권한
 
 ```txt
-1. /my에서 UserContact 추가
-2. EMAIL은 Gmail SMTP, PHONE은 Solapi로 OTP 발송
-3. UserContactVerification 생성
-4. 사용자가 6자리 code 입력
-5. code hash 검증
-6. UserContact.verifiedAt = now
-7. 첫 verified contact이면 isPrimary = true
+1. /phone-verification 또는 /my에서 UserContact 추가
+2. EMAIL은 이메일 수신 연결용으로 Gmail SMTP OTP 또는 Kakao email upsert 사용
+3. PHONE은 마음쓰기 권한용으로 strict 010 정규화
+4. PHONE이면 PhoneVerificationAttempt/Lock pre-flight 수행
+5. PHONE_LOOKUP_ENABLED=true이면 Twilio Lookup v2 mobile 여부 확인
+6. UserContactVerification 생성
+7. EMAIL은 Gmail SMTP, PHONE은 Solapi로 OTP 발송
+8. 사용자가 6자리 code 입력
+9. code hash 검증
+10. EMAIL verifiedAt = now
+11. PHONE verifiedAt = now, isPrimary = true
+12. 기존 active verified PHONE은 deletedAt = now, isPrimary = false로 retire
 ```
 
-카카오 로그인 시 `User.email`이 있으면 `UserContact(type=EMAIL, verificationSource=KAKAO)`로 자동 upsert합니다.
+카카오 로그인 시 `User.email`이 있으면 `UserContact(type=EMAIL, verificationSource=KAKAO)`로 자동 upsert합니다. 이메일 인증은 마음쓰기 권한을 주지 않고, 외부 이메일 수신 메시지를 기존 계정에 연결하는 용도로 사용합니다.
+
+verified PHONE은 사용자가 직접 삭제할 수 없습니다. 전화번호 변경은 새 PHONE OTP 인증이 완전히 성공한 시점에만 원자적으로 완료됩니다.
 
 ## 5.2 메시지 작성 성공
 
 ```txt
-1. User가 /write에서 verified senderContactId 선택
-2. 서버가 senderContactId 소유/인증/삭제 여부 검증
-3. OpenAI moderation 검사
-4. 통과
-5. Message.status = PENDING 생성
-6. Message.senderContactId, senderContactSnapshot 저장
-7. 단일 또는 그룹 수신자 수만큼 MessageRecipient 생성
-8. 첨부 이미지가 있으면 MessageAttachment 생성
-9. 수신자별 MessageAccessToken 생성
-10. publicUrl/publicUrls 반환
+1. /write가 GET /api/me/contacts로 writerEligibility.hasVerifiedStrictPhone 확인
+2. 인증 PHONE이 없으면 /phone-verification?next=/write로 유도
+3. POST /api/messages 요청
+4. 서버가 senderContactId payload를 무시하고 active verified strict PHONE 직접 조회
+5. OpenAI moderation + guardrail 검사
+6. 통과
+7. Message.status = PENDING 생성
+8. Message.senderContactId, senderContactSnapshot 저장
+9. 단일 또는 그룹 수신자 수만큼 MessageRecipient 생성
+10. 첨부 이미지가 있으면 MessageAttachment 생성
+11. 수신자별 MessageAccessToken 생성
+12. publicUrl/publicUrls 반환
 ```
 
 ## 5.3 AI 검사 API 실패
@@ -582,7 +680,7 @@ AI 재검사 scheduler
 수신거부
   ContactSuppression @@unique([channel, contactHash])
 
-발신 연락처
+사용자 인증 연락처
   UserContact @@unique([type, contactHash])
   UserContact @@index([userId, type, deletedAt])
   UserContact @@index([userId, isPrimary])
@@ -590,11 +688,11 @@ AI 재검사 scheduler
 
 ---
 
-## 7. 신규 DB 생성 및 기존 데이터 마이그레이션
+## 7. 신규 DB 생성 및 기존 데이터 마이그레이션 완료 기록
 
 ## 7.1 전략
 
-현재 데이터 규모가 작으므로 dual-write 없이 짧은 maintenance window 방식으로 이전합니다.
+2026-07-06 운영 DB는 dual-write 없이 짧은 maintenance window 방식으로 `maeum_arrival`에서 `maeari`로 이전했습니다.
 
 순서:
 
@@ -609,6 +707,16 @@ AI 재검사 scheduler
 -> PM2 재시작
 ```
 
+실제 전환 결과:
+
+- `maeari` DB 생성 및 기존 데이터 복원 완료
+- `maeari` role 생성 및 Docker Postgres healthcheck 기준 user로 전환 완료
+- `maeum_arrival` DB 삭제 완료
+- `maeari_dryrun` DB 삭제 완료
+- `maeum` bootstrap role은 system-required 객체 때문에 삭제 불가하여 `NOLOGIN`으로 잠금
+- final dump: `backups/maeum_arrival_final_20260706_090800.dump`
+- `backups/`는 `.gitignore`에 포함
+
 ## 7.2 사전 점검
 
 ```bash
@@ -618,7 +726,7 @@ pnpm --filter @maeari/web typecheck
 node scripts/backfill-user-contacts.js --dry-run
 ```
 
-현재 DB에는 `UserContact` 테이블이 없을 수 있습니다. 이 경우 백필 스크립트는 중복 이메일 검사까지만 수행하고, `pnpm db:deploy` 후 다시 실행하라는 안내를 출력합니다.
+이전 당시 구형 DB에는 `UserContact` 계열 테이블이 없을 수 있었기 때문에, 백필 스크립트는 테이블 존재 여부를 확인하고 `pnpm db:deploy` 후 다시 실행하라는 안내를 출력하도록 설계했습니다. 현재 운영 DB에는 최신 migration이 적용되어 해당 테이블들이 존재합니다.
 
 ## 7.3 Nginx 유지보수 페이지 설치
 
@@ -711,25 +819,26 @@ curl -I https://maeari.madcamp-kaist.org/api/health
 
 수동 확인:
 
-- `/my`에서 카카오 이메일 기반 발신 연락처가 보이는지 확인합니다.
-- `/write`에서 verified sender contact 선택 후 예약 가능한지 확인합니다.
+- `/my`에서 연락처 인증 상태와 전화번호 변경 CTA가 보이는지 확인합니다.
+- `/write`에서 verified strict PHONE이 없으면 `/phone-verification?next=/write`로 유도되는지 확인합니다.
+- verified strict PHONE이 있으면 별도 연락처 선택 없이 예약 가능한지 확인합니다.
 - 기존 공개 링크가 여전히 열리는지 확인합니다.
 - 기존 수신거부 연락처는 계속 `CONTACT_SUPPRESSED` 처리되는지 확인합니다.
 
 ## 7.7 Rollback
 
-기존 DB `maeum_arrival`은 삭제하지 않습니다.
+신규 DB 전환 후 기존 DB `maeum_arrival`은 제거했습니다. rollback이 필요하면 final dump를 새 rollback DB로 복원한 뒤 `DATABASE_URL`을 되돌립니다.
 
 문제가 있으면:
 
 ```bash
-# DATABASE_URL을 기존 maeum_arrival로 되돌림
+# final dump에서 rollback DB를 새로 복원한 뒤 DATABASE_URL을 rollback DB로 변경
 pm2 restart maeari-api --update-env
 pm2 restart maeari-scheduler --update-env
 pm2 restart maeari-web --update-env
 ```
 
-rollback 이후 새 DB에 들어간 write는 자동 병합하지 않습니다. 필요하면 새 DB delta를 별도 확인한 뒤 수동 병합합니다.
+rollback 이후 현재 `maeari` DB에 들어간 write는 자동 병합하지 않습니다. 필요하면 `maeari` DB delta를 별도 확인한 뒤 수동 병합합니다.
 
 ---
 

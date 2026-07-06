@@ -7,17 +7,41 @@ import { ApiError, apiFetch } from "@/lib/api";
 import { Notice } from "@/components/Notice";
 
 const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
+const PENDING_FRIEND_INVITE_TOKEN_KEY = "maeari.pendingFriendInviteToken";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState("로그인 상태를 확인하고 있어요.");
+  const [errorFallbackHref, setErrorFallbackHref] = useState("/arrival/link-failed");
 
   const finishAuth = useCallback(async () => {
     setError(null);
 
     const token = sessionStorage.getItem(PENDING_TOKEN_KEY);
+    const friendInviteToken = sessionStorage.getItem(PENDING_FRIEND_INVITE_TOKEN_KEY);
 
     if (!token) {
+      if (friendInviteToken) {
+        setStatusText("친구 연결을 마무리하고 있어요.");
+        setErrorFallbackHref("/friends");
+
+        try {
+          await apiFetch(`/friends/invites/${encodeURIComponent(friendInviteToken)}/claim`, { method: "POST" });
+          sessionStorage.removeItem(PENDING_FRIEND_INVITE_TOKEN_KEY);
+          router.replace("/friends");
+        } catch (caught) {
+          if (caught instanceof ApiError) {
+            setError(caught.message);
+            return;
+          }
+
+          setError("친구로 연결하지 못했어요.");
+        }
+
+        return;
+      }
+
       try {
         const response = await apiFetch<{ user: { onboardingNote?: string | null } }>("/me");
         const completedOnboarding =
@@ -31,6 +55,8 @@ export default function AuthCallbackPage() {
     }
 
     try {
+      setStatusText("도착한 마음을 보관하고 있어요.");
+      setErrorFallbackHref("/arrival/link-failed");
       await apiFetch<{ linked: boolean; redirectTo: string }>("/auth/link-message", {
         method: "POST",
         body: JSON.stringify({ token }),
@@ -66,7 +92,7 @@ export default function AuthCallbackPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.replace("/arrival/link-failed")}
+              onClick={() => router.replace(errorFallbackHref)}
               className="focus-ring rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white"
             >
               확인
@@ -75,7 +101,7 @@ export default function AuthCallbackPage() {
         ) : (
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-petal" />
-            <p className="text-sm font-medium text-slate-700">도착한 마음을 보관하고 있어요.</p>
+            <p className="text-sm font-medium text-slate-700">{statusText}</p>
           </div>
         )}
       </section>

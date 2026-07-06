@@ -35,6 +35,8 @@
     ├── NotificationProcessor
     ├── Gmail SMTP provider
     ├── Solapi SMS provider
+    ├── Twilio Lookup v2 provider
+    ├── PhoneVerificationGuard
     └── OpenAI Moderation API
 ```
 
@@ -44,23 +46,26 @@
 매아리 MVP 여정
 ├── 1. 카카오 로그인
 ├── 2. 온보딩 질문 확인
-├── 3. 메시지 작성
-├── 4. AI 안전 검사
-├── 5. AI 검사 API 실패 시 즉시 1회 재시도
-├── 6. 2회 실패 시 검사 실패 상태로 임시 보관
-├── 7. 검사 통과 시 예약 메시지 저장
-├── 8. 공개 열람 링크 생성
-├── 9. 예약 시간 도래
-├── 10. Scheduler가 SENT 처리
-├── 11. NotificationProcessor 후속 처리
-├── 12. 친구/자기 자신 수신자는 수신함에서 확인
-├── 13. 외부 수신자는 Gmail SMTP 또는 Solapi SMS로 공개 링크 수신
-├── 14. 수신자가 공개 링크로 열람
-├── 15. 필요 시 익명 답장 또는 신고 작성
-├── 16. 필요 시 이메일/문자 알림 수신거부
-├── 17. 비회원 수신자가 가입하면 메시지 자동 보관
-├── 18. 발신자/수신자가 보관함에서 감정 태그 필터, 아카이브, 삭제 수행
-└── 19. 관리자가 moderation/notification/reply/report 상태 점검
+├── 3. 마음쓰기 전 전화번호 인증 상태 확인
+├── 4. 미인증이면 /phone-verification에서 strict 010 휴대전화 OTP 인증
+├── 5. 메시지 작성
+├── 6. AI 안전 검사
+├── 7. AI 검사 API 실패 시 즉시 1회 재시도
+├── 8. 2회 실패 시 검사 실패 상태로 임시 보관
+├── 9. 검사 통과 시 예약 메시지 저장
+├── 10. 공개 열람 링크 생성
+├── 11. 예약 시간 도래
+├── 12. Scheduler가 SENT 처리
+├── 13. NotificationProcessor 후속 처리
+├── 14. 친구/자기 자신 수신자는 수신함에서 확인
+├── 15. 외부 수신자는 Gmail SMTP 또는 Solapi SMS로 공개 링크 수신
+├── 16. 수신자가 공개 링크로 열람
+├── 17. 필요 시 익명 답장 또는 신고 작성
+├── 18. 필요 시 이메일/문자 알림 수신거부
+├── 19. 비회원 수신자가 가입하면 메시지 자동 보관
+├── 20. 친구 초대 링크 수신자가 로그인하면 즉시 친구 연결
+├── 21. 발신자/수신자가 보관함에서 감정 태그 필터, 아카이브, 삭제 수행
+└── 22. 관리자가 moderation/notification/reply/report 상태 점검
 ```
 
 ---
@@ -103,7 +108,9 @@
 │   └── /auth/callback
 │       ├── 카카오 로그인 완료 처리
 │       ├── sessionStorage pending token 확인
+│       ├── sessionStorage pending friend invite token 확인
 │       ├── /api/auth/link-message 호출
+│       ├── /api/friends/invites/:token/claim 호출
 │       ├── 성공 시 /inbox 이동
 │       ├── pending token 없으면 /write 이동
 │       └── 실패 시 /arrival/link-failed 이동
@@ -127,7 +134,9 @@
 │   │
 │   ├── /write
 │   │   ├── 메시지 작성
-│   │   │   ├── 인증된 발신 연락처 선택
+│   │   │   ├── /me/contacts로 전화번호 인증 여부 확인
+│   │   │   ├── 미인증 시 /phone-verification?next=/write CTA
+│   │   │   ├── 연락처 선택 정보는 화면에 노출하지 않음
 │   │   │   ├── 수신 대상 선택
 │   │   │   │   ├── 미래의 나
 │   │   │   │   ├── 친구
@@ -166,12 +175,28 @@
 │   │
 │   ├── /friends
 │   │   ├── 내 친구 코드
+│   │   ├── 친구 초대 링크 생성/복사/폐기
 │   │   ├── 닉네임 또는 친구 코드로 친구 찾기
 │   │   ├── 친구 코드로 요청 보내기
 │   │   ├── 받은 요청 수락/거절
 │   │   ├── 보낸 요청 취소
 │   │   ├── 친구 목록
 │   │   └── 친구 삭제
+│   │
+│   ├── /friends/invite/[token]
+│   │   ├── 초대 링크 미리보기
+│   │   ├── 초대자 닉네임 표시
+│   │   ├── 만료/폐기/사용 완료 상태 표시
+│   │   ├── 로그인 전이면 pendingFriendInviteToken 저장 후 로그인 CTA
+│   │   └── 로그인 후 claim 성공 시 /friends 이동
+│   │
+│   ├── /phone-verification
+│   │   ├── 010 휴대전화 번호 입력
+│   │   ├── 인증번호 발송
+│   │   ├── 인증번호 재발송
+│   │   ├── 6자리 OTP 입력
+│   │   ├── 인증 완료 상태
+│   │   └── safe next: /write 또는 /my
 │   │
 │   ├── /sent
 │   │   ├── 내가 보낸 메시지 목록
@@ -263,12 +288,14 @@
 │       ├── 카카오 계정 정보
 │       ├── 닉네임
 │       ├── 이메일
-│       ├── 발신 연락처 관리
+│       ├── 연락처 인증
+│       │   ├── PHONE 인증 상태
+│       │   ├── 이메일 연결 상태
 │       │   ├── 이메일/전화번호 추가
 │       │   ├── OTP 인증 코드 발송
 │       │   ├── 인증 코드 확인
-│       │   ├── 기본 연락처 설정
-│       │   └── 연락처 삭제
+│       │   ├── 인증 완료 PHONE 변경
+│       │   └── 삭제 가능한 연락처 삭제
 │       ├── 관리자 화면 진입
 │       ├── 로그아웃
 │       └── 탈퇴는 MVP 이후
@@ -491,6 +518,14 @@ Mobile Bottom Navigation
 ├── 목적
 │   └── 예약 메시지 작성 및 저장
 │
+├── Section 0. 마음쓰기 권한 확인
+│   ├── GET /api/me/contacts
+│   ├── writerEligibility.hasVerifiedStrictPhone 확인
+│   ├── false이면 안내 패널 표시
+│   ├── CTA: /phone-verification?next=/write
+│   ├── 예약 버튼 비활성화
+│   └── 연락처 select/masked value는 표시하지 않음
+│
 ├── Section 1. 수신 대상
 │   ├── 미래의 나
 │   │   ├── receiverInfo.type = SELF
@@ -535,6 +570,9 @@ Mobile Bottom Navigation
 │
 ├── Section 3. 도착 설정
 │   ├── KST 현재 시각 초 단위 표시
+│   ├── GET /api/time
+│   ├── 서버 기준 defaultScheduledAt = serverNow + 24h
+│   ├── 서버 시간 조회 실패 시 1회 retry 후 다시 시도 버튼
 │   ├── 고정 도착
 │   ├── 기간 랜덤 도착
 │   │   ├── 시작 날짜/시간
@@ -567,6 +605,7 @@ Mobile Bottom Navigation
 │       └── PAPER
 │
 ├── 제출 전 검증
+│   ├── verified strict PHONE 필요
 │   ├── 필수값 확인
 │   ├── 제목 길이
 │   ├── 본문 길이
@@ -583,8 +622,12 @@ Mobile Bottom Navigation
 │
 ├── 제출 액션
 │   └── POST /api/messages
+│       ├── 첨부 없음: JSON body
+│       ├── 첨부 있음: multipart payload + attachments
 │       ├── auth middleware
 │       ├── request validation
+│       ├── senderContactId payload 무시
+│       ├── 서버가 verified strict PHONE 직접 선택
 │       ├── OpenAI moderation
 │       ├── API 실패 시 즉시 1회 재시도
 │       ├── 통과 시 PENDING 저장
@@ -598,6 +641,7 @@ Mobile Bottom Navigation
 │   ├── 수신자별 publicUrls 확인
 │   ├── 메인으로 이동
 │   ├── 발신함으로 이동
+│   ├── 예약 상세 보기
 │   └── 새 마음 쓰기
 │
 ├── 검사 실패 보관 상태
@@ -619,8 +663,58 @@ Mobile Bottom Navigation
     │   ├── publicUrl 미발급
     │   └── 하루 1회 자동 재검사 안내
     ├── 인증 만료
+    ├── 전화번호 인증 필요
+    ├── 서버 시간 조회 실패
+    ├── 첨부 형식/용량 오류
     ├── validation 오류
     └── 서버 오류
+```
+
+## 4.4.1 `/phone-verification`
+
+```txt
+/phone-verification
+├── 목적
+│   └── 마음쓰기 권한용 010 휴대전화 인증
+│
+├── 진입 경로
+│   ├── /write 인증 필요 CTA
+│   ├── /my 전화번호 변경 CTA
+│   └── 직접 접근
+│
+├── next 처리
+│   ├── 허용: /write, /my
+│   └── 그 외 외부 URL/비정상 값은 /write로 대체
+│
+├── 초기 데이터
+│   └── GET /api/me/contacts
+│       ├── 이미 isWriteEligiblePhone=true이면 인증 완료 패널
+│       └── 미인증 PHONE이 있으면 pendingContactId 유지
+│
+├── 인증번호 발송
+│   ├── 전화번호 입력
+│   ├── 010-1234-5678 포맷팅
+│   ├── POST /api/me/contacts { type: PHONE, value }
+│   ├── CONTACT_PHONE_INVALID 안내
+│   ├── PHONE_VERIFICATION_*_LOCKED 안내
+│   └── PHONE_LOOKUP_UNAVAILABLE 안내
+│
+├── 인증번호 검증
+│   ├── 6자리 OTP 입력
+│   ├── POST /api/me/contacts/:id/verify
+│   ├── 성공 시 loadContacts
+│   └── next로 이동
+│
+└── 재발송
+    ├── POST /api/me/contacts/:id/send-code
+    └── 60초 cooldown
+```
+
+```txt
+Legacy note
+├── /write에는 연락처 선택 UI가 없음
+├── 이메일 인증만으로는 마음쓰기 불가
+└── 전화번호는 메시지 수신/전달에 직접 사용하지 않고 작성 권한 확인에만 사용
 ```
 
 ## 4.5 `/sent`
@@ -666,8 +760,9 @@ Mobile Bottom Navigation
 │   │   └── MODERATION_FAILED 상태에서는 비활성
 │   ├── 예약 취소
 │   │   └── PATCH /api/messages/:id/cancel
-│   └── 취소된 메시지 삭제
-│       └── DELETE /api/messages/:id
+│   └── 보낸 마음에서 삭제
+│       ├── PENDING/MODERATION_FAILED/CANCELED: hard delete
+│       └── SENT/FAILED: senderDeletedAt soft delete
 │
 └── 빈 상태
     ├── 아직 보낸 마음이 없어요
@@ -878,7 +973,7 @@ Mobile Bottom Navigation
 ├── 발신자 액션
 │   ├── 예약 취소
 │   ├── 공개 링크 복사
-│   ├── 취소된 메시지 삭제
+│   ├── 보낸 마음에서 삭제
 │   └── 발신함으로 돌아가기
 │
 ├── 수신자 액션
@@ -965,10 +1060,11 @@ Mobile Bottom Navigation
 ```txt
 /my
 ├── 목적
-│   └── 로그인 사용자 계정 정보 확인
+│   └── 로그인 사용자 계정 정보와 연락처 인증 상태 확인
 │
 ├── 데이터 요청
-│   └── GET /api/me
+│   ├── GET /api/me
+│   └── GET /api/me/contacts
 │
 ├── 표시 정보
 │   ├── 닉네임
@@ -977,7 +1073,28 @@ Mobile Bottom Navigation
 │   ├── 관리자 권한이면 /admin link
 │   └── 가입일
 │
+├── 연락처 인증
+│   ├── PHONE 연락처를 항상 최상단 표시
+│   ├── EMAIL 연락처는 그 아래 표시
+│   ├── maskedValue만 표시하고 raw value는 노출하지 않음
+│   ├── verified PHONE
+│   │   ├── 삭제 버튼 미노출
+│   │   ├── 변경 CTA: /phone-verification?next=/my
+│   │   └── 마음쓰기 가능 상태
+│   ├── 미인증 PHONE
+│   │   ├── OTP 입력 또는 재발송
+│   │   └── 삭제 가능
+│   └── EMAIL
+│       ├── 추가/OTP 인증 가능
+│       └── 삭제 가능
+│
 ├── 액션
+│   ├── 전화번호 변경
+│   │   └── /phone-verification?next=/my
+│   ├── 이메일 연락처 추가
+│   │   └── POST /api/me/contacts
+│   ├── 인증번호 검증
+│   │   └── POST /api/me/contacts/:id/verify
 │   ├── 로그아웃
 │   │   └── POST /api/auth/logout
 │   └── 탈퇴는 MVP 이후
@@ -1002,7 +1119,10 @@ Auth
 │       ├── Kakao access token 요청
 │       ├── Kakao user profile 조회
 │       ├── User upsert
+│       ├── Kakao email 기반 UserContact EMAIL upsert
 │       ├── HttpOnly cookie 발급
+│       ├── pending arrival token 처리
+│       ├── pending friend invite token 처리
 │       └── frontend callback redirect
 │
 ├── 현재 사용자 조회
@@ -1016,6 +1136,14 @@ Auth
 │       ├── MessageRecipient.receiverUserId 업데이트
 │       └── MessageAccessToken.linkedUserId 업데이트
 │
+├── 친구 초대 링크 claim
+│   └── POST /api/friends/invites/:token/claim
+│       ├── token hash 조회
+│       ├── 만료/폐기/사용 완료 확인
+│       ├── 자기 자신/이미 친구 여부 확인
+│       ├── Friendship 생성
+│       └── claimCount 증가
+│
 └── 로그아웃
     └── POST /api/auth/logout
 ```
@@ -1024,6 +1152,13 @@ Auth
 
 ```txt
 Message Create
+├── 작성 권한
+│   ├── GET /api/me/contacts
+│   ├── writerEligibility.hasVerifiedStrictPhone=true 필요
+│   ├── 서버도 POST /api/messages에서 assertVerifiedSenderPhoneContact 실행
+│   ├── senderContactId payload는 무시
+│   └── verified strict PHONE snapshot 저장
+│
 ├── 입력
 │   ├── receiverInfo 또는 recipients[]
 │   │   ├── SELF
@@ -1043,12 +1178,14 @@ Message Create
 │
 ├── 검증
 │   ├── auth required
+│   ├── verified strict PHONE required
 │   ├── required fields
 │   ├── content length
 │   ├── scheduledAt future only
 │   ├── RANDOM_WINDOW 구간 유효성
 │   ├── hintAt 유효성
 │   ├── attachments 개수/용량/MIME type
+│   ├── multipart payload JSON 파싱
 │   ├── receiverInfo schema
 │   ├── 친구 수신자는 활성 Friendship 필요
 │   ├── 외부 수신자는 email 또는 phone 중 하나 필요
@@ -1376,25 +1513,42 @@ Frontend Routes
 │
 ├── /auth/callback
 │   ├── GET /api/me
-│   └── POST /api/auth/link-message
+│   ├── POST /api/auth/link-message
+│   └── POST /api/friends/invites/:token/claim
 │
 ├── /onboarding
 │   └── GET /api/me
 │
 ├── /write
 │   ├── GET /api/me
+│   ├── GET /api/me/contacts
+│   ├── GET /api/time
 │   ├── GET /api/friends
 │   └── POST /api/messages
+│
+├── /phone-verification
+│   ├── GET /api/me/contacts
+│   ├── POST /api/me/contacts
+│   ├── POST /api/me/contacts/:id/send-code
+│   └── POST /api/me/contacts/:id/verify
 │
 ├── /friends
 │   ├── GET /api/friends
 │   ├── GET /api/friends/requests
 │   ├── GET /api/friends/search
+│   ├── POST /api/friends/invites
+│   ├── GET /api/friends/invites/active
+│   ├── DELETE /api/friends/invites/:id
 │   ├── POST /api/friends/requests
 │   ├── PATCH /api/friends/requests/:id/accept
 │   ├── PATCH /api/friends/requests/:id/reject
 │   ├── PATCH /api/friends/requests/:id/cancel
 │   └── DELETE /api/friends/:friendshipId
+│
+├── /friends/invite/[token]
+│   ├── GET /api/friends/invites/:token/preview
+│   ├── POST /api/friends/invites/:token/claim
+│   └── GET /api/auth/kakao
 │
 ├── /sent
 │   ├── GET /api/messages/sent
@@ -1474,6 +1628,29 @@ Database Models
 │   ├── /friends friend code, search, relation
 │   └── /admin suspension
 │
+├── UserContact
+│   ├── /my 연락처 인증 목록
+│   ├── /phone-verification PHONE OTP 인증
+│   ├── /write writerEligibility
+│   ├── Message.senderContactSnapshot 생성
+│   └── OTHER 이메일 수신자 기존 사용자 연결
+│
+├── UserContactVerification
+│   ├── /phone-verification 6자리 OTP 검증
+│   └── /my 이메일 OTP 검증
+│
+├── PhoneVerificationAttempt
+│   ├── /phone-verification 요청 이력
+│   └── rate limit 집계
+│
+├── PhoneVerificationLock
+│   ├── /phone-verification IP lock
+│   └── /phone-verification CONTACT lock
+│
+├── PhoneNumberLookupCache
+│   ├── Twilio Lookup 결과 cache
+│   └── raw phone 미저장
+│
 ├── Message
 │   ├── /write 생성
 │   ├── /sent 목록
@@ -1528,6 +1705,11 @@ Database Models
 │
 ├── FriendRequest
 │   └── /friends 요청 관리
+│
+├── FriendInviteLink
+│   ├── /friends 초대 링크 생성/폐기/목록
+│   ├── /friends/invite/[token] 미리보기
+│   └── /auth/callback 로그인 후 claim
 │
 └── Friendship
     ├── /friends 친구 목록

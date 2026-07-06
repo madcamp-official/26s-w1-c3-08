@@ -110,6 +110,18 @@ enum UserContactVerificationStatus {
   EXPIRED
 }
 
+enum PhoneVerificationAttemptStatus {
+  REQUESTED
+  SENT
+  BLOCKED
+  SEND_FAILED
+}
+
+enum PhoneVerificationLockScope {
+  IP
+  CONTACT
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   kakaoId         String    @unique @db.VarChar(64)
@@ -133,6 +145,7 @@ model User {
   friendshipsAsA      Friendship[]         @relation("FriendshipUserA")
   friendshipsAsB      Friendship[]         @relation("FriendshipUserB")
   createdFriendships  Friendship[]         @relation("FriendshipCreatedBy")
+  friendInviteLinks   FriendInviteLink[]   @relation("FriendInviteInviter")
   submittedReports    MessageReport[]      @relation("ReportReporter")
   contacts            UserContact[]
 
@@ -230,6 +243,48 @@ model UserContactVerification {
 
   @@index([userContactId, status, expiresAt])
   @@index([createdAt])
+}
+
+model PhoneVerificationAttempt {
+  id          String                         @id @default(uuid()) @db.Uuid
+  userId      String?                        @db.Uuid
+  ipHash      String                         @db.Char(64)
+  contactHash String                         @db.Char(64)
+  status      PhoneVerificationAttemptStatus
+  reason      String?                        @db.VarChar(120)
+  createdAt   DateTime                       @default(now()) @db.Timestamptz(3)
+
+  @@index([ipHash, createdAt])
+  @@index([contactHash, createdAt])
+  @@index([status, createdAt])
+}
+
+model PhoneVerificationLock {
+  id          String                     @id @default(uuid()) @db.Uuid
+  scope       PhoneVerificationLockScope
+  scopeHash   String                     @db.Char(64)
+  reason      String                     @db.VarChar(120)
+  lockedUntil DateTime                   @db.Timestamptz(3)
+  createdAt   DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                   @updatedAt @db.Timestamptz(3)
+
+  @@unique([scope, scopeHash])
+  @@index([lockedUntil])
+}
+
+model PhoneNumberLookupCache {
+  provider    String   @db.VarChar(40)
+  contactHash String   @db.Char(64)
+  valid       Boolean
+  lineType    String   @db.VarChar(40)
+  carrierName String?  @db.VarChar(120)
+  allowed     Boolean
+  reason      String?  @db.VarChar(120)
+  checkedAt   DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt   DateTime @db.Timestamptz(3)
+
+  @@id([provider, contactHash])
+  @@index([expiresAt])
 }
 
 model MessageRecipient {
@@ -430,6 +485,25 @@ model FriendRequest {
   @@index([requesterId, status])
   @@index([addresseeId, status])
   @@index([expiresAt])
+}
+
+model FriendInviteLink {
+  id           String    @id @default(uuid()) @db.Uuid
+  inviterId    String    @db.Uuid
+  tokenHash    String    @unique @db.Char(64)
+  tokenPreview String?   @db.VarChar(12)
+  expiresAt    DateTime  @db.Timestamptz(3)
+  maxClaims    Int       @default(1)
+  claimCount   Int       @default(0)
+  revokedAt    DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  inviter User @relation("FriendInviteInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId, createdAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 model Friendship {

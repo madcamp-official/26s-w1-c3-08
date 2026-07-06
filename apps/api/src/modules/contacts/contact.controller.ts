@@ -20,7 +20,7 @@ export const listUserContactsController = asyncHandler(async (request: Request, 
     throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
   }
 
-  response.json({ contacts: await listUserContacts(request.user.id) });
+  response.json(await listUserContacts(request.user.id));
 });
 
 export const createUserContactController = asyncHandler(async (request: Request, response: Response) => {
@@ -29,7 +29,7 @@ export const createUserContactController = asyncHandler(async (request: Request,
   }
 
   const input = createUserContactSchema.parse(request.body);
-  response.status(201).json(await createUserContact(request.user.id, input));
+  response.status(201).json(await createUserContact(request.user.id, input, { ipAddress: clientIp(request) }));
 });
 
 export const sendUserContactVerificationCodeController = asyncHandler(async (request: Request, response: Response) => {
@@ -38,7 +38,7 @@ export const sendUserContactVerificationCodeController = asyncHandler(async (req
   }
 
   const contactId = requiredContactId(request.params.id);
-  response.json(await sendUserContactVerificationCode(request.user.id, contactId));
+  response.json(await sendUserContactVerificationCode(request.user.id, contactId, { ipAddress: clientIp(request) }));
 });
 
 export const verifyUserContactController = asyncHandler(async (request: Request, response: Response) => {
@@ -76,4 +76,8 @@ function requiredContactId(value?: string) {
   }
 
   return value;
+}
+
+function clientIp(request: Request) {
+  return request.ip ?? "unknown";
 }

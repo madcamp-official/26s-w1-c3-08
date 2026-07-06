@@ -33,6 +33,14 @@ export function createApp() {
     response.json({ ok: true });
   });
 
+  app.get("/api/time", (_request, response) => {
+    const serverNow = new Date();
+    response.json({
+      serverNow: serverNow.toISOString(),
+      defaultScheduledAt: new Date(serverNow.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+  });
+
   app.use("/api", authRoutes);
   app.use("/api", adminRoutes);
   app.use("/api", contactRoutes);

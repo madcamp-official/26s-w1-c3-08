@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, ShieldCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -18,6 +18,11 @@ type CreateMessageResponse = {
   notice?: string;
 };
 
+type ServerTimeResponse = {
+  serverNow: string;
+  defaultScheduledAt: string;
+};
+
 type Friend = {
   friendshipId: string;
   userId: string;
@@ -31,6 +36,14 @@ type SenderContact = {
   label?: string | null;
   isPrimary: boolean;
   verifiedAt?: string | null;
+  isWriteEligiblePhone?: boolean;
+};
+
+type ContactsResponse = {
+  contacts: SenderContact[];
+  writerEligibility?: {
+    hasVerifiedStrictPhone: boolean;
+  };
 };
 
 type ReceiverType = "SELF" | "FRIEND" | "OTHER";
@@ -59,8 +72,9 @@ type AttachmentDraft = {
   id: string;
   fileName: string;
   mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
-  dataBase64: string;
   sizeBytes: number;
+  file: File;
+  previewUrl: string;
 };
 
 type CompletedMessage = {
@@ -90,6 +104,9 @@ const presetOptions = [
 ] as const;
 
 const quarterMinuteOptions = ["00", "15", "30", "45"];
+const maxAttachmentCount = 3;
+const maxAttachmentBytes = 2 * 1024 * 1024;
+const maxAttachmentTotalBytes = maxAttachmentCount * maxAttachmentBytes;
 
 const themeOptions: Array<[MessageTheme, string]> = [
   ["LAVENDER", "보라빛 봉투"],
@@ -102,10 +119,13 @@ const themeOptions: Array<[MessageTheme, string]> = [
 export default function WritePage() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [senderContacts, setSenderContacts] = useState<SenderContact[]>([]);
-  const [senderContactId, setSenderContactId] = useState("");
+  const [hasVerifiedStrictPhone, setHasVerifiedStrictPhone] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [contactsError, setContactsError] = useState<string | null>(null);
+  const [serverTimeLoading, setServerTimeLoading] = useState(true);
+  const [serverTimeError, setServerTimeError] = useState<string | null>(null);
+  const [serverDefaultScheduledAt, setServerDefaultScheduledAt] = useState<string | null>(null);
+  const [arrivalTouched, setArrivalTouched] = useState(false);
   const [receiverType, setReceiverType] = useState<ReceiverType>("SELF");
   const [selectedFriendshipId, setSelectedFriendshipId] = useState("");
   const [receiverName, setReceiverName] = useState("");
@@ -128,25 +148,43 @@ export default function WritePage() {
   const [isDateHidden, setIsDateHidden] = useState(false);
   const [isReplyEnabled, setIsReplyEnabled] = useState(true);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
+  const attachmentsRef = useRef<AttachmentDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [completedMessage, setCompletedMessage] = useState<CompletedMessage | null>(null);
   const [kstNow, setKstNow] = useState("KST 시간 확인 중");
 
   const selectedFriend = friends.find((friend) => friend.friendshipId === selectedFriendshipId);
-  const scheduledAtDate = useMemo(() => toDateFromKstInput(arrivalDate, arrivalTime), [arrivalDate, arrivalTime]);
+  const scheduledAtDate = useMemo(() => {
+    if (!arrivalTouched && serverDefaultScheduledAt) {
+      return new Date(serverDefaultScheduledAt);
+    }
+
+    return toDateFromKstInput(arrivalDate, arrivalTime);
+  }, [arrivalDate, arrivalTime, arrivalTouched, serverDefaultScheduledAt]);
   const minArrivalDate = useMemo(() => toKstDateInput(new Date()), []);
-  const verifiedSenderContacts = useMemo(
-    () => senderContacts.filter((contact) => Boolean(contact.verifiedAt)),
-    [senderContacts],
-  );
-  const selectedSenderContact = verifiedSenderContacts.find((contact) => contact.id === senderContactId);
+  const loadServerDefaultSchedule = useCallback(async () => {
+    setServerTimeLoading(true);
+    setServerTimeError(null);
+
+    try {
+      const response = await fetchServerTimeWithRetry();
+      const defaultDate = new Date(response.defaultScheduledAt);
+
+      setServerDefaultScheduledAt(response.defaultScheduledAt);
+      setArrivalTouched(false);
+      setArrivalFromDate(defaultDate, false);
+      setRandomEndFromDate(new Date(defaultDate.getTime() + 24 * 60 * 60 * 1000));
+    } catch (caught) {
+      setServerTimeError(caught instanceof Error ? caught.message : "서버 시간을 불러오지 못했어요.");
+    } finally {
+      setServerTimeLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const firstArrival = roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
-    setArrivalFromDate(firstArrival);
-    setRandomEndFromDate(new Date(firstArrival.getTime() + 24 * 60 * 60 * 1000));
-  }, []);
+    void loadServerDefaultSchedule();
+  }, [loadServerDefaultSchedule]);
 
   useEffect(() => {
     function tick() {
@@ -157,6 +195,16 @@ export default function WritePage() {
     const timer = window.setInterval(tick, 1000);
 
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+    };
   }, []);
 
   useEffect(() => {
@@ -180,22 +228,17 @@ export default function WritePage() {
       setContactsError(null);
 
       try {
-        const response = await apiFetch<{ contacts: SenderContact[] }>("/me/contacts");
-        const verified = response.contacts.filter((contact) => Boolean(contact.verifiedAt));
-        setSenderContacts(response.contacts);
-        setSenderContactId((current) => {
-          if (current && verified.some((contact) => contact.id === current)) {
-            return current;
-          }
-
-          return verified.find((contact) => contact.isPrimary)?.id ?? verified[0]?.id ?? "";
-        });
+        const response = await apiFetch<ContactsResponse>("/me/contacts");
+        setHasVerifiedStrictPhone(
+          response.writerEligibility?.hasVerifiedStrictPhone ??
+            response.contacts.some((contact) => Boolean(contact.isWriteEligiblePhone)),
+        );
       } catch (caught) {
         if (caught instanceof ApiError && caught.status === 401) {
           router.replace("/login");
           return;
         }
-        setContactsError(caught instanceof Error ? caught.message : "발신 연락처를 불러오지 못했어요.");
+        setContactsError(caught instanceof Error ? caught.message : "전화번호 인증 상태를 불러오지 못했어요.");
       } finally {
         setContactsLoading(false);
       }
@@ -223,6 +266,15 @@ export default function WritePage() {
     try {
       const randomEndAtDate = toDateFromKstInput(randomEndDate, randomEndTime);
 
+      if (serverTimeLoading || serverTimeError || !serverDefaultScheduledAt) {
+        setNotice({
+          title: "서버 시간을 확인한 뒤 예약할 수 있어요.",
+          body: "시간 확인에 실패했다면 다시 시도해 주세요.",
+          tone: "danger",
+        });
+        return;
+      }
+
       if (!scheduledAtDate || scheduledAtDate.getTime() <= Date.now()) {
         setNotice({ title: "도착 시간은 현재보다 뒤로 골라 주세요.", tone: "danger" });
         return;
@@ -233,17 +285,12 @@ export default function WritePage() {
         return;
       }
 
-      if (!verifiedSenderContacts.length) {
+      if (!hasVerifiedStrictPhone) {
         setNotice({
-          title: "인증된 발신 연락처가 필요해요.",
-          body: "내 정보에서 이메일이나 전화번호를 인증한 뒤 다시 예약해 주세요.",
+          title: "전화번호 인증이 필요해요.",
+          body: "마음을 예약하려면 먼저 전화번호 인증을 완료해 주세요.",
           tone: "danger",
         });
-        return;
-      }
-
-      if (!senderContactId || !selectedSenderContact) {
-        setNotice({ title: "발신 연락처를 선택해 주세요.", tone: "danger" });
         return;
       }
 
@@ -254,37 +301,40 @@ export default function WritePage() {
       }
 
       const hintAt = createHintAt(scheduledAtDate);
+      const scheduledAtIso =
+        !arrivalTouched && serverDefaultScheduledAt ? serverDefaultScheduledAt : scheduledAtDate.toISOString();
 
       if (hintAt && hintAt.getTime() <= Date.now()) {
         setNotice({ title: "힌트 알림 시간은 현재보다 뒤여야 해요.", tone: "danger" });
         return;
       }
 
-      const response = await apiFetch<CreateMessageResponse>("/messages", {
-        method: "POST",
-        body: JSON.stringify({
+      const payload = {
           receiverInfo: recipients[0],
           recipients,
-          senderContactId,
           title,
           content,
           emotionTag,
           customEmotionTag: emotionTag === "CUSTOM" ? customEmotionTag : undefined,
-          scheduledAt: arrivalMode === "FIXED" ? scheduledAtDate.toISOString() : undefined,
+          scheduledAt: arrivalMode === "FIXED" ? scheduledAtIso : undefined,
           arrivalMode,
-          arrivalWindowStartAt: arrivalMode === "RANDOM_WINDOW" ? scheduledAtDate.toISOString() : undefined,
+          arrivalWindowStartAt: arrivalMode === "RANDOM_WINDOW" ? scheduledAtIso : undefined,
           arrivalWindowEndAt: arrivalMode === "RANDOM_WINDOW" ? randomEndAtDate?.toISOString() : undefined,
           hintAt: hintAt?.toISOString(),
           theme,
           isReplyEnabled,
-          attachments: attachments.map((attachment) => ({
-            fileName: attachment.fileName,
-            mimeType: attachment.mimeType,
-            dataBase64: attachment.dataBase64,
-          })),
           isSenderHidden,
           isDateHidden,
-        }),
+        };
+      const formData = new FormData();
+      formData.append("payload", JSON.stringify(payload));
+      attachments.forEach((attachment) => {
+        formData.append("attachments", attachment.file, attachment.fileName);
+      });
+
+      const response = await apiFetch<CreateMessageResponse>("/messages", {
+        method: "POST",
+        body: formData,
       });
 
       if (response.publicUrl) {
@@ -303,6 +353,11 @@ export default function WritePage() {
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         router.replace("/login");
+        return;
+      }
+
+      if (caught instanceof ApiError && caught.code === "SENDER_PHONE_VERIFICATION_REQUIRED") {
+        router.push("/phone-verification?next=/write");
         return;
       }
 
@@ -441,20 +496,23 @@ export default function WritePage() {
     setIsSenderHidden(false);
     setIsDateHidden(false);
     setIsReplyEnabled(true);
-    setAttachments([]);
+    clearAttachments();
     setCompletedMessage(null);
     setNotice(null);
-    const nextArrival = roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
-    setArrivalFromDate(nextArrival);
-    setRandomEndFromDate(new Date(nextArrival.getTime() + 24 * 60 * 60 * 1000));
+    void loadServerDefaultSchedule();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function applyPreset(key: (typeof presetOptions)[number][0]) {
+    setArrivalTouched(true);
     setArrivalFromDate(createPresetDate(key));
   }
 
-  function setArrivalFromDate(date: Date) {
+  function setArrivalFromDate(date: Date, markTouched = true) {
+    if (markTouched) {
+      setArrivalTouched(true);
+    }
+
     setArrivalDate(toKstDateInput(date));
     setArrivalTime(toKstTimeInput(date));
   }
@@ -466,6 +524,7 @@ export default function WritePage() {
 
   function applyQuarterMinute(minute: string) {
     const hour = arrivalTime.split(":")[0] || "09";
+    setArrivalTouched(true);
     setArrivalTime(`${hour.padStart(2, "0")}:${minute}`);
   }
 
@@ -487,15 +546,55 @@ export default function WritePage() {
     }
 
     try {
-      const files = Array.from(fileList).slice(0, 3 - attachments.length);
-      const next = await Promise.all(files.map(readAttachmentFile));
-      setAttachments((previous) => [...previous, ...next].slice(0, 3));
+      const remainingSlots = maxAttachmentCount - attachments.length;
+      if (remainingSlots <= 0) {
+        throw new Error("이미지는 최대 3개까지 첨부할 수 있어요.");
+      }
+
+      const files = Array.from(fileList).slice(0, remainingSlots);
+      const next: AttachmentDraft[] = [];
+
+      try {
+        files.forEach((file) => next.push(createAttachmentDraft(file)));
+      } catch (caught) {
+        next.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+        throw caught;
+      }
+
+      const totalBytes =
+        attachments.reduce((total, attachment) => total + attachment.sizeBytes, 0) +
+        next.reduce((total, attachment) => total + attachment.sizeBytes, 0);
+
+      if (totalBytes > maxAttachmentTotalBytes) {
+        next.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+        throw new Error("이미지는 최대 3개, 전체 6MB 이하로 첨부해 주세요.");
+      }
+
+      setAttachments((previous) => [...previous, ...next].slice(0, maxAttachmentCount));
     } catch (caught) {
       setNotice({
         title: caught instanceof Error ? caught.message : "이미지를 첨부하지 못했어요.",
         tone: "danger",
       });
     }
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((previous) => {
+      const removed = previous.find((attachment) => attachment.id === id);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+
+      return previous.filter((attachment) => attachment.id !== id);
+    });
+  }
+
+  function clearAttachments() {
+    setAttachments((previous) => {
+      previous.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+      return [];
+    });
   }
 
   return (
@@ -516,6 +615,20 @@ export default function WritePage() {
 
       <form onSubmit={handleSubmit} className="grid gap-5">
         {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
+        {serverTimeError ? (
+          <section className="rounded-md border border-rose-200 bg-rose-50 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <Notice title="서버 시간을 불러오지 못했어요." body={serverTimeError} tone="danger" />
+              <button
+                type="button"
+                onClick={() => void loadServerDefaultSchedule()}
+                className="focus-ring rounded-md border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700"
+              >
+                다시 시도
+              </button>
+            </div>
+          </section>
+        ) : null}
         {completedMessage ? (
           <section className="rounded-md border border-emerald-200 bg-emerald-50 p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -586,49 +699,32 @@ export default function WritePage() {
           </section>
         ) : null}
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-ink">발신 연락처</h2>
-              <p className="mt-1 text-sm text-slate-500">인증된 연락처로 마음을 예약해요.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push("/my")}
-              className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-            >
-              <ShieldCheck size={16} />
-              연락처 관리
-            </button>
-          </div>
-          <div className="mt-4">
-            {contactsLoading ? (
-              <p className="text-sm text-slate-500">발신 연락처 확인 중</p>
-            ) : contactsError ? (
-              <Notice title={contactsError} tone="danger" />
-            ) : verifiedSenderContacts.length ? (
-              <select
-                value={senderContactId}
-                onChange={(event) => setSenderContactId(event.target.value)}
-                className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2"
+        {contactsLoading ? (
+          <Notice title="전화번호 인증 상태를 확인하고 있어요." tone="default" />
+        ) : contactsError ? (
+          <Notice title={contactsError} tone="danger" />
+        ) : !hasVerifiedStrictPhone ? (
+          <section className="rounded-md border border-amber-200 bg-amber-50 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-amber-950">
+                  <ShieldCheck size={18} />
+                  <h2 className="text-base font-semibold">전화번호 인증이 필요해요</h2>
+                </div>
+                <p className="mt-2 text-sm text-amber-900">
+                  마음을 예약하려면 먼저 전화번호 인증을 완료해 주세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/phone-verification?next=/write")}
+                className="focus-ring rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white"
               >
-                {verifiedSenderContacts.map((contact) => (
-                  <option key={contact.id} value={contact.id}>
-                    {contact.label ? `${contact.label} · ` : ""}
-                    {contact.type === "EMAIL" ? "이메일" : "전화번호"} · {contact.maskedValue}
-                    {contact.isPrimary ? " · 기본" : ""}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <Notice
-                title="인증된 발신 연락처가 없어요."
-                body="내 정보에서 이메일이나 전화번호를 추가하고 인증하면 마음을 예약할 수 있어요."
-                tone="default"
-              />
-            )}
-          </div>
-        </section>
+                전화번호 인증하기
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-semibold text-ink">수신 대상</h2>
@@ -847,25 +943,26 @@ export default function WritePage() {
 	                이미지 첨부
 	                <input
 	                  type="file"
-	                  accept="image/png,image/jpeg,image/webp,image/gif"
-	                  multiple
-	                  className="sr-only"
-	                  onChange={(event) => void handleAttachmentChange(event.target.files)}
-	                />
-	              </label>
+		                  accept="image/png,image/jpeg,image/webp,image/gif"
+		                  multiple
+		                  className="sr-only"
+		                  onChange={(event) => {
+		                    void handleAttachmentChange(event.target.files);
+		                    event.currentTarget.value = "";
+		                  }}
+		                />
+		              </label>
 	              {attachments.length > 0 ? (
 	                <div className="mt-3 grid gap-2 md:grid-cols-3">
-	                  {attachments.map((attachment) => (
-	                    <div key={attachment.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
-	                      <img src={attachment.dataBase64} alt="" className="aspect-video w-full rounded-md object-cover" />
-	                      <div className="mt-2 flex items-center justify-between gap-2">
-	                        <p className="min-w-0 truncate text-xs text-slate-600">{attachment.fileName}</p>
-	                        <button
-	                          type="button"
-	                          onClick={() =>
-	                            setAttachments((previous) => previous.filter((item) => item.id !== attachment.id))
-	                          }
-	                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300"
+		                  {attachments.map((attachment) => (
+		                    <div key={attachment.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+		                      <img src={attachment.previewUrl} alt="" className="aspect-video w-full rounded-md object-cover" />
+		                      <div className="mt-2 flex items-center justify-between gap-2">
+		                        <p className="min-w-0 truncate text-xs text-slate-600">{attachment.fileName}</p>
+		                        <button
+		                          type="button"
+		                          onClick={() => removeAttachment(attachment.id)}
+		                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300"
 	                          aria-label="첨부 이미지 제거"
 	                        >
 	                          <Trash2 size={14} />
@@ -934,7 +1031,10 @@ export default function WritePage() {
                 type="date"
 	                value={arrivalDate}
 	                min={minArrivalDate}
-	                onChange={(event) => setArrivalDate(event.target.value)}
+	                onChange={(event) => {
+                    setArrivalTouched(true);
+                    setArrivalDate(event.target.value);
+                  }}
 	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
 	              />
               <input
@@ -942,7 +1042,10 @@ export default function WritePage() {
                 type="time"
                 step={60}
                 value={arrivalTime}
-                onChange={(event) => setArrivalTime(event.target.value)}
+                onChange={(event) => {
+                  setArrivalTouched(true);
+                  setArrivalTime(event.target.value);
+                }}
                 aria-label="도착 시간"
 	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
 	              />
@@ -1020,7 +1123,14 @@ export default function WritePage() {
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={
+              submitting ||
+              contactsLoading ||
+              Boolean(contactsError) ||
+              !hasVerifiedStrictPhone ||
+              serverTimeLoading ||
+              Boolean(serverTimeError)
+            }
             className="focus-ring inline-flex items-center gap-2 rounded-md bg-petal px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             <Send size={17} />
@@ -1084,31 +1194,37 @@ function receiverTypeLabel(type: ReceiverType) {
   return "미래의 나";
 }
 
-function readAttachmentFile(file: File): Promise<AttachmentDraft> {
-  return new Promise((resolve, reject) => {
-    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-      reject(new Error("지원하지 않는 이미지 형식이에요."));
-      return;
-    }
+function createAttachmentDraft(file: File): AttachmentDraft {
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+    throw new Error("지원하지 않는 이미지 형식이에요.");
+  }
 
-    if (file.size > 2 * 1024 * 1024) {
-      reject(new Error("이미지는 2MB 이하로 첨부해 주세요."));
-      return;
-    }
+  if (file.size > maxAttachmentBytes) {
+    throw new Error("이미지는 2MB 이하로 첨부해 주세요.");
+  }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        id: crypto.randomUUID(),
-        fileName: file.name,
-        mimeType: file.type as AttachmentDraft["mimeType"],
-        dataBase64: String(reader.result),
-        sizeBytes: file.size,
-      });
-    };
-    reader.onerror = () => reject(new Error("이미지를 읽지 못했어요."));
-    reader.readAsDataURL(file);
-  });
+  return {
+    id: crypto.randomUUID(),
+    fileName: file.name,
+    mimeType: file.type as AttachmentDraft["mimeType"],
+    sizeBytes: file.size,
+    file,
+    previewUrl: URL.createObjectURL(file),
+  };
+}
+
+async function fetchServerTimeWithRetry(): Promise<ServerTimeResponse> {
+  try {
+    return await apiFetch<ServerTimeResponse>("/time");
+  } catch (firstError) {
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+
+    try {
+      return await apiFetch<ServerTimeResponse>("/time");
+    } catch {
+      throw firstError;
+    }
+  }
 }
 
 function createPresetDate(key: (typeof presetOptions)[number][0]) {

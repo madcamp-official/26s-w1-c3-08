@@ -1,9 +1,12 @@
 import { FriendRequestStatus } from "@maeari/database";
+import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
+import { createPublicToken, createTokenPreview, hashPublicToken } from "../../lib/tokens.js";
 import type { CreateFriendRequestInput } from "./friend.validation.js";
 
 const FRIEND_REQUEST_TTL_DAYS = 14;
+const FRIEND_INVITE_TTL_HOURS = 24;
 
 export async function listFriends(userId: string) {
   const friendships = await prisma.friendship.findMany({
@@ -258,6 +261,205 @@ export async function createFriendRequest(userId: string, input: CreateFriendReq
   };
 }
 
+export async function createFriendInviteLink(userId: string) {
+  const rawToken = createPublicToken();
+  const invite = await prisma.friendInviteLink.create({
+    data: {
+      inviterId: userId,
+      tokenHash: hashPublicToken(rawToken),
+      tokenPreview: createTokenPreview(rawToken),
+      expiresAt: new Date(Date.now() + FRIEND_INVITE_TTL_HOURS * 60 * 60 * 1000),
+      maxClaims: 1,
+    },
+    include: {
+      inviter: {
+        select: {
+          id: true,
+          nickname: true,
+          profileImageUrl: true,
+        },
+      },
+    },
+  });
+
+  return {
+    invite: mapInvite(invite),
+    inviteUrl: toFriendInviteUrl(rawToken),
+  };
+}
+
+export async function listActiveFriendInviteLinks(userId: string) {
+  const invites = await prisma.friendInviteLink.findMany({
+    where: {
+      inviterId: userId,
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    include: {
+      inviter: {
+        select: {
+          id: true,
+          nickname: true,
+          profileImageUrl: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  return invites.filter((invite) => invite.claimCount < invite.maxClaims).map(mapInvite);
+}
+
+export async function revokeFriendInviteLink(userId: string, inviteId: string) {
+  const invite = await prisma.friendInviteLink.findUnique({
+    where: { id: inviteId },
+    select: {
+      id: true,
+      inviterId: true,
+      revokedAt: true,
+    },
+  });
+
+  if (!invite) {
+    throw new AppError("FRIEND_INVITE_NOT_FOUND", "친구 초대 링크를 찾지 못했어요.", 404);
+  }
+
+  if (invite.inviterId !== userId) {
+    throw new AppError("FRIEND_INVITE_FORBIDDEN", "이 초대 링크를 관리할 권한이 없어요.", 403);
+  }
+
+  if (!invite.revokedAt) {
+    await prisma.friendInviteLink.update({
+      where: { id: invite.id },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  return { revoked: true };
+}
+
+export async function previewFriendInviteLink(rawToken: string) {
+  const invite = await findInviteByRawToken(rawToken);
+
+  if (!invite) {
+    throw new AppError("FRIEND_INVITE_NOT_FOUND", "친구 초대 링크를 찾지 못했어요.", 404);
+  }
+
+  return {
+    invite: mapInvite(invite),
+    availability: getInviteAvailability(invite),
+  };
+}
+
+export async function claimFriendInviteLink(userId: string, rawToken: string) {
+  const now = new Date();
+  const tokenHash = hashPublicToken(rawToken);
+
+  return prisma.$transaction(async (tx) => {
+    const invite = await tx.friendInviteLink.findUnique({
+      where: { tokenHash },
+      include: {
+        inviter: {
+          select: {
+            id: true,
+            nickname: true,
+            profileImageUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!invite) {
+      throw new AppError("FRIEND_INVITE_NOT_FOUND", "친구 초대 링크를 찾지 못했어요.", 404);
+    }
+
+    if (invite.inviterId === userId) {
+      throw new AppError("FRIEND_INVITE_SELF_NOT_ALLOWED", "내 초대 링크로는 친구를 추가할 수 없어요.", 400);
+    }
+
+    assertInviteClaimable(invite, now);
+
+    const pair = friendshipPair(invite.inviterId, userId);
+    const existing = await tx.friendship.findUnique({
+      where: {
+        userAId_userBId: pair,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+
+    if (existing && !existing.deletedAt) {
+      return {
+        friendshipId: existing.id,
+        alreadyFriend: true,
+        inviter: invite.inviter,
+      };
+    }
+
+    const consumed = await tx.friendInviteLink.updateMany({
+      where: {
+        id: invite.id,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+        claimCount: {
+          lt: invite.maxClaims,
+        },
+      },
+      data: {
+        claimCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    if (consumed.count !== 1) {
+      throw new AppError("FRIEND_INVITE_ALREADY_USED", "이미 사용된 친구 초대 링크예요.", 409);
+    }
+
+    const friendship = existing
+      ? await tx.friendship.update({
+          where: { id: existing.id },
+          data: {
+            deletedAt: null,
+            createdById: invite.inviterId,
+          },
+        })
+      : await tx.friendship.create({
+          data: {
+            ...pair,
+            createdById: invite.inviterId,
+          },
+        });
+
+    await tx.friendRequest.updateMany({
+      where: {
+        status: FriendRequestStatus.PENDING,
+        OR: [
+          { requesterId: invite.inviterId, addresseeId: userId },
+          { requesterId: userId, addresseeId: invite.inviterId },
+        ],
+      },
+      data: {
+        status: FriendRequestStatus.ACCEPTED,
+        respondedAt: now,
+      },
+    });
+
+    return {
+      friendshipId: friendship.id,
+      alreadyFriend: false,
+      inviter: invite.inviter,
+    };
+  });
+}
+
 export async function acceptFriendRequest(userId: string, requestId: string) {
   const request = await getPendingRequestForAddressee(userId, requestId);
 
@@ -432,6 +634,79 @@ function friendshipPair(userId: string, otherUserId: string) {
   return userId < otherUserId
     ? { userAId: userId, userBId: otherUserId }
     : { userAId: otherUserId, userBId: userId };
+}
+
+async function findInviteByRawToken(rawToken: string) {
+  const token = rawToken.trim();
+
+  if (!token) {
+    return null;
+  }
+
+  return prisma.friendInviteLink.findUnique({
+    where: {
+      tokenHash: hashPublicToken(token),
+    },
+    include: {
+      inviter: {
+        select: {
+          id: true,
+          nickname: true,
+          profileImageUrl: true,
+        },
+      },
+    },
+  });
+}
+
+function assertInviteClaimable(
+  invite: Awaited<ReturnType<typeof findInviteByRawToken>> extends infer T ? NonNullable<T> : never,
+  now = new Date(),
+) {
+  if (invite.revokedAt) {
+    throw new AppError("FRIEND_INVITE_REVOKED", "폐기된 친구 초대 링크예요.", 410);
+  }
+
+  if (invite.expiresAt.getTime() <= now.getTime()) {
+    throw new AppError("FRIEND_INVITE_EXPIRED", "만료된 친구 초대 링크예요.", 410);
+  }
+
+  if (invite.claimCount >= invite.maxClaims) {
+    throw new AppError("FRIEND_INVITE_ALREADY_USED", "이미 사용된 친구 초대 링크예요.", 409);
+  }
+}
+
+function getInviteAvailability(invite: Awaited<ReturnType<typeof findInviteByRawToken>> extends infer T ? NonNullable<T> : never) {
+  if (invite.revokedAt) {
+    return { available: false, reason: "REVOKED" };
+  }
+
+  if (invite.expiresAt.getTime() <= Date.now()) {
+    return { available: false, reason: "EXPIRED" };
+  }
+
+  if (invite.claimCount >= invite.maxClaims) {
+    return { available: false, reason: "ALREADY_USED" };
+  }
+
+  return { available: true, reason: null };
+}
+
+function mapInvite(invite: Awaited<ReturnType<typeof findInviteByRawToken>> extends infer T ? NonNullable<T> : never) {
+  return {
+    id: invite.id,
+    tokenPreview: invite.tokenPreview,
+    expiresAt: invite.expiresAt,
+    maxClaims: invite.maxClaims,
+    claimCount: invite.claimCount,
+    revokedAt: invite.revokedAt,
+    createdAt: invite.createdAt,
+    inviter: invite.inviter,
+  };
+}
+
+function toFriendInviteUrl(rawToken: string) {
+  return `${config.serviceUrl}/friends/invite/${rawToken}`;
 }
 
 async function getPendingRequestForAddressee(userId: string, requestId: string) {

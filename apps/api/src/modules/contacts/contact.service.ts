@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import {
-  NotificationChannel,
   UserContactType,
   UserContactVerificationStatus,
   type UserContact,
@@ -9,7 +8,8 @@ import { AppError } from "../../lib/app-error.js";
 import {
   normalizeEmailContact,
   normalizeOptionalEmailContact,
-  normalizePhoneContact,
+  normalizeStrictKoreanMobilePhone,
+  isStrictKoreanMobilePhone,
 } from "../../lib/contact-normalization.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashContact, hashOtpCode } from "../../lib/tokens.js";
@@ -19,10 +19,19 @@ import type {
   UpdateUserContactInput,
   VerifyUserContactInput,
 } from "./contact.validation.js";
+import {
+  markPhoneVerificationAttemptSendFailed,
+  markPhoneVerificationAttemptSent,
+  preparePhoneVerificationPreflight,
+} from "./phone-verification-guard.js";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+
+type RequestContext = {
+  ipAddress: string;
+};
 
 export async function listUserContacts(userId: string) {
   await ensureKakaoEmailContact(userId);
@@ -34,10 +43,36 @@ export async function listUserContacts(userId: string) {
     orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
   });
 
-  return contacts.map(mapContact);
+  const sortedContacts = [...contacts].sort(compareContactsForDisplay);
+
+  return {
+    contacts: sortedContacts.map(mapContact),
+    writerEligibility: {
+      hasVerifiedStrictPhone: contacts.some(isWriteEligiblePhoneContact),
+    },
+  };
 }
 
-export async function createUserContact(userId: string, input: CreateUserContactInput) {
+function compareContactsForDisplay(left: UserContact, right: UserContact) {
+  if (left.type !== right.type) {
+    return left.type === UserContactType.PHONE ? -1 : 1;
+  }
+
+  if (left.isPrimary !== right.isPrimary) {
+    return left.isPrimary ? -1 : 1;
+  }
+
+  const leftVerifiedAt = left.verifiedAt?.getTime() ?? 0;
+  const rightVerifiedAt = right.verifiedAt?.getTime() ?? 0;
+
+  if (leftVerifiedAt !== rightVerifiedAt) {
+    return rightVerifiedAt - leftVerifiedAt;
+  }
+
+  return right.createdAt.getTime() - left.createdAt.getTime();
+}
+
+export async function createUserContact(userId: string, input: CreateUserContactInput, context?: RequestContext) {
   const normalized = normalizeContactInput(input.type, input.value);
   const type = input.type === "PHONE" ? UserContactType.PHONE : UserContactType.EMAIL;
   const contactHash = hashContact(type, normalized);
@@ -70,7 +105,9 @@ export async function createUserContact(userId: string, input: CreateUserContact
           value: normalized,
           label,
           deletedAt: null,
-          isPrimary: existing.isPrimary || !hasPrimary,
+          ...(type === UserContactType.PHONE && existing.deletedAt
+            ? { verifiedAt: null, verificationSource: null, isPrimary: false }
+            : { isPrimary: existing.isPrimary || !hasPrimary }),
         },
       })
     : await prisma.userContact.create({
@@ -91,7 +128,7 @@ export async function createUserContact(userId: string, input: CreateUserContact
     };
   }
 
-  await createAndSendVerification(contact);
+  await createAndSendVerification(contact, context);
 
   return {
     contact: mapContact(contact),
@@ -99,7 +136,7 @@ export async function createUserContact(userId: string, input: CreateUserContact
   };
 }
 
-export async function sendUserContactVerificationCode(userId: string, contactId: string) {
+export async function sendUserContactVerificationCode(userId: string, contactId: string, context?: RequestContext) {
   const contact = await findOwnedContact(userId, contactId);
 
   if (contact.verifiedAt) {
@@ -109,7 +146,7 @@ export async function sendUserContactVerificationCode(userId: string, contactId:
     };
   }
 
-  await createAndSendVerification(contact);
+  await createAndSendVerification(contact, context);
 
   return {
     contact: mapContact(contact),
@@ -166,6 +203,32 @@ export async function verifyUserContact(userId: string, contactId: string, input
       },
     });
 
+    if (contact.type === UserContactType.PHONE) {
+      await tx.userContact.updateMany({
+        where: {
+          userId,
+          type: UserContactType.PHONE,
+          deletedAt: null,
+          verifiedAt: { not: null },
+          NOT: { id: contact.id },
+        },
+        data: {
+          deletedAt: verifiedAt,
+          isPrimary: false,
+        },
+      });
+
+      return tx.userContact.update({
+        where: { id: contact.id },
+        data: {
+          verifiedAt,
+          verificationSource: "OTP",
+          deletedAt: null,
+          isPrimary: true,
+        },
+      });
+    }
+
     const hasPrimary = await tx.userContact.findFirst({
       where: {
         userId,
@@ -195,7 +258,7 @@ export async function updateUserContact(userId: string, contactId: string, input
   const label = input.label === undefined ? undefined : normalizeLabel(input.label);
 
   if (input.isPrimary === true && !contact.verifiedAt) {
-    throw new AppError("CONTACT_NOT_VERIFIED", "인증된 연락처만 기본 발신 연락처로 설정할 수 있어요.", 409);
+    throw new AppError("CONTACT_NOT_VERIFIED", "인증된 연락처만 기본 연락처로 설정할 수 있어요.", 409);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -225,6 +288,15 @@ export async function updateUserContact(userId: string, contactId: string, input
 
 export async function deleteUserContact(userId: string, contactId: string) {
   const contact = await findOwnedContact(userId, contactId);
+
+  if (contact.type === UserContactType.PHONE && contact.verifiedAt) {
+    throw new AppError(
+      "VERIFIED_PHONE_CONTACT_CANNOT_BE_DELETED",
+      "인증된 전화번호는 삭제할 수 없어요. 새 전화번호 인증으로 변경해 주세요.",
+      403,
+    );
+  }
+
   await prisma.userContact.update({
     where: { id: contact.id },
     data: {
@@ -252,34 +324,30 @@ export async function deleteUserContact(userId: string, contactId: string) {
   return { deleted: true };
 }
 
-export async function assertVerifiedSenderContact(userId: string, senderContactId?: string | null) {
+export async function assertVerifiedSenderPhoneContact(userId: string) {
   await ensureKakaoEmailContact(userId);
 
-  const contact = senderContactId
-    ? await prisma.userContact.findFirst({
-        where: {
-          id: senderContactId,
-          userId,
-          deletedAt: null,
-        },
-      })
-    : await prisma.userContact.findFirst({
-        where: {
-          userId,
-          deletedAt: null,
-          verifiedAt: {
-            not: null,
-          },
-        },
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      });
+  const contact = await prisma.userContact.findFirst({
+    where: {
+      userId,
+      type: UserContactType.PHONE,
+      deletedAt: null,
+      verifiedAt: {
+        not: null,
+      },
+      value: {
+        startsWith: "010",
+      },
+    },
+    orderBy: [{ isPrimary: "desc" }, { verifiedAt: "desc" }, { updatedAt: "desc" }],
+  });
 
-  if (!contact) {
-    throw new AppError("SENDER_CONTACT_REQUIRED", "메시지를 예약하려면 인증된 발신 연락처가 필요해요.", 409);
-  }
-
-  if (!contact.verifiedAt) {
-    throw new AppError("SENDER_CONTACT_NOT_VERIFIED", "인증된 발신 연락처만 사용할 수 있어요.", 409);
+  if (!contact || !isWriteEligiblePhoneContact(contact)) {
+    throw new AppError(
+      "SENDER_PHONE_VERIFICATION_REQUIRED",
+      "마음을 예약하려면 전화번호 인증이 필요해요.",
+      409,
+    );
   }
 
   return {
@@ -287,6 +355,8 @@ export async function assertVerifiedSenderContact(userId: string, senderContactI
     snapshot: createSenderContactSnapshot(contact),
   };
 }
+
+export const assertVerifiedSenderContact = assertVerifiedSenderPhoneContact;
 
 export async function ensureKakaoEmailContact(userId: string) {
   const user = await prisma.user.findUnique({
@@ -360,13 +430,13 @@ function normalizeContactInput(type: "EMAIL" | "PHONE", value: string) {
     return normalizeEmailContact(value);
   }
 
-  const normalizedPhone = normalizePhoneContact(value);
+  const normalizedStrictPhone = normalizeStrictKoreanMobilePhone(value);
 
-  if (!normalizedPhone) {
-    throw new AppError("CONTACT_PHONE_INVALID", "전화번호는 국내 번호 10~11자리로 입력해 주세요.", 400);
+  if (!normalizedStrictPhone) {
+    throw new AppError("CONTACT_PHONE_INVALID", "휴대전화 번호만 인증할 수 있어요.", 400);
   }
 
-  return normalizedPhone;
+  return normalizedStrictPhone;
 }
 
 function normalizeLabel(label?: string | null) {
@@ -390,7 +460,7 @@ async function findOwnedContact(userId: string, contactId: string) {
   return contact;
 }
 
-async function createAndSendVerification(contact: UserContact) {
+async function createAndSendVerification(contact: UserContact, context?: RequestContext) {
   const latest = await prisma.userContactVerification.findFirst({
     where: {
       userContactId: contact.id,
@@ -403,6 +473,14 @@ async function createAndSendVerification(contact: UserContact) {
     throw new AppError("CONTACT_VERIFICATION_COOLDOWN", "인증번호는 1분 뒤 다시 요청할 수 있어요.", 429);
   }
 
+  const phonePreflight =
+    contact.type === UserContactType.PHONE
+      ? await preparePhoneVerificationPreflight({
+          userId: contact.userId,
+          normalizedPhone: assertStrictStoredPhone(contact.value),
+          ipAddress: context?.ipAddress ?? "unknown",
+        })
+      : null;
   const code = createOtpCode();
   const verification = await prisma.userContactVerification.create({
     data: {
@@ -416,19 +494,23 @@ async function createAndSendVerification(contact: UserContact) {
     to: contact.value,
     receiverName: null,
     publicUrl: "",
-    subject: "매아리 발신 연락처 인증번호",
+    subject: "매아리 연락처 인증번호",
     text:
       contact.type === UserContactType.PHONE
-        ? `[매아리] 발신 연락처 인증번호는 ${code}입니다. 10분 안에 입력해 주세요.`
-        : `매아리 발신 연락처 인증번호는 ${code}입니다.\n10분 안에 입력해 주세요.`,
+        ? `[매아리] 연락처 인증번호는 ${code}입니다. 10분 안에 입력해 주세요.`
+        : `매아리 연락처 인증번호는 ${code}입니다.\n10분 안에 입력해 주세요.`,
     html:
       contact.type === UserContactType.EMAIL
-        ? `<p>매아리 발신 연락처 인증번호는 <strong>${code}</strong>입니다.</p><p>10분 안에 입력해 주세요.</p>`
+        ? `<p>매아리 연락처 인증번호는 <strong>${code}</strong>입니다.</p><p>10분 안에 입력해 주세요.</p>`
         : undefined,
     idempotencyKey: `contact-verification:${verification.id}`,
   });
 
   if (result.status !== "SENT") {
+    await markPhoneVerificationAttemptSendFailed(
+      phonePreflight?.attemptId,
+      result.errorCode ?? "CONTACT_VERIFICATION_SEND_FAILED",
+    );
     await prisma.userContactVerification.update({
       where: { id: verification.id },
       data: { status: UserContactVerificationStatus.EXPIRED },
@@ -440,6 +522,8 @@ async function createAndSendVerification(contact: UserContact) {
       { provider: result.provider, errorCode: result.errorCode },
     );
   }
+
+  await markPhoneVerificationAttemptSent(phonePreflight?.attemptId);
 }
 
 function createOtpCode() {
@@ -450,13 +534,13 @@ function mapContact(contact: UserContact) {
   return {
     id: contact.id,
     type: contact.type,
-    value: contact.value,
     maskedValue: maskContact(contact.type, contact.value),
     label: contact.label,
     isPrimary: contact.isPrimary,
     verifiedAt: contact.verifiedAt,
     verificationSource: contact.verificationSource,
     createdAt: contact.createdAt,
+    isWriteEligiblePhone: isWriteEligiblePhoneContact(contact),
   };
 }
 
@@ -483,4 +567,21 @@ function maskContact(type: UserContactType, value: string) {
 
   const visible = localPart.slice(0, Math.min(2, localPart.length));
   return `${visible}${"*".repeat(Math.max(3, localPart.length - visible.length))}@${domain}`;
+}
+
+function isWriteEligiblePhoneContact(contact: UserContact) {
+  return (
+    contact.type === UserContactType.PHONE &&
+    Boolean(contact.verifiedAt) &&
+    !contact.deletedAt &&
+    isStrictKoreanMobilePhone(contact.value)
+  );
+}
+
+function assertStrictStoredPhone(value: string) {
+  if (!isStrictKoreanMobilePhone(value)) {
+    throw new AppError("CONTACT_PHONE_INVALID", "휴대전화 번호만 인증할 수 있어요.", 400);
+  }
+
+  return value;
 }

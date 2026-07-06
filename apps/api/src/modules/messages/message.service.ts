@@ -5,6 +5,7 @@ import {
   MessageTheme,
   RecipientDeliveryStatus,
   RecipientType,
+  UserContactType,
 } from "@maeari/database";
 import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,21 +14,21 @@ import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
 import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
 import { prisma } from "../../lib/prisma.js";
-import { createPublicToken, createTokenPreview, hashPublicToken } from "../../lib/tokens.js";
+import { createPublicToken, createTokenPreview, hashContact, hashPublicToken } from "../../lib/tokens.js";
 import {
   getModerationInputHash,
   moderateMessageWithRetry,
   type ModerationResult,
 } from "../moderation/moderation.service.js";
 import { assertActiveFriendship } from "../friends/friend.service.js";
-import { assertVerifiedSenderContact } from "../contacts/contact.service.js";
+import { assertVerifiedSenderPhoneContact } from "../contacts/contact.service.js";
 import type { CreateMessageInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
   const messageId = crypto.randomUUID();
   const schedule = resolveSchedule(input);
-  const senderContact = await assertVerifiedSenderContact(userId, input.senderContactId);
+  const senderContact = await assertVerifiedSenderPhoneContact(userId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
   const attachments = await persistAttachments(messageId, input.attachments ?? []);
@@ -727,21 +728,46 @@ async function normalizeReceiver(receiverInfo: NonNullable<CreateMessageInput["r
 
   const receiverType = receiverInfo.type === "SELF" ? RecipientType.SELF : RecipientType.OTHER;
   const receiverName = receiverInfo.type === "SELF" ? "미래의 나" : receiverInfo.name;
+  const normalizedEmail = normalizeOptionalEmailContact(receiverInfo.email);
+  const normalizedPhone = normalizeOptionalPhoneContact(receiverInfo.phone);
+  const linkedUserId =
+    receiverInfo.type === "OTHER" && normalizedEmail
+      ? await findUserIdByVerifiedEmailContact(normalizedEmail)
+      : undefined;
 
   return {
-    receiverUserId: receiverInfo.type === "SELF" ? userId : undefined,
+    receiverUserId: receiverInfo.type === "SELF" ? userId : linkedUserId,
     receiverType,
     receiverName,
-    receiverEmail: normalizeOptionalEmailContact(receiverInfo.email) ?? undefined,
-    receiverPhone: normalizeOptionalPhoneContact(receiverInfo.phone) ?? undefined,
+    receiverEmail: normalizedEmail ?? undefined,
+    receiverPhone: normalizedPhone ?? undefined,
     receiverInfo: {
       type: receiverInfo.type,
       name: receiverName,
-      email: normalizeOptionalEmailContact(receiverInfo.email) ?? undefined,
-      phone: normalizeOptionalPhoneContact(receiverInfo.phone) ?? undefined,
+      email: normalizedEmail ?? undefined,
+      phone: normalizedPhone ?? undefined,
       preferredChannel: receiverInfo.type === "OTHER" ? receiverInfo.preferredChannel ?? "AUTO" : undefined,
+      linkedByVerifiedEmail: Boolean(linkedUserId),
     },
   };
+}
+
+async function findUserIdByVerifiedEmailContact(normalizedEmail: string) {
+  const contact = await prisma.userContact.findUnique({
+    where: {
+      type_contactHash: {
+        type: UserContactType.EMAIL,
+        contactHash: hashContact(UserContactType.EMAIL, normalizedEmail),
+      },
+    },
+    select: {
+      userId: true,
+      verifiedAt: true,
+      deletedAt: true,
+    },
+  });
+
+  return contact?.verifiedAt && !contact.deletedAt ? contact.userId : undefined;
 }
 
 function resolveSchedule(input: CreateMessageInput) {
@@ -771,17 +797,27 @@ async function persistAttachments(messageId: string, attachments: NonNullable<Cr
     throw new AppError("TOO_MANY_ATTACHMENTS", `이미지는 최대 ${config.maxAttachmentCount}개까지 첨부할 수 있어요.`, 400);
   }
 
+  const decodedAttachments = attachments.map((attachment) => ({
+    attachment,
+    buffer: decodeAttachment(attachment.dataBase64),
+  }));
+  const totalBytes = decodedAttachments.reduce((total, item) => total + item.buffer.byteLength, 0);
+
+  if (totalBytes > config.maxAttachmentTotalBytes) {
+    throw new AppError("ATTACHMENTS_TOO_LARGE", "첨부 이미지 전체 용량이 너무 커요.", 413);
+  }
+
+  for (const item of decodedAttachments) {
+    if (item.buffer.byteLength > config.maxAttachmentBytes) {
+      throw new AppError("ATTACHMENT_TOO_LARGE", "첨부 이미지는 허용된 용량보다 작아야 해요.", 413);
+    }
+  }
+
   const uploadDir = path.join(config.uploadDir, "messages", messageId);
   await mkdir(uploadDir, { recursive: true });
 
   return Promise.all(
-    attachments.map(async (attachment, index) => {
-      const buffer = decodeAttachment(attachment.dataBase64);
-
-      if (buffer.byteLength > config.maxAttachmentBytes) {
-        throw new AppError("ATTACHMENT_TOO_LARGE", "첨부 이미지는 허용된 용량보다 작아야 해요.", 400);
-      }
-
+    decodedAttachments.map(async ({ attachment, buffer }, index) => {
       const extension = extensionForMimeType(attachment.mimeType);
       const fileName = `${String(index + 1).padStart(2, "0")}-${crypto.randomUUID()}${extension}`;
       const storageKey = `messages/${messageId}/${fileName}`;

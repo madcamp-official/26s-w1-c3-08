@@ -16,10 +16,17 @@ import {
   unarchiveReceivedMessageController,
 } from "./message.controller.js";
 import { createMessageSchema } from "./message.validation.js";
+import { parseCreateMessageRequest } from "./message-upload.middleware.js";
 
 export const messageRoutes = Router();
 
-messageRoutes.post("/messages", authMiddleware, validateBody(createMessageSchema), createMessageController);
+messageRoutes.post(
+  "/messages",
+  authMiddleware,
+  parseCreateMessageRequest,
+  validateBody(createMessageSchema),
+  createMessageController,
+);
 messageRoutes.get("/messages/sent", authMiddleware, listSentMessagesController);
 messageRoutes.get("/messages/received", authMiddleware, listReceivedMessagesController);
 messageRoutes.get("/messages/archived", authMiddleware, listArchivedMessagesController);

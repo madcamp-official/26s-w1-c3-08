@@ -3,6 +3,7 @@ import {
   NotificationChannel,
   NotificationEventType,
   NotificationStatus,
+  RecipientType,
   RecipientDeliveryStatus,
   type NotificationLog,
   type MessageRecipient,
@@ -22,7 +23,7 @@ import {
 
 type ExternalRecipient = Pick<
   MessageRecipient,
-  "id" | "messageId" | "receiverUserId" | "receiverEmail" | "receiverPhone" | "receiverName" | "receiverInfo"
+  "id" | "messageId" | "receiverUserId" | "receiverType" | "receiverEmail" | "receiverPhone" | "receiverName" | "receiverInfo"
 > & {
   message?: {
     isSenderHidden: boolean;
@@ -70,6 +71,9 @@ export class NotificationProcessor {
       for (const recipient of message.recipients) {
         if (recipient.receiverUserId) {
           await this.createInAppHintNotification(recipient.id, message.id, hintedAt);
+        }
+
+        if (!shouldDeliverExternal(recipient)) {
           continue;
         }
 
@@ -96,6 +100,7 @@ export class NotificationProcessor {
         id: true,
         messageId: true,
         receiverUserId: true,
+        receiverType: true,
         receiverEmail: true,
         receiverPhone: true,
         receiverName: true,
@@ -116,6 +121,9 @@ export class NotificationProcessor {
     for (const recipient of recipients) {
       if (recipient.receiverUserId) {
         await this.createInAppNotification(recipient.id, payload);
+      }
+
+      if (!shouldDeliverExternal(recipient)) {
         continue;
       }
 
@@ -483,13 +491,15 @@ export class NotificationProcessor {
         },
       });
 
-      await tx.messageRecipient.update({
-        where: { id: recipient.id },
-        data: {
-          deliveryStatus: RecipientDeliveryStatus.FAILED,
-          deliveredAt: null,
-        },
-      });
+      if (!recipient.receiverUserId) {
+        await tx.messageRecipient.update({
+          where: { id: recipient.id },
+          data: {
+            deliveryStatus: RecipientDeliveryStatus.FAILED,
+            deliveredAt: null,
+          },
+        });
+      }
     });
     await finalizeMessageDeliveryState(recipient.messageId);
 
@@ -531,13 +541,15 @@ export class NotificationProcessor {
         },
       });
 
-      await tx.messageRecipient.update({
-        where: { id: recipient.id },
-        data: {
-          deliveryStatus: RecipientDeliveryStatus.FAILED,
-          deliveredAt: null,
-        },
-      });
+      if (!recipient.receiverUserId) {
+        await tx.messageRecipient.update({
+          where: { id: recipient.id },
+          data: {
+            deliveryStatus: RecipientDeliveryStatus.FAILED,
+            deliveredAt: null,
+          },
+        });
+      }
     });
     await finalizeMessageDeliveryState(recipient.messageId);
   }
@@ -606,6 +618,10 @@ function chooseChannel(recipient: ExternalRecipient) {
   }
 
   return recipient.receiverEmail ? NotificationChannel.EMAIL : NotificationChannel.SMS;
+}
+
+function shouldDeliverExternal(recipient: ExternalRecipient) {
+  return recipient.receiverType === RecipientType.OTHER && Boolean(recipient.receiverEmail || recipient.receiverPhone);
 }
 
 type NotificationContent = {

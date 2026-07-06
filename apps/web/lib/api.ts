@@ -29,11 +29,12 @@ export function getApiBaseUrl() {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
   });
@@ -50,7 +51,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(
       response.status,
       body.error?.code ?? "API_ERROR",
-      body.error?.message ?? "요청을 완료하지 못했어요.",
+      body.error?.message ?? getFallbackErrorMessage(response.status),
       body.error?.details,
     );
   }
@@ -60,4 +61,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   return (await response.json()) as T;
+}
+
+function getFallbackErrorMessage(status: number) {
+  if (status === 413) {
+    return "첨부 이미지 용량이 너무 커요. 이미지는 최대 3개, 각 2MB 이하로 첨부해 주세요.";
+  }
+
+  return "요청을 완료하지 못했어요.";
 }

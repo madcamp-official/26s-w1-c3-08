@@ -22,6 +22,18 @@ const solapiApiSecret = solapiSmsEnabled ? requireEnv("SOLAPI_API_SECRET") : opt
 const solapiSenderNumber = solapiSmsEnabled
   ? requirePhoneNumberEnv("SOLAPI_SENDER_NUMBER")
   : optionalPhoneNumberEnv("SOLAPI_SENDER_NUMBER");
+const phoneLookupEnabled = optionalBooleanEnv("PHONE_LOOKUP_ENABLED") ?? false;
+const phoneLookupProvider = optionalEnv("PHONE_LOOKUP_PROVIDER") ?? "TWILIO";
+
+if (phoneLookupProvider !== "TWILIO") {
+  throw new Error("PHONE_LOOKUP_PROVIDER must be TWILIO");
+}
+
+const twilioAccountSid = phoneLookupEnabled ? requireEnv("TWILIO_ACCOUNT_SID") : optionalEnv("TWILIO_ACCOUNT_SID");
+const twilioAuthToken = phoneLookupEnabled ? requireEnv("TWILIO_AUTH_TOKEN") : optionalEnv("TWILIO_AUTH_TOKEN");
+const maxAttachmentCount = optionalNumberEnv("MAX_ATTACHMENT_COUNT", 3);
+const maxAttachmentBytes = optionalNumberEnv("MAX_ATTACHMENT_BYTES", 2 * 1024 * 1024);
+const maxAttachmentTotalBytes = optionalNumberEnv("MAX_ATTACHMENT_TOTAL_BYTES", maxAttachmentCount * maxAttachmentBytes);
 
 export const config = {
   nodeEnv: requireEnv("NODE_ENV"),
@@ -44,8 +56,9 @@ export const config = {
   publicTokenPepper: requireEnv("PUBLIC_TOKEN_PEPPER"),
   uploadDir: optionalEnv("UPLOAD_DIR") ?? path.resolve(process.cwd(), "uploads"),
   uploadPublicPath: optionalEnv("UPLOAD_PUBLIC_PATH") ?? "/api/uploads",
-  maxAttachmentCount: optionalNumberEnv("MAX_ATTACHMENT_COUNT", 3),
-  maxAttachmentBytes: optionalNumberEnv("MAX_ATTACHMENT_BYTES", 2 * 1024 * 1024),
+  maxAttachmentCount,
+  maxAttachmentBytes,
+  maxAttachmentTotalBytes,
   adminKakaoIds: parseCsvEnv("ADMIN_KAKAO_IDS"),
   deliveryCron: requireEnv("DELIVERY_CRON"),
   moderationRetryCron: requireEnv("MODERATION_RETRY_CRON"),
@@ -65,6 +78,12 @@ export const config = {
   solapiApiKey,
   solapiApiSecret,
   solapiSenderNumber,
+  phoneLookupEnabled,
+  phoneLookupProvider,
+  twilioAccountSid,
+  twilioAuthToken,
+  phoneLookupTimeoutMs: optionalNumberEnv("PHONE_LOOKUP_TIMEOUT_MS", 3000),
+  phoneLookupCacheTtlDays: optionalNumberEnv("PHONE_LOOKUP_CACHE_TTL_DAYS", 30),
 };
 
 function resolveEnvPath(fileName: string) {

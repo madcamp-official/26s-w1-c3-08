@@ -4,11 +4,16 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
+  claimFriendInviteLink,
+  createFriendInviteLink,
   createFriendRequest,
   deleteFriendship,
+  listActiveFriendInviteLinks,
   listFriendRequests,
   listFriends,
+  previewFriendInviteLink,
   rejectFriendRequest,
+  revokeFriendInviteLink,
   searchFriendCandidates,
 } from "./friend.service.js";
 
@@ -46,6 +51,42 @@ export const createFriendRequestController = asyncHandler(async (request: Reques
   response.status(201).json({ request: await createFriendRequest(request.user.id, request.body) });
 });
 
+export const createFriendInviteLinkController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.status(201).json(await createFriendInviteLink(request.user.id));
+});
+
+export const listActiveFriendInviteLinksController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.json({ invites: await listActiveFriendInviteLinks(request.user.id) });
+});
+
+export const previewFriendInviteLinkController = asyncHandler(async (request: Request, response: Response) => {
+  response.json(await previewFriendInviteLink(requireToken(request.params.token)));
+});
+
+export const claimFriendInviteLinkController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.json(await claimFriendInviteLink(request.user.id, requireToken(request.params.token)));
+});
+
+export const revokeFriendInviteLinkController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.json(await revokeFriendInviteLink(request.user.id, requireId(request.params.id)));
+});
+
 export const acceptFriendRequestController = asyncHandler(async (request: Request, response: Response) => {
   if (!request.user) {
     throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
@@ -81,6 +122,14 @@ export const deleteFriendshipController = asyncHandler(async (request: Request, 
 function requireId(value?: string) {
   if (!value) {
     throw new AppError("ID_REQUIRED", "요청 정보를 찾지 못했어요.", 400);
+  }
+
+  return value;
+}
+
+function requireToken(value?: string) {
+  if (!value) {
+    throw new AppError("TOKEN_REQUIRED", "초대 링크 정보를 찾지 못했어요.", 400);
   }
 
   return value;

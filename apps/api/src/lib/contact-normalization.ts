@@ -23,3 +23,21 @@ export function normalizeOptionalPhoneContact(phone?: string | null) {
 export function isDomesticPhoneNumber(phone: string) {
   return /^0\d{9,10}$/.test(phone);
 }
+
+export function normalizeStrictKoreanMobilePhone(phone: string) {
+  const digits = sanitizePhoneNumber(phone);
+
+  if (/^010\d{8}$/.test(digits)) {
+    return digits;
+  }
+
+  if (/^8210\d{8}$/.test(digits)) {
+    return `0${digits.slice(2)}`;
+  }
+
+  return null;
+}
+
+export function isStrictKoreanMobilePhone(phone: string) {
+  return /^010\d{8}$/.test(phone);
+}

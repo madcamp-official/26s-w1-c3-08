@@ -166,6 +166,30 @@
 
 ---
 
+## 0.2.2 2026-07-06 전화번호 인증, 친구 초대 링크, 신규 DB 전환 반영
+
+현재 운영 코드와 서버 상태 기준으로 다음 변경을 추가 반영했습니다.
+
+- 마음쓰기 권한은 이메일 인증이나 사용자가 선택한 발신 연락처가 아니라 **strict 010 휴대전화 인증 보유 여부**로 판단합니다.
+- `/write`에서 연락처 선택 UI와 masked value 노출을 제거하고, `/api/me/contacts`의 `writerEligibility.hasVerifiedStrictPhone`만 확인합니다.
+- 인증된 PHONE이 없으면 `/write`는 예약을 막고 `/phone-verification?next=/write`로 이동시키는 CTA를 제공합니다.
+- `POST /api/messages`는 body의 `senderContactId`를 보안상 무시하고, 서버가 `assertVerifiedSenderPhoneContact(userId)`로 active verified strict PHONE을 직접 선택합니다.
+- 선택된 PHONE은 메시지 생성 시점에 `Message.senderContactId`, `senderContactSnapshot`으로 snapshot 저장되며, 이후 사용자가 전화번호를 바꿔도 기존 예약 메시지 전달에는 영향을 주지 않습니다.
+- `/phone-verification` 전용 페이지를 추가해 전화번호 입력, OTP 발송/재발송, 6자리 code 검증, 완료 후 `/write` 또는 `/my`로 안전하게 이동하는 흐름을 제공합니다.
+- PHONE 인증은 `01012345678`, `010-1234-5678`, `+821012345678`, `821012345678` 계열 입력을 `01012345678`로 정규화하고, 최종적으로 `^010\d{8}$`만 허용합니다.
+- `PHONE_LOOKUP_ENABLED=true`일 때 Twilio Lookup v2 `line_type_intelligence`를 호출해 `valid=true`, `country_code=KR`, `type=mobile` 조건만 통과시키며 provider 장애는 fail-closed로 처리합니다.
+- `PhoneVerificationAttempt`, `PhoneVerificationLock`, `PhoneNumberLookupCache`를 추가해 raw IP/전화번호 없이 HMAC hash 기반 rate limit, lock, lookup cache를 관리합니다.
+- verified PHONE은 사용자가 직접 삭제할 수 없고, 새 PHONE OTP 인증 성공 시 기존 active PHONE을 retire하고 새 PHONE을 primary active로 전환합니다.
+- 이메일 연락처는 마음쓰기 권한이 아니라 외부 이메일 수신 메시지를 기존 사용자에게 연결하기 위한 보조 신원으로 사용합니다.
+- 친구 초대 링크 기능을 추가했습니다. `/friends`에서 24시간 유효한 1회성 링크를 만들고, `/friends/invite/[token]`에서 미리보기/claim을 처리합니다.
+- 로그인 전 초대 링크를 열면 `sessionStorage.maeari.pendingFriendInviteToken`에 보관하고 `/auth/callback`에서 로그인 완료 후 자동 claim합니다.
+- 메시지 첨부는 web 기본 경로를 multipart form-data로 전환했습니다. JSON payload는 `payload` field에, 이미지는 `attachments` field에 담고 API가 multer로 MIME/개수/용량/총량을 검증합니다.
+- 운영 DB를 기존 MVP 이름 `maeum_arrival`에서 `maeari`로 전환했습니다. Docker Postgres의 DB/USER healthcheck도 `maeari` 기준이며, 기존 DB와 dry-run DB는 final dump 검증 후 제거했습니다.
+- 기존 bootstrap role `maeum`은 Postgres system-required 객체 때문에 삭제할 수 없어 `NOLOGIN`으로 잠근 상태입니다.
+- 운영 DB dump가 git에 올라가지 않도록 `backups/`를 `.gitignore`에 추가했습니다.
+
+---
+
 ## 0.3 구현 원칙
 
 실제 서비스 구현 단계에서는 아래 원칙을 적용합니다.
@@ -431,7 +455,10 @@ maeari-scheduler  -> 예약 메시지 처리 scheduler
   -> Kakao OAuth authorize
   -> Express /auth/kakao/callback
   -> User upsert
+  -> Kakao email이 있으면 UserContact EMAIL 자동 upsert
   -> session or JWT 발급
+  -> sessionStorage pendingArrivalToken이 있으면 /api/auth/link-message 시도
+  -> sessionStorage pendingFriendInviteToken이 있으면 /api/friends/invites/:token/claim 시도
   -> frontend redirect
 ```
 
@@ -439,10 +466,19 @@ maeari-scheduler  -> 예약 메시지 처리 scheduler
 
 ```txt
 사용자 메시지 작성
+  -> /write mount
+  -> GET /api/me/contacts
+  -> writerEligibility.hasVerifiedStrictPhone 확인
+  -> 미인증이면 /phone-verification?next=/write 안내
+  -> GET /api/time으로 서버 기준 +24h 기본 도착 시각 설정
   -> Frontend validation
   -> POST /api/messages
+     - 첨부가 없으면 JSON
+     - 첨부가 있으면 multipart payload + attachments
   -> Auth middleware
   -> Request validation
+  -> 서버가 senderContactId payload를 무시하고 verified strict PHONE 직접 선택
+  -> SELF/FRIEND/OTHER 모든 유형에서 PHONE 인증 필수
   -> 한국어 욕설/비하 표현 로컬 규칙 검사
   -> OpenAI Moderation 1차 검사
   -> 매아리 guardrail prompt 2차 검사
@@ -959,18 +995,28 @@ MVP에서는 두 가지 선택지가 있습니다.
 
 | Method | Endpoint | 인증 | 설명 |
 | --- | --- | --- | --- |
-| GET | `/api/me/contacts` | 필요 | 내 발신 연락처 목록 조회 |
-| POST | `/api/me/contacts` | 필요 | 이메일/전화번호 발신 연락처 추가 및 OTP 발송 |
+| GET | `/api/me/contacts` | 필요 | 내 연락처 인증 목록과 `writerEligibility.hasVerifiedStrictPhone` 조회 |
+| POST | `/api/me/contacts` | 필요 | 이메일/전화번호 연락처 추가 및 OTP 발송. PHONE은 strict 010, rate limit, Twilio Lookup guard 적용 |
 | POST | `/api/me/contacts/:id/send-code` | 필요 | OTP 인증 코드 재발송 |
 | POST | `/api/me/contacts/:id/verify` | 필요 | OTP 인증 코드 검증 |
-| PATCH | `/api/me/contacts/:id` | 필요 | 연락처 label 또는 기본 연락처 여부 수정 |
-| DELETE | `/api/me/contacts/:id` | 필요 | 발신 연락처 soft delete |
+| PATCH | `/api/me/contacts/:id` | 필요 | 연락처 label 수정. `isPrimary`는 active PHONE 교체/내부 우선순위 관리에 사용 |
+| DELETE | `/api/me/contacts/:id` | 필요 | 연락처 soft delete. verified PHONE은 삭제 불가, 새 번호 인증으로만 변경 |
+
+PHONE 인증 정책:
+
+- `normalizeStrictKoreanMobilePhone`은 `01012345678`, `010-1234-5678`, `+821012345678`, `821012345678`를 `01012345678`로 정규화합니다.
+- `^010\d{8}$`가 아니면 `CONTACT_PHONE_INVALID`입니다.
+- 동일 연락처 10분 내 3회 초과 요청은 CONTACT 24시간 lock입니다.
+- 동일 IP에서 1시간 내 서로 다른 번호 5개 초과 요청은 IP 1시간 lock입니다.
+- OTP는 10분 만료, 60초 재발송 cooldown, 5회 실패 시 만료입니다.
+- Twilio Lookup provider 장애는 `PHONE_LOOKUP_UNAVAILABLE`로 fail-closed 처리합니다.
 
 ## 9.2 Message API
 
 | Method | Endpoint | 인증 | 설명 |
 | --- | --- | --- | --- |
-| POST | `/api/messages` | 필요 | 메시지 작성 및 예약 |
+| GET | `/api/time` | 불필요 | 서버 기준 현재 시각과 기본 예약 시각(+24h) 조회 |
+| POST | `/api/messages` | 필요 | 메시지 작성 및 예약. 서버가 verified strict PHONE을 직접 선택하고 `senderContactId` payload는 무시 |
 | GET | `/api/messages/sent` | 필요 | 내가 보낸 메시지 목록 |
 | GET | `/api/messages/received` | 필요 | 내가 받은 메시지 목록 |
 | GET | `/api/messages/archived` | 필요 | 내가 아카이브한 받은 메시지 목록 |
@@ -1018,6 +1064,11 @@ MVP에서는 두 가지 선택지가 있습니다.
 | GET | `/api/friends` | 필요 | 내 친구 목록 조회 |
 | GET | `/api/friends/requests` | 필요 | 받은/보낸 친구 요청 목록 조회 |
 | GET | `/api/friends/search` | 필요 | 닉네임 또는 친구 코드 기반 친구 후보 검색 |
+| POST | `/api/friends/invites` | 필요 | 24시간 유효한 1회성 친구 초대 링크 생성 |
+| GET | `/api/friends/invites/active` | 필요 | 내가 만든 활성 초대 링크 목록 조회 |
+| GET | `/api/friends/invites/:token/preview` | 불필요 | 초대 링크 초대자와 사용 가능 상태 미리보기 |
+| POST | `/api/friends/invites/:token/claim` | 필요 | 로그인 사용자가 초대 링크로 친구 연결 |
+| DELETE | `/api/friends/invites/:id` | 필요 | 내가 만든 초대 링크 폐기 |
 | POST | `/api/friends/requests` | 필요 | 친구 코드로 친구 요청 생성 |
 | PATCH | `/api/friends/requests/:id/accept` | 필요 | 받은 친구 요청 수락 및 Friendship 생성 |
 | PATCH | `/api/friends/requests/:id/reject` | 필요 | 받은 친구 요청 거절 |
@@ -1139,6 +1190,8 @@ EMAIL 채널은 Gmail SMTP provider를 사용하고, SMS 채널은 Solapi provid
 
 ## 9.6 메시지 작성 Request 예시
 
+메시지 작성 요청에는 `senderContactId`를 포함하지 않습니다. 악의적 API 조작을 막기 위해 포함되어 들어와도 서버는 무시하고, 현재 로그인 사용자의 active verified strict PHONE을 직접 조회해 `Message.senderContactId`와 `senderContactSnapshot`을 저장합니다.
+
 친구에게 보내는 경우:
 
 ```json
@@ -1178,6 +1231,15 @@ EMAIL 채널은 Gmail SMTP provider를 사용하고, SMS 채널은 Solapi provid
 ```
 
 `receiverInfo.type = OTHER`이면 `email` 또는 `phone` 중 하나가 반드시 필요합니다. `preferredChannel = AUTO`일 때는 이메일이 있으면 EMAIL, 이메일이 없고 전화번호만 있으면 SMS를 선택합니다.
+
+첨부 이미지가 있는 경우 web은 `multipart/form-data`로 전송합니다.
+
+```txt
+payload: JSON.stringify(createMessageRequestWithoutAttachments)
+attachments: File[]
+```
+
+API는 `message-upload.middleware.ts`에서 `payload` JSON을 파싱하고, `attachments` 파일을 memory buffer로 받은 뒤 MIME type, 개수, 개별 용량, 총량을 검증해 service 입력의 `attachments[]`로 변환합니다. 첨부가 없으면 일반 JSON body도 허용합니다.
 
 ## 9.7 메시지 작성 Response 예시
 
@@ -1859,17 +1921,20 @@ export async function retryFailedModerationMessages() {
 | 메인 | `/` | KST 현재 시각, 작성/발신함/수신함/친구 관리 진입, 브랜드 히어로 |
 | 로그인 | `/login` | 카카오 로그인 진입 |
 | 온보딩 | `/onboarding` | 감성 질문 및 첫 작성 유도 |
-| 메시지 작성 | `/write` | 편지 작성, KST 현재 시각 확인, 예약일, 옵션 설정 |
+| 메시지 작성 | `/write` | 전화번호 인증 gate, 편지 작성, KST 현재 시각 확인, 서버 기준 +24h 기본 예약일, 옵션 설정 |
+| 전화번호 인증 | `/phone-verification` | strict 010 휴대전화 인증번호 발송/검증, 인증 완료 후 `/write` 또는 `/my` 복귀 |
 | 발신함 | `/sent` | 내가 보낸 메시지 관리 |
 | 수신함 | `/inbox` | 내가 받은 메시지 목록 |
-| 친구 | `/friends` | 친구 코드 확인, 친구 요청, 요청 수락/거절, 친구 삭제 |
+| 친구 | `/friends` | 친구 코드 확인, 친구 초대 링크, 친구 요청, 요청 수락/거절, 친구 삭제 |
+| 친구 초대 | `/friends/invite/[token]` | 초대 링크 미리보기와 로그인 후 친구 연결 |
 | 공개 열람 | `/arrival/[token]` | 비회원 메시지 확인 |
-| 마이페이지 | `/my` | 내 정보와 로그아웃 |
+| 마이페이지 | `/my` | 내 정보, 연락처 인증 상태, 전화번호 변경, 로그아웃 |
 
 ## 12.2 메시지 작성 화면 구성
 
 필수 입력:
 
+- 마음쓰기 가능 조건: active verified strict 010 PHONE 보유
 - 수신 대상
 - 친구 수신자인 경우 친구 선택
 - 수신자 이름
@@ -1883,6 +1948,7 @@ export async function retryFailedModerationMessages() {
 
 - KST 기준 현재 시각
 - 초 단위 실시간 갱신
+- 서버 기준 기본 도착 시각: `/api/time`의 `defaultScheduledAt = serverNow + 24h`
 - 예약 시간 선택 시 현재 시각을 바로 비교할 수 있는 기준 정보 제공
 
 수신 대상 선택:
@@ -1899,6 +1965,15 @@ export async function retryFailedModerationMessages() {
 - 선택 결과를 `YYYY년 M월 D일 요일 HH:mm KST` 형식으로 즉시 미리보기
 - 키보드 사용자를 위해 날짜/시간 직접 입력을 유지
 - 현재보다 과거이거나 너무 가까운 시간은 제출 전 클라이언트와 서버에서 모두 차단
+
+전화번호 인증 gate:
+
+- `/write` mount 시 `GET /api/me/contacts` 호출
+- `writerEligibility.hasVerifiedStrictPhone=false`이면 경고 패널 표시
+- CTA는 `/phone-verification?next=/write`
+- 예약 submit은 비활성화
+- API가 `SENDER_PHONE_VERIFICATION_REQUIRED`를 반환하면 `/phone-verification?next=/write`로 이동
+- 연락처 select, masked phone/email, `senderContactId` 입력은 화면에 노출하지 않음
 
 옵션:
 
@@ -2117,7 +2192,14 @@ server {
     listen 80;
     server_name ${SERVICE_DOMAIN} ${WWW_SERVICE_DOMAIN};
 
-    client_max_body_size 2m;
+    client_max_body_size 12m;
+
+    error_page 502 503 504 =503 /maeari-maintenance.html;
+
+    location = /maeari-maintenance.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
 
     location /api/ {
         proxy_pass http://127.0.0.1:${API_PORT}/api/;
@@ -2217,6 +2299,11 @@ OPENAI_MODERATION_MODEL=
 OPENAI_GUARDRAIL_MODEL=
 
 PUBLIC_TOKEN_PEPPER=
+UPLOAD_DIR=
+UPLOAD_PUBLIC_PATH=
+MAX_ATTACHMENT_COUNT=
+MAX_ATTACHMENT_BYTES=
+MAX_ATTACHMENT_TOTAL_BYTES=
 DELIVERY_CRON=
 MODERATION_RETRY_CRON=
 MODERATION_MAX_ATTEMPTS=
@@ -2237,11 +2324,20 @@ SOLAPI_SMS_ENABLED=
 SOLAPI_API_KEY=
 SOLAPI_API_SECRET=
 SOLAPI_SENDER_NUMBER=
+
+PHONE_LOOKUP_ENABLED=
+PHONE_LOOKUP_PROVIDER=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+PHONE_LOOKUP_TIMEOUT_MS=
+PHONE_LOOKUP_CACHE_TTL_DAYS=
 ```
 
 `GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`가 필수입니다. 예전 로컬 MVP용 alias 변수는 더 이상 사용하지 않습니다.
 
 `SOLAPI_SMS_ENABLED=true`이면 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`가 필수입니다. `SOLAPI_SMS_ENABLED`가 비어 있으면 세 값이 모두 있을 때 자동으로 활성화됩니다. 발신번호는 하이픈 없이 숫자만 허용합니다.
+
+`PHONE_LOOKUP_ENABLED=true`이면 `PHONE_LOOKUP_PROVIDER=TWILIO`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`이 필수입니다. Lookup timeout 기본값은 3000ms, cache TTL 기본값은 30일입니다.
 
 Gmail SMTP 또는 Solapi가 꺼진 채널은 외부 발송을 성공 처리하지 않고 `NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
 

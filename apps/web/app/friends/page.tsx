@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Copy, UserPlus, X } from "lucide-react";
+import { Copy, Link2, UserPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
@@ -52,11 +52,23 @@ type FriendRequests = {
   }>;
 };
 
+type FriendInvite = {
+  id: string;
+  tokenPreview?: string | null;
+  expiresAt: string;
+  maxClaims: number;
+  claimCount: number;
+  revokedAt?: string | null;
+  createdAt: string;
+};
+
 export default function FriendsPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequests>({ received: [], sent: [] });
+  const [activeInvites, setActiveInvites] = useState<FriendInvite[]>([]);
+  const [createdInviteUrl, setCreatedInviteUrl] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [candidates, setCandidates] = useState<FriendCandidate[]>([]);
   const [friendCode, setFriendCode] = useState("");
@@ -65,6 +77,8 @@ export default function FriendsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
 
   useEffect(() => {
     void load();
@@ -72,15 +86,17 @@ export default function FriendsPage() {
 
   async function load() {
     try {
-      const [meResponse, friendsResponse, requestsResponse] = await Promise.all([
+      const [meResponse, friendsResponse, requestsResponse, invitesResponse] = await Promise.all([
         apiFetch<{ user: Me }>("/me"),
         apiFetch<{ friends: Friend[] }>("/friends"),
         apiFetch<{ requests: FriendRequests }>("/friends/requests"),
+        apiFetch<{ invites: FriendInvite[] }>("/friends/invites/active"),
       ]);
 
       setMe(meResponse.user);
       setFriends(friendsResponse.friends);
       setRequests(requestsResponse.requests);
+      setActiveInvites(invitesResponse.invites);
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         router.replace("/login");
@@ -119,6 +135,51 @@ export default function FriendsPage() {
       setNotice({ title: caught instanceof ApiError ? caught.message : "친구 요청을 보내지 못했어요.", tone: "danger" });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function createInviteLink() {
+    setCreatingInvite(true);
+    setNotice(null);
+
+    try {
+      const response = await apiFetch<{ invite: FriendInvite; inviteUrl: string }>("/friends/invites", {
+        method: "POST",
+      });
+      setCreatedInviteUrl(response.inviteUrl);
+      setNotice({ title: "친구 초대 링크를 만들었어요.", tone: "success" });
+      await load();
+    } catch (caught) {
+      setNotice({ title: caught instanceof ApiError ? caught.message : "초대 링크를 만들지 못했어요.", tone: "danger" });
+    } finally {
+      setCreatingInvite(false);
+    }
+  }
+
+  async function copyInviteLink() {
+    if (!createdInviteUrl) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdInviteUrl);
+    setNotice({ title: "초대 링크를 복사했어요.", tone: "success" });
+  }
+
+  async function revokeInvite(inviteId: string) {
+    setBusyInviteId(inviteId);
+    setNotice(null);
+
+    try {
+      await apiFetch(`/friends/invites/${inviteId}`, { method: "DELETE" });
+      if (activeInvites.some((invite) => invite.id === inviteId && createdInviteUrl.includes(invite.tokenPreview ?? ""))) {
+        setCreatedInviteUrl("");
+      }
+      setNotice({ title: "초대 링크를 폐기했어요.", tone: "success" });
+      await load();
+    } catch (caught) {
+      setNotice({ title: caught instanceof ApiError ? caught.message : "초대 링크를 폐기하지 못했어요.", tone: "danger" });
+    } finally {
+      setBusyInviteId(null);
     }
   }
 
@@ -177,6 +238,67 @@ export default function FriendsPage() {
               복사
             </button>
           </div>
+        </section>
+
+        <section className="rounded-md border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-ink">친구 초대 링크</h2>
+              <p className="mt-1 text-sm text-slate-500">링크를 받은 사람이 로그인하면 바로 친구로 연결돼요.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void createInviteLink()}
+              disabled={creatingInvite}
+              className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-moss px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              <Link2 size={16} />
+              {creatingInvite ? "만드는 중" : "링크 만들기"}
+            </button>
+          </div>
+          {createdInviteUrl ? (
+            <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+              <p className="break-all text-sm font-medium text-emerald-950">{createdInviteUrl}</p>
+              <button
+                type="button"
+                onClick={() => void copyInviteLink()}
+                className="focus-ring mt-3 inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white"
+              >
+                <Copy size={15} />
+                링크 복사
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">
+              초대 링크 주소는 생성 직후에만 보여요. 다시 필요하면 새 링크를 만들어 주세요.
+            </p>
+          )}
+          {activeInvites.length > 0 ? (
+            <div className="mt-4 grid gap-2">
+              {activeInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="flex flex-col gap-3 rounded-md bg-slate-50 p-3 md:flex-row md:items-center md:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-ink">초대 링크 {invite.tokenPreview ? `#${invite.tokenPreview}` : ""}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {formatDateTime(invite.expiresAt)} 만료 · {invite.claimCount}/{invite.maxClaims} 사용
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void revokeInvite(invite.id)}
+                    disabled={busyInviteId === invite.id}
+                    className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                  >
+                    <X size={15} />
+                    폐기
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <section className="rounded-md border border-slate-200 bg-white p-5">
