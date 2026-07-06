@@ -35,7 +35,6 @@
     ├── NotificationProcessor
     ├── Gmail SMTP provider
     ├── Solapi SMS provider
-    ├── MCP fallback provider
     └── OpenAI Moderation API
 ```
 
@@ -128,6 +127,7 @@
 │   │
 │   ├── /write
 │   │   ├── 메시지 작성
+│   │   │   ├── 인증된 발신 연락처 선택
 │   │   │   ├── 수신 대상 선택
 │   │   │   │   ├── 미래의 나
 │   │   │   │   ├── 친구
@@ -189,7 +189,8 @@
 │   │   │   └── 상태 badge
 │   │   ├── 예약 취소
 │   │   ├── 공개 링크 복사
-│   │   ├── 취소된 메시지 삭제
+│   │   ├── 예약 전/검사 실패/취소 메시지 삭제
+│   │   ├── 도착 완료/실패 메시지를 보낸 마음에서 삭제
 │   │   └── 상세 보기
 │   │
 │   ├── /inbox
@@ -262,6 +263,12 @@
 │       ├── 카카오 계정 정보
 │       ├── 닉네임
 │       ├── 이메일
+│       ├── 발신 연락처 관리
+│       │   ├── 이메일/전화번호 추가
+│       │   ├── OTP 인증 코드 발송
+│       │   ├── 인증 코드 확인
+│       │   ├── 기본 연락처 설정
+│       │   └── 연락처 삭제
 │       ├── 관리자 화면 진입
 │       ├── 로그아웃
 │       └── 탈퇴는 MVP 이후
@@ -288,7 +295,6 @@
     │   ├── ContactSuppression pre-flight
     │   ├── Gmail SMTP 이메일 발송
     │   ├── Solapi SMS 발송
-    │   ├── MCP fallback 발송
     │   ├── NotificationLog 저장
     │   ├── retryable 실패 시 nextRetryAt 기록
     │   └── 알림 실패 로그 기록
@@ -933,11 +939,13 @@ Mobile Bottom Navigation
 │   └── POST /api/public/messages/:token/reports
 │
 ├── 수신거부
-│   ├── canSuppressEmailNotification=true이면 이메일 알림 수신거부 버튼 표시
-│   ├── canSuppressSmsNotification=true이면 문자 알림 수신거부 버튼 표시
-│   ├── POST /api/public/notification-suppressions
+│   ├── canSuppressEmailNotification=true이면 이메일 알림 버튼 표시
+│   ├── canSuppressSmsNotification=true이면 문자 알림 버튼 표시
+│   ├── isEmailNotificationSuppressed/isSmsNotificationSuppressed로 버튼 문구 토글
+│   ├── POST /api/public/notification-suppressions: 알림 다시 받지 않기
+│   ├── DELETE /api/public/notification-suppressions: 알림 다시 받기
 │   ├── body: { token, channel }
-│   └── 원본 연락처가 아닌 HMAC contactHash 저장
+│   └── 원본 연락처가 아닌 HMAC contactHash만 저장
 │
 ├── 가입 유도
 │   ├── 이 마음을 오래 보관하고 싶다면 매아리에 저장해 보세요
@@ -1130,10 +1138,11 @@ Scheduled Delivery
     └── NotificationProcessor
         ├── 가입자 알림 생성
         ├── 외부 수신자 channel 결정
-        ├── EMAIL: Gmail SMTP 우선, MCP fallback
-        ├── SMS: Solapi 우선, MCP fallback
+        ├── EMAIL: Gmail SMTP provider
+        ├── SMS: Solapi provider
         ├── ContactSuppression 조회
         ├── NotificationLog 저장
+        ├── provider 미설정 또는 수신거부 시 실패/생략 상태 기록
         ├── retryable 실패는 nextRetryAt 기록
         └── 실패 로그 기록
 ```
@@ -1204,7 +1213,10 @@ Notification Suppression
 │   └── canSuppressSmsNotification=true
 │
 ├── 요청
-│   └── POST /api/public/notification-suppressions
+│   ├── POST /api/public/notification-suppressions
+│   │   ├── token
+│   │   └── channel: EMAIL 또는 SMS
+│   └── DELETE /api/public/notification-suppressions
 │       ├── token
 │       └── channel: EMAIL 또는 SMS
 │
@@ -1213,7 +1225,8 @@ Notification Suppression
 │   ├── channel에 맞는 receiverEmail 또는 receiverPhone 확인
 │   ├── 연락처 정규화
 │   ├── PUBLIC_TOKEN_PEPPER로 HMAC-SHA256 hash 생성
-│   └── ContactSuppression upsert
+│   ├── POST이면 ContactSuppression upsert
+│   └── DELETE이면 ContactSuppression deleteMany
 │
 └── 이후 발송
     ├── NotificationProcessor가 발송 전 ContactSuppression 조회
@@ -1429,10 +1442,17 @@ Frontend Routes
 │   ├── GET /api/public/messages/:token
 │   ├── POST /api/public/messages/:token/replies
 │   ├── POST /api/public/messages/:token/reports
-│   └── POST /api/public/notification-suppressions
+│   ├── POST /api/public/notification-suppressions
+│   └── DELETE /api/public/notification-suppressions
 │
 └── /my
     ├── GET /api/me
+    ├── GET /api/me/contacts
+    ├── POST /api/me/contacts
+    ├── POST /api/me/contacts/:id/send-code
+    ├── POST /api/me/contacts/:id/verify
+    ├── PATCH /api/me/contacts/:id
+    ├── DELETE /api/me/contacts/:id
     └── POST /api/auth/logout
 ```
 
@@ -1589,6 +1609,7 @@ IA Priority
 │   ├── POST /api/messages
 │   ├── GET /api/public/messages/:token
 │   ├── POST /api/public/notification-suppressions
+│   ├── DELETE /api/public/notification-suppressions
 │   └── POST /api/auth/link-message
 │
 ├── P1
@@ -1654,6 +1675,7 @@ Development Order
 │   ├── POST /api/public/messages/:token/replies
 │   ├── POST /api/public/messages/:token/reports
 │   ├── POST /api/public/notification-suppressions
+│   ├── DELETE /api/public/notification-suppressions
 │   └── 가입 CTA
 │
 ├── 4. Link Message
@@ -1695,7 +1717,6 @@ Development Order
     ├── NotificationProcessor
     ├── Gmail SMTP provider
     ├── Solapi SMS provider
-    ├── MCP fallback provider
     ├── notification retry scheduler
     └── failure logging
 ```

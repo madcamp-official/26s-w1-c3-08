@@ -16,6 +16,7 @@ import {
 } from "./kakao.service.js";
 import { linkMessageToUser } from "./link-message.service.js";
 import { createUniqueFriendCode } from "../friends/friend-code.js";
+import { ensureKakaoEmailContact } from "../contacts/contact.service.js";
 
 const OAUTH_STATE_COOKIE = "maeari_oauth_state";
 const OAUTH_RETURN_ORIGIN_COOKIE = "maeari_oauth_return_origin";
@@ -83,6 +84,8 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
       data: { friendCode: await createUniqueFriendCode() },
     });
   }
+
+  await ensureKakaoEmailContact(user.id);
 
   response.clearCookie(OAUTH_STATE_COOKIE, { domain: config.cookieDomain, path: "/" });
   response.clearCookie(OAUTH_RETURN_ORIGIN_COOKIE, { domain: config.cookieDomain, path: "/" });

@@ -39,6 +39,7 @@
   - 친구/자기 자신 수신자는 서비스 내 수신함 도착 처리
   - 외부 수신자는 Gmail SMTP 이메일 또는 Solapi 문자로 공개 링크 발송
   - 이메일/문자 수신거부, NotificationLog 재시도, 관리자 발송 통계
+  - 이메일/전화번호 발신 연락처 등록, OTP 인증, 기본 연락처 선택
   - 비회원 공개 링크 열람
   - 공개 링크 익명 답장과 메시지 신고
   - 공개 링크 열람 후 가입 시 수신함 자동 귀속
@@ -75,6 +76,8 @@
 - [x] 도착 날짜와 시간을 분리하고 시/분은 1분 단위 직접 입력
 - [x] 15분 단위 quick minute 버튼 제공
 - [x] 타인 수신자 이메일/전화번호 중 하나 필수 검증
+- [x] 메시지 작성 전 인증된 발신 연락처 선택
+- [x] 내 정보 화면에서 이메일/전화번호 발신 연락처 OTP 인증
 - [x] 발신인 숨기기, 도착일 숨기기 옵션
 - [x] OpenAI Moderation 및 한국어 욕설/비하 표현 보강 유해성 검사
 - [x] 매아리 서비스 정책 guardrail prompt 기반 2차 유해성 판정
@@ -90,7 +93,8 @@
 - [x] 받은 마음 목록
 - [x] 메시지 상세 조회
 - [x] 예약 메시지 취소
-- [x] 취소된 보낸 마음과 받은 마음 보관함 삭제
+- [x] 예약 전/검사 실패/취소 보낸 마음 삭제 및 도착 완료/실패 보낸 마음 숨김
+- [x] 받은 마음 보관함 삭제
 - [x] 온보딩 답변 저장 및 건너뛰기 처리
 - [x] 서비스 favicon/app icon 및 주요 화면 브랜드 이미지 적용
 - [x] EC2 Nginx reverse proxy, Certbot HTTPS, PM2 운영 프로세스 구성
@@ -140,7 +144,7 @@
 - `/messages/[id]`: 메시지 상세
 - `/arrival/[token]`: 비회원 공개 링크 열람
 - `/arrival/link-failed`: 링크 귀속 실패 안내
-- `/my`: 내 정보 및 로그아웃
+- `/my`: 내 정보, 발신 연락처 관리, 로그아웃
 
 ### 사용자 흐름
 
@@ -148,6 +152,7 @@
 카카오 로그인
   -> 메인 대시보드
   -> 친구 추가 또는 메시지 작성
+  -> 인증된 발신 연락처 선택
   -> 수신 대상 선택: 미래의 나 / 친구 / 연락처
   -> OpenAI Moderation + 매아리 guardrail 검사
   -> 예약 메시지 저장
@@ -172,9 +177,11 @@
 | 모델 | 설명 |
 |---|---|
 | `User` | 카카오 로그인 사용자, 친구 코드 |
+| `UserContact` | 인증된 발신 이메일/전화번호, 기본 연락처, contact hash |
+| `UserContactVerification` | 이메일/SMS OTP 인증 코드 hash, 만료, 시도 횟수 |
 | `FriendRequest` | 친구 코드 기반 요청, 수락/거절/취소 상태 |
 | `Friendship` | 수락된 친구 관계, 중복 방지용 정렬된 user pair |
-| `Message` | 예약 메시지 본문, 예약일, 발신자, 상태, moderation 상태 |
+| `Message` | 예약 메시지 본문, 예약일, 발신자, 발신 연락처 snapshot, 상태, moderation 상태 |
 | `MessageRecipient` | 수신자별 정보, `SELF`/`FRIEND`/`OTHER`, 수신함 귀속 상태, 열람 상태 |
 | `MessageAccessToken` | 공개 링크 token hash, 열람 횟수, 가입 후 귀속 정보 |
 | `ModerationLog` | OpenAI Moderation 검사 이력 |
@@ -205,6 +212,12 @@
 | GET | `/api/auth/kakao/callback` | 카카오 OAuth callback 처리 | `code`, `state` query | 세션 쿠키 설정 후 `/auth/callback` redirect |
 | GET | `/api/me` | 현재 로그인 사용자 조회 | 세션 쿠키 | `{ user }` |
 | PATCH | `/api/me/onboarding` | 온보딩 답변 저장 | `{ note }` | `{ user }` |
+| GET | `/api/me/contacts` | 발신 연락처 목록 조회 | 세션 쿠키 | `{ contacts }` |
+| POST | `/api/me/contacts` | 발신 연락처 추가 및 OTP 발송 | `{ type, value, label? }` | `{ contact }` |
+| POST | `/api/me/contacts/:id/send-code` | OTP 재발송 | 세션 쿠키, contact id | `{ sent: true }` |
+| POST | `/api/me/contacts/:id/verify` | OTP 검증 | `{ code }` | `{ contact }` |
+| PATCH | `/api/me/contacts/:id` | 발신 연락처 label/default 수정 | `{ label?, isPrimary? }` | `{ contact }` |
+| DELETE | `/api/me/contacts/:id` | 발신 연락처 삭제 | 세션 쿠키, contact id | `{ deleted: true }` |
 | POST | `/api/auth/logout` | 로그아웃 | 세션 쿠키 | `204 No Content` |
 | POST | `/api/auth/link-message` | 공개 링크 메시지를 로그인 사용자 수신함에 귀속 | `{ token }` | `{ linked, messageId, redirectTo }` |
 | GET | `/api/friends` | 친구 목록 조회 | 세션 쿠키 | `{ friends }` |
@@ -215,7 +228,7 @@
 | PATCH | `/api/friends/requests/:id/reject` | 친구 요청 거절 | 세션 쿠키, request id | `{ request }` |
 | PATCH | `/api/friends/requests/:id/cancel` | 보낸 친구 요청 취소 | 세션 쿠키, request id | `{ request }` |
 | DELETE | `/api/friends/:friendshipId` | 친구 관계 삭제 | 세션 쿠키, friendship id | `{ deleted: true }` |
-| POST | `/api/messages` | 메시지 작성 및 예약 | 제목, 본문, 수신자/수신자 배열, 예약일/랜덤 구간, 감성 옵션, 첨부 | `{ message, publicUrl, publicUrls?, notice? }` |
+| POST | `/api/messages` | 메시지 작성 및 예약 | `senderContactId`, 제목, 본문, 수신자/수신자 배열, 예약일/랜덤 구간, 감성 옵션, 첨부 | `{ message, publicUrl, publicUrls?, notice? }` |
 | GET | `/api/messages/sent` | 보낸 마음 목록 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/received` | 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/archived` | 아카이브한 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
@@ -240,6 +253,7 @@
 | POST | `/api/public/messages/:token/replies` | 공개 링크 익명 답장 작성 | 공개 token, `{ content }` | `{ reply }` |
 | POST | `/api/public/messages/:token/reports` | 공개 링크 메시지 신고 | 공개 token, `{ reason, details? }` | `{ report }` |
 | POST | `/api/public/notification-suppressions` | 공개 링크 기반 이메일/문자 알림 수신거부 | `{ token, channel }` | `{ suppressed: true }` |
+| DELETE | `/api/public/notification-suppressions` | 공개 링크 기반 이메일/문자 알림 다시 받기 | `{ token, channel }` | `{ suppressed: false }` |
 
 ---
 
@@ -385,8 +399,9 @@ guardrail 응답은 `allowed`, `categories`, `severity`, `feedback`, `rationale`
 - `NotificationLog.idempotencyKey` 기반 중복 발송 방지
 - retryable 실패 시 `NotificationLog.PENDING` + `nextRetryAt`로 재시도 예약
 - provider 미설정 시 실제 발송 성공으로 처리하지 않고 `NotificationLog.SKIPPED`, `MessageRecipient.FAILED` 기록
-- 이메일은 Gmail SMTP/Nodemailer를 우선 사용하고, 문자 알림은 Solapi Node SDK를 우선 사용
-- Gmail SMTP 또는 Solapi가 꺼져 있으면 MCP HTTP JSON-RPC adapter를 fallback provider로 사용
+- 이메일은 Gmail SMTP/Nodemailer를 사용하고, 문자 알림은 Solapi Node SDK를 사용
+- Gmail SMTP 또는 Solapi가 꺼져 있으면 fallback 없이 해당 채널을 `NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 처리
+- 예전 로컬 MVP용 SMTP alias와 외부 알림 대체 provider 경로는 제거했고, `.env.example`에도 포함하지 않습니다.
 - `ContactSuppression`에 HMAC-SHA256 contact hash를 저장해 이메일/문자 수신거부를 채널별로 처리
 - `preferredChannel=AUTO`는 이메일이 있으면 EMAIL, 이메일이 없고 전화번호만 있으면 SMS를 선택
 - `preferredChannel=EMAIL` 또는 `SMS`는 해당 채널만 시도하며 실패 시 다른 채널로 임의 fallback하지 않음
@@ -409,19 +424,6 @@ SOLAPI_SENDER_NUMBER=
 
 Solapi 발신번호와 수신번호는 `01012345678`처럼 숫자만 사용합니다. 공개 도착 링크가 포함되므로 실제 발송 타입과 과금은 SMS가 아니라 LMS로 자동 전환될 수 있습니다. 발신번호는 Solapi 콘솔에 사전 등록되어 있어야 합니다.
 
-MCP fallback을 사용할 경우 API 서버 `.env.production`에 아래 값을 설정합니다.
-
-```env
-MCP_NOTIFICATION_ENABLED=true
-MCP_NOTIFICATION_SERVER=
-MCP_NOTIFICATION_API_KEY=
-MCP_NOTIFICATION_AUTH_HEADER=Authorization
-MCP_NOTIFICATION_AUTH_SCHEME=Bearer
-MCP_NOTIFICATION_TIMEOUT_MS=10000
-MCP_EMAIL_TOOL=
-MCP_SMS_TOOL=
-```
-
 설정 변경 후에는 `maeari-api`와 `maeari-scheduler`를 재시작하고, 외부 수신자 메시지를 예약 발송해 `NotificationLog.status`, `provider`, `providerMessageId`, `errorCode`를 확인합니다.
 
 수신거부는 공개 도착 링크 화면에서 처리합니다. `/api/public/notification-suppressions`는 raw 이메일/전화번호를 저장하지 않고, `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256 hash만 `ContactSuppression`에 저장합니다. 이메일 수신거부는 이메일만, 문자 수신거부는 문자만 막는 채널별 정책입니다.
@@ -431,9 +433,10 @@ MCP_SMS_TOOL=
 예약 메시지의 취소와 보관함 삭제는 분리되어 있습니다.
 
 - `PATCH /api/messages/:id/cancel`은 아직 도착하지 않은 예약 메시지를 취소합니다.
-- 취소된 보낸 마음은 `DELETE /api/messages/:id`로 `Message.senderDeletedAt`을 기록해 발신함에서 제외합니다.
+- `PENDING`, `MODERATION_FAILED`, `CANCELED` 보낸 마음은 `DELETE /api/messages/:id`로 hard delete합니다.
+- `SENT`, `FAILED` 보낸 마음은 `DELETE /api/messages/:id`로 `Message.senderDeletedAt`을 기록해 발신함에서만 제외합니다.
 - 받은 마음은 같은 `DELETE /api/messages/:id`로 현재 사용자의 `MessageRecipient.receiverDeletedAt`을 기록해 수신함에서 제외합니다.
-- 실제 `Message`와 `MessageRecipient` row는 hard delete하지 않습니다. 발송 이력, 공개 token, notification log, 감사 추적을 보존하기 위한 사용자별 soft delete입니다.
+- 이미 도착했거나 실패한 메시지와 받은 메시지는 발송 이력, 공개 token, notification log, 감사 추적을 보존하기 위해 사용자별 soft delete를 사용합니다.
 - `/sent`, `/inbox`, 메시지 상세 화면은 삭제 가능 상태일 때 `삭제` 버튼을 보여주고, 삭제된 항목은 목록에서 다시 노출하지 않습니다.
 - 받은 마음은 `PATCH /api/messages/:id/archive`로 아카이브할 수 있고 `/archive`에서 복구 또는 삭제할 수 있습니다.
 - `/messages/bulk-delete`와 받은 마음/아카이브 화면의 `일괄 삭제` 버튼으로 현재 보이는 여러 항목을 한 번에 보관함에서 제거할 수 있습니다.
@@ -453,21 +456,6 @@ MCP_SMS_TOOL=
 - 신고/정지: 공개 링크와 로그인 상세 화면에서 메시지를 신고할 수 있고, 관리자는 신고를 검토하거나 발신자 계정을 정지/해제할 수 있습니다.
 - 보관함 고도화: `/sent`, `/inbox`, `/archive`, `/future`에 감정 태그 필터를 적용했고, 아카이브 복구, 일괄 삭제, 미래의 나에게 쓴 편지 모음을 추가했습니다.
 
-MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
-
-```json
-{
-  "channel": "EMAIL",
-  "to": "receiver@example.com",
-  "receiverName": "수신자",
-  "publicUrl": "https://service.example/arrival/token",
-  "subject": "마음이 도착했어요",
-  "text": "이메일 또는 문자 본문",
-  "html": "<p>이메일 HTML 본문</p>",
-  "idempotencyKey": "recipient:event:channel"
-}
-```
-
 ### 2026-07-04 코드 반영 요약
 
 오늘 반영된 주요 변경은 다음 파일군에 걸쳐 있습니다.
@@ -476,9 +464,9 @@ MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
 - 메시지 작성 UX: `apps/web/app/write/page.tsx`에서 KST 현재 시각, 날짜/시간 분리 입력, 15분 quick minute, 예약 완료 패널, 공개 링크 설명을 처리합니다.
 - 친구 기능: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/friends/*`, `apps/web/app/friends/page.tsx`에 친구 코드, 요청, 수락/거절/취소, 친구 삭제, 친구 수신자 선택 흐름을 추가했습니다.
 - 친구 찾기: `GET /api/friends/search`와 `/friends` 검색 UI에서 닉네임 또는 친구 코드로 아직 친구가 아니고 요청 중도 아닌 사용자를 찾을 수 있습니다.
-- 외부 수신/발송: `apps/api/src/processors/notification-provider.ts`, `apps/api/src/processors/notification.processor.ts`, `apps/api/src/jobs/retry-pending-notifications.job.ts`에서 Gmail SMTP, Solapi SMS, MCP fallback, idempotency, retry, provider 미설정 실패 처리를 담당합니다.
+- 외부 수신/발송: `apps/api/src/processors/notification-provider.ts`, `apps/api/src/processors/notification.processor.ts`, `apps/api/src/jobs/retry-pending-notifications.job.ts`에서 Gmail SMTP, Solapi SMS, idempotency, retry, provider 미설정 실패 처리를 담당합니다.
 - AI 유해성 필터링: `apps/api/src/modules/moderation/moderation.service.ts`, `apps/api/src/modules/moderation/moderation-policy.ts`에서 로컬 한국어 보강 규칙, OpenAI Moderation, 서비스 정책 guardrail prompt를 순차 적용합니다. guardrail prompt와 parser schema를 맞추고 legacy `is_harmful` 응답도 normalize하도록 안정화했습니다.
-- 보관함 삭제: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/messages/*`, `apps/web/app/sent/page.tsx`, `apps/web/app/inbox/page.tsx`, `apps/web/app/messages/[id]/page.tsx`에서 `senderDeletedAt`, `receiverDeletedAt`, `DELETE /api/messages/:id`, 취소 메시지 삭제 버튼, 받은 마음 삭제 버튼을 처리합니다.
+- 보관함 삭제: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/messages/*`, `apps/web/app/sent/page.tsx`, `apps/web/app/inbox/page.tsx`, `apps/web/app/messages/[id]/page.tsx`에서 상태별 hard/soft delete, `senderDeletedAt`, `receiverDeletedAt`, `DELETE /api/messages/:id`, 보낸/받은 마음 삭제 버튼을 처리합니다.
 - 감정 필터/운영 통계: `/sent`, `/inbox`, `/archive`, `/future`는 감정 태그 필터를 제공하고, `/admin`은 `NotificationLog` 상태/채널/provider/실패 코드/재시도 예정 통계를 보여줍니다.
 - 운영 안정화: `apps/web/package.json` build script와 PM2 실행 방식을 Next.js standalone 기준으로 맞췄고, Nginx/Certbot 운영 도메인 기준 확인 절차를 문서화했습니다.
 
@@ -515,7 +503,7 @@ MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
 - `.env` 변경 후 API/scheduler/web 중 어떤 프로세스가 해당 env를 읽는지 구분해 재시작한다.
 - 유해성 필터링은 Moderations API 단독이 아니라 서비스 정책 prompt와 로컬 한국어 보강 규칙을 함께 테스트한다.
 - guardrail prompt schema와 parser schema를 함께 관리하고, legacy 응답 normalize test와 실제 OpenAI smoke test를 배포 전 확인한다.
-- 보관함 삭제는 hard delete가 아니라 `senderDeletedAt`, `receiverDeletedAt` 기반 사용자별 숨김으로 유지한다.
+- 보관함 삭제는 발신자 상태별 hard/soft delete와 수신자 `receiverDeletedAt` 기반 숨김을 구분해 유지한다.
 - 오래된 메시지 정리는 자동 삭제보다 사용자 직접 아카이브/삭제와 감사 로그 보존을 우선한다.
 - 알림톡을 붙일 때도 현재 `NotificationLog`의 provider 응답 기반 `SENT`/`FAILED`/`SKIPPED` 정책과 중복 방지 구조를 그대로 확장한다.
 

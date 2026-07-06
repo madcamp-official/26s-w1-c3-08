@@ -1,4 +1,5 @@
 import {
+  MessageStatus,
   NotificationChannel,
   NotificationEventType,
   NotificationStatus,
@@ -21,7 +22,7 @@ import {
 
 type ExternalRecipient = Pick<
   MessageRecipient,
-  "id" | "receiverUserId" | "receiverEmail" | "receiverPhone" | "receiverName" | "receiverInfo"
+  "id" | "messageId" | "receiverUserId" | "receiverEmail" | "receiverPhone" | "receiverName" | "receiverInfo"
 > & {
   message?: {
     isSenderHidden: boolean;
@@ -93,6 +94,7 @@ export class NotificationProcessor {
       },
       select: {
         id: true,
+        messageId: true,
         receiverUserId: true,
         receiverEmail: true,
         receiverPhone: true,
@@ -193,6 +195,7 @@ export class NotificationProcessor {
         },
       });
     });
+    await finalizeMessageDeliveryState(payload.messageId);
   }
 
   private async createInAppHintNotification(recipientId: string, messageId: string, hintedAt: Date) {
@@ -254,6 +257,7 @@ export class NotificationProcessor {
           deliveredAt: log.sentAt ?? sentAt,
         },
       });
+      await finalizeMessageDeliveryState(recipient.messageId);
       return;
     }
 
@@ -444,6 +448,7 @@ export class NotificationProcessor {
           },
         });
       });
+      await finalizeMessageDeliveryState(recipient.messageId);
       return;
     }
 
@@ -486,6 +491,7 @@ export class NotificationProcessor {
         },
       });
     });
+    await finalizeMessageDeliveryState(recipient.messageId);
 
   }
 
@@ -533,6 +539,7 @@ export class NotificationProcessor {
         },
       });
     });
+    await finalizeMessageDeliveryState(recipient.messageId);
   }
 
   private async markHintSkipped(
@@ -721,15 +728,15 @@ function createIdempotencyKey(recipientId: string, eventType: NotificationEventT
 }
 
 function providerForChannel(channel: NotificationChannel) {
-  if (channel === NotificationChannel.EMAIL && config.gmailSmtpEnabled) {
+  if (channel === NotificationChannel.EMAIL) {
     return "gmail_smtp";
   }
 
-  if (channel === NotificationChannel.SMS && config.solapiSmsEnabled) {
+  if (channel === NotificationChannel.SMS) {
     return "solapi";
   }
 
-  return "mcp";
+  return "unknown";
 }
 
 async function isContactSuppressed(channel: NotificationChannel, normalizedContact: string) {
@@ -772,6 +779,80 @@ function asRecord(value?: Prisma.JsonValue | null) {
 function nextRetryAt(attemptCount: number) {
   const delay = RETRY_DELAYS_MS[Math.min(attemptCount - 1, RETRY_DELAYS_MS.length - 1)] ?? RETRY_DELAYS_MS[0] ?? 60000;
   return new Date(Date.now() + delay);
+}
+
+async function finalizeMessageDeliveryState(messageId: string) {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: {
+      status: true,
+      sentAt: true,
+      recipients: {
+        select: {
+          deliveryStatus: true,
+          notifications: {
+            where: {
+              eventType: NotificationEventType.MESSAGE_SENT,
+            },
+            select: {
+              status: true,
+              errorCode: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!message || message.status === MessageStatus.CANCELED) {
+    return;
+  }
+
+  if (message.recipients.some((recipient) => recipient.deliveryStatus === RecipientDeliveryStatus.SENT)) {
+    if (message.status !== MessageStatus.SENT) {
+      await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          status: MessageStatus.SENT,
+          sentAt: message.sentAt ?? new Date(),
+          failedAt: null,
+          failureReason: null,
+        },
+      });
+    }
+
+    return;
+  }
+
+  const hasPendingRetry = message.recipients.some((recipient) =>
+    recipient.notifications.some((notification) => notification.status === NotificationStatus.PENDING),
+  );
+  const allTerminalWithoutSuccess =
+    message.recipients.length > 0 &&
+    message.recipients.every(
+      (recipient) =>
+        recipient.deliveryStatus === RecipientDeliveryStatus.FAILED ||
+        recipient.deliveryStatus === RecipientDeliveryStatus.CANCELED,
+    );
+
+  if (!allTerminalWithoutSuccess || hasPendingRetry) {
+    return;
+  }
+
+  const allSuppressed = message.recipients.every((recipient) =>
+    recipient.notifications.some((notification) => notification.errorCode === "CONTACT_SUPPRESSED"),
+  );
+
+  if (message.status !== MessageStatus.FAILED) {
+    await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        status: MessageStatus.FAILED,
+        failedAt: new Date(),
+        failureReason: allSuppressed ? "CONTACT_SUPPRESSED" : "MESSAGE_DELIVERY_FAILED",
+      },
+    });
+  }
 }
 
 function escapeHtml(value: string) {

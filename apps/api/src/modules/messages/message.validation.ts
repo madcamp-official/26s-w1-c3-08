@@ -21,6 +21,7 @@ export const createMessageSchema = z
   .object({
     receiverInfo: receiverInfoSchema.optional(),
     recipients: z.array(receiverInfoSchema).min(1).max(20).optional(),
+    senderContactId: z.string().uuid().optional(),
     title: z.string().trim().min(1).max(120),
     content: z.string().trim().min(1).max(5000),
     emotionTag: z

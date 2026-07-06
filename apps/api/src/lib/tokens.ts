@@ -19,6 +19,13 @@ export function hashContact(channel: string, normalizedContact: string) {
     .digest("hex");
 }
 
+export function hashOtpCode(scope: string, code: string) {
+  return crypto
+    .createHmac("sha256", config.publicTokenPepper)
+    .update(`otp:${scope}:${code}`)
+    .digest("hex");
+}
+
 export function createTokenPreview(token: string) {
   return token.slice(0, 8);
 }

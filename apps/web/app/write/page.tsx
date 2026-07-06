@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, Trash2 } from "lucide-react";
+import { CalendarClock, CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, ShieldCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -22,6 +22,15 @@ type Friend = {
   friendshipId: string;
   userId: string;
   nickname: string;
+};
+
+type SenderContact = {
+  id: string;
+  type: "EMAIL" | "PHONE";
+  maskedValue: string;
+  label?: string | null;
+  isPrimary: boolean;
+  verifiedAt?: string | null;
 };
 
 type ReceiverType = "SELF" | "FRIEND" | "OTHER";
@@ -93,6 +102,10 @@ const themeOptions: Array<[MessageTheme, string]> = [
 export default function WritePage() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [senderContacts, setSenderContacts] = useState<SenderContact[]>([]);
+  const [senderContactId, setSenderContactId] = useState("");
+  const [contactsLoading, setContactsLoading] = useState(true);
+  const [contactsError, setContactsError] = useState<string | null>(null);
   const [receiverType, setReceiverType] = useState<ReceiverType>("SELF");
   const [selectedFriendshipId, setSelectedFriendshipId] = useState("");
   const [receiverName, setReceiverName] = useState("");
@@ -123,6 +136,11 @@ export default function WritePage() {
   const selectedFriend = friends.find((friend) => friend.friendshipId === selectedFriendshipId);
   const scheduledAtDate = useMemo(() => toDateFromKstInput(arrivalDate, arrivalTime), [arrivalDate, arrivalTime]);
   const minArrivalDate = useMemo(() => toKstDateInput(new Date()), []);
+  const verifiedSenderContacts = useMemo(
+    () => senderContacts.filter((contact) => Boolean(contact.verifiedAt)),
+    [senderContacts],
+  );
+  const selectedSenderContact = verifiedSenderContacts.find((contact) => contact.id === senderContactId);
 
   useEffect(() => {
     const firstArrival = roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
@@ -157,6 +175,36 @@ export default function WritePage() {
   }, [router]);
 
   useEffect(() => {
+    async function loadContacts() {
+      setContactsLoading(true);
+      setContactsError(null);
+
+      try {
+        const response = await apiFetch<{ contacts: SenderContact[] }>("/me/contacts");
+        const verified = response.contacts.filter((contact) => Boolean(contact.verifiedAt));
+        setSenderContacts(response.contacts);
+        setSenderContactId((current) => {
+          if (current && verified.some((contact) => contact.id === current)) {
+            return current;
+          }
+
+          return verified.find((contact) => contact.isPrimary)?.id ?? verified[0]?.id ?? "";
+        });
+      } catch (caught) {
+        if (caught instanceof ApiError && caught.status === 401) {
+          router.replace("/login");
+          return;
+        }
+        setContactsError(caught instanceof Error ? caught.message : "발신 연락처를 불러오지 못했어요.");
+      } finally {
+        setContactsLoading(false);
+      }
+    }
+
+    void loadContacts();
+  }, [router]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const friendshipId = params.get("friendshipId");
 
@@ -185,6 +233,20 @@ export default function WritePage() {
         return;
       }
 
+      if (!verifiedSenderContacts.length) {
+        setNotice({
+          title: "인증된 발신 연락처가 필요해요.",
+          body: "내 정보에서 이메일이나 전화번호를 인증한 뒤 다시 예약해 주세요.",
+          tone: "danger",
+        });
+        return;
+      }
+
+      if (!senderContactId || !selectedSenderContact) {
+        setNotice({ title: "발신 연락처를 선택해 주세요.", tone: "danger" });
+        return;
+      }
+
       const recipients = recipientDrafts.length ? recipientDrafts.map((draft) => draft.payload) : [createReceiverInfo()];
 
       if (!recipients.length || !validateCurrentReceiverIfNeeded(recipientDrafts.length === 0)) {
@@ -203,6 +265,7 @@ export default function WritePage() {
         body: JSON.stringify({
           receiverInfo: recipients[0],
           recipients,
+          senderContactId,
           title,
           content,
           emotionTag,
@@ -522,6 +585,50 @@ export default function WritePage() {
             ) : null}
           </section>
         ) : null}
+
+        <section className="rounded-md border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-ink">발신 연락처</h2>
+              <p className="mt-1 text-sm text-slate-500">인증된 연락처로 마음을 예약해요.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/my")}
+              className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            >
+              <ShieldCheck size={16} />
+              연락처 관리
+            </button>
+          </div>
+          <div className="mt-4">
+            {contactsLoading ? (
+              <p className="text-sm text-slate-500">발신 연락처 확인 중</p>
+            ) : contactsError ? (
+              <Notice title={contactsError} tone="danger" />
+            ) : verifiedSenderContacts.length ? (
+              <select
+                value={senderContactId}
+                onChange={(event) => setSenderContactId(event.target.value)}
+                className="focus-ring w-full rounded-md border border-slate-300 px-3 py-2"
+              >
+                {verifiedSenderContacts.map((contact) => (
+                  <option key={contact.id} value={contact.id}>
+                    {contact.label ? `${contact.label} · ` : ""}
+                    {contact.type === "EMAIL" ? "이메일" : "전화번호"} · {contact.maskedValue}
+                    {contact.isPrimary ? " · 기본" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Notice
+                title="인증된 발신 연락처가 없어요."
+                body="내 정보에서 이메일이나 전화번호를 추가하고 인증하면 마음을 예약할 수 있어요."
+                tone="default"
+              />
+            )}
+          </div>
+        </section>
 
         <section className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-semibold text-ink">수신 대상</h2>

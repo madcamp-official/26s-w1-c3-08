@@ -320,7 +320,7 @@ export default function SentPage() {
                     취소
                   </button>
                 ) : null}
-                {message.status === "CANCELED" ? (
+                {isSenderDeletableStatus(message.status) ? (
                   <button
                     type="button"
                     onClick={() => void deleteFromMailbox(message.id)}
@@ -328,7 +328,7 @@ export default function SentPage() {
                     className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
                   >
                     <Trash2 size={16} />
-                    {deletingId === message.id ? "삭제 중" : "삭제"}
+                    {deletingId === message.id ? "삭제 중" : senderDeleteLabel(message.status)}
                   </button>
                 ) : null}
               </div>
@@ -352,4 +352,16 @@ function toBrowserPublicUrl(publicUrl: string) {
   } catch {
     return publicUrl;
   }
+}
+
+function isSenderDeletableStatus(status: string) {
+  return ["PENDING", "MODERATION_FAILED", "CANCELED", "SENT", "FAILED"].includes(status);
+}
+
+function senderDeleteLabel(status: string) {
+  if (["PENDING", "MODERATION_FAILED", "CANCELED"].includes(status)) {
+    return "예약 삭제";
+  }
+
+  return "보낸 마음에서 삭제";
 }

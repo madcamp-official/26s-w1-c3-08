@@ -99,6 +99,17 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum UserContactType {
+  EMAIL
+  PHONE
+}
+
+enum UserContactVerificationStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   kakaoId         String    @unique @db.VarChar(64)
@@ -123,6 +134,7 @@ model User {
   friendshipsAsB      Friendship[]         @relation("FriendshipUserB")
   createdFriendships  Friendship[]         @relation("FriendshipCreatedBy")
   submittedReports    MessageReport[]      @relation("ReportReporter")
+  contacts            UserContact[]
 
   @@index([email])
   @@index([createdAt])
@@ -131,6 +143,8 @@ model User {
 model Message {
   id                       String        @id @default(uuid()) @db.Uuid
   senderId                 String        @db.Uuid
+  senderContactId          String?       @db.Uuid
+  senderContactSnapshot    Json?
   title                    String        @db.VarChar(120)
   content                  String        @db.Text
   emotionTag               EmotionTag?
@@ -161,6 +175,7 @@ model Message {
   updatedAt                DateTime      @updatedAt @db.Timestamptz(3)
 
   sender         User                 @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderContact  UserContact?         @relation("MessageSenderContact", fields: [senderContactId], references: [id], onDelete: SetNull)
   recipients     MessageRecipient[]
   attachments    MessageAttachment[]
   replies        MessageReply[]
@@ -169,9 +184,51 @@ model Message {
 
   @@index([senderId, createdAt])
   @@index([senderId, senderDeletedAt])
+  @@index([senderContactId])
   @@index([status, scheduledAt])
   @@index([status, hintAt])
   @@index([status, moderationNextRetryAt])
+  @@index([createdAt])
+}
+
+model UserContact {
+  id                 String          @id @default(uuid()) @db.Uuid
+  userId             String          @db.Uuid
+  type               UserContactType
+  value              String          @db.VarChar(255)
+  contactHash        String          @db.Char(64)
+  label              String?         @db.VarChar(80)
+  isPrimary          Boolean         @default(false)
+  verifiedAt         DateTime?       @db.Timestamptz(3)
+  verificationSource String?         @db.VarChar(40)
+  deletedAt          DateTime?       @db.Timestamptz(3)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifications UserContactVerification[]
+  sentMessages  Message[]                 @relation("MessageSenderContact")
+
+  @@unique([type, contactHash])
+  @@index([userId, type, deletedAt])
+  @@index([userId, isPrimary])
+  @@index([verifiedAt])
+}
+
+model UserContactVerification {
+  id            String                        @id @default(uuid()) @db.Uuid
+  userContactId String                        @db.Uuid
+  codeHash      String                        @db.Char(64)
+  status        UserContactVerificationStatus @default(PENDING)
+  expiresAt     DateTime                      @db.Timestamptz(3)
+  consumedAt    DateTime?                     @db.Timestamptz(3)
+  attemptCount  Int                           @default(0)
+  createdAt     DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime                      @updatedAt @db.Timestamptz(3)
+
+  contact UserContact @relation(fields: [userContactId], references: [id], onDelete: Cascade)
+
+  @@index([userContactId, status, expiresAt])
   @@index([createdAt])
 }
 

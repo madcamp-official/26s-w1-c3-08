@@ -35,7 +35,7 @@
 - OpenAI Moderation API 외에 매아리 서비스 정책 guardrail prompt 기반 2차 판정 추가
 - 한국어 욕설과 비하 표현 일부를 로컬 규칙으로 보강 차단
 - guardrail prompt와 parser의 JSON schema를 `allowed/categories/severity/feedback/rationale` 기준으로 맞추고 legacy `is_harmful` 응답도 normalize하도록 안정화
-- 취소된 보낸 마음과 받은 마음을 각 사용자 보관함에서 제거하는 soft delete UX 추가
+- 보낸 마음은 상태별로 삭제 정책을 분리하고, 받은 마음은 사용자 보관함에서 제거하는 삭제 UX 추가
 - 카카오 알림톡을 제외한 이미지 첨부, 그룹 전송, 익명 답장, 감정 리포트, 관리자 검수 화면 구현
 - 기간 랜덤 발송, 도착 전 힌트 알림, 메시지 봉투/테마 선택 구현
 - 받은 마음 아카이브, 복구, 일괄 삭제, 미래의 나에게 쓴 편지 모아보기, 감정 태그 기반 필터 구현
@@ -73,7 +73,7 @@
 ### 외부 수신/알림
 
 - 친구가 아닌 타인 수신자는 이메일 또는 전화번호 중 하나가 필수입니다.
-- `NotificationProvider`, Gmail SMTP provider, Solapi SMS provider, MCP HTTP JSON-RPC fallback adapter를 추가했습니다.
+- `NotificationProvider`, Gmail SMTP provider, Solapi SMS provider를 추가했습니다.
 - `NotificationLog`에 provider, idempotencyKey, attemptCount, nextRetryAt 등을 추가해 중복 발송과 재시도 추적을 지원합니다.
 - provider 미설정 시 발송 성공으로 처리하지 않고 `SKIPPED`/`FAILED`로 기록합니다.
 - retryable 실패는 retry job에서 재시도할 수 있게 분리했습니다.
@@ -112,12 +112,13 @@
 ### 보관함 삭제 UX
 
 - 예약 취소와 보관함 삭제를 분리했습니다.
-- `Message.senderDeletedAt`을 추가해 발신자가 취소된 보낸 마음을 발신함에서 제거할 수 있게 했습니다.
+- `Message.senderDeletedAt`을 추가해 발신자가 이미 도착했거나 실패한 보낸 마음을 발신함에서만 숨길 수 있게 했습니다.
 - `MessageRecipient.receiverDeletedAt`을 추가해 수신자가 받은 마음을 수신함에서 제거할 수 있게 했습니다.
-- `DELETE /api/messages/:id`는 실제 row를 삭제하지 않고 현재 사용자 관점의 soft delete timestamp만 기록합니다.
+- `DELETE /api/messages/:id`는 발신자 기준 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지는 hard delete하고, `SENT`, `FAILED` 메시지는 `senderDeletedAt` soft delete로 처리합니다.
+- 수신자 기준 삭제는 `MessageRecipient.receiverDeletedAt` soft delete로 처리합니다.
 - `/sent`, `/inbox`, `/messages/[id]` 화면에 삭제 가능 조건에 맞는 `삭제` 버튼을 추가했습니다.
-- 삭제된 항목은 목록 조회에서 제외하지만, 발송 이력, 공개 token, notification log는 감사 추적을 위해 보존합니다.
-- v1 오래된 메시지 정리 정책은 자동 hard delete를 하지 않고, 사용자 직접 아카이브/삭제와 soft delete, 감사 로그 보존을 우선합니다.
+- soft delete된 항목은 목록 조회에서 제외하지만, 발송 이력, 공개 token, notification log는 감사 추적을 위해 보존합니다.
+- v1 오래된 메시지 정리 정책은 자동 hard delete를 하지 않고, 사용자 직접 아카이브/삭제와 감사 로그 보존을 우선합니다.
 
 ### 2026-07-05 후순위 기능 구현
 
@@ -159,8 +160,8 @@
 - 서비스명과 화면 문구는 `매아리(매 순간 아껴둔 마음의 소리)` 기준으로 정리했습니다.
 - `/`, `/write`, `/sent`, `/inbox`, `/archive`, `/future`, `/reports`, `/admin`, `/friends`, `/messages/[id]`, `/arrival/[token]`의 실제 화면 흐름을 IA에 반영했습니다.
 - `MessageArrivalMode`, `MessageTheme`, `MessageAttachment`, `MessageReply`, `MessageReport`, `ContactSuppression`, `NotificationLog` 중심의 최신 Prisma 모델 책임을 DB 문서에 맞췄습니다.
-- Gmail SMTP 이메일, Solapi SMS, MCP fallback, `AUTO` 채널 라우팅, `ContactSuppression` pre-flight, 채널별 수신거부 정책을 외부 알림 설계에 반영했습니다.
-- 취소와 삭제를 분리한 사용자별 soft delete, 받은 마음 아카이브/복구/일괄 삭제, 오래된 메시지 자동 hard delete 미사용 정책을 반영했습니다.
+- Gmail SMTP 이메일, Solapi SMS, `AUTO` 채널 라우팅, `ContactSuppression` pre-flight, 채널별 수신거부 정책을 외부 알림 설계에 반영했습니다.
+- 취소와 삭제를 분리한 상태별 발신자 hard/soft delete, 받은 마음 soft delete, 아카이브/복구/일괄 삭제 정책을 반영했습니다.
 - 친구 검색, 감정 태그 필터, 미래의 나 모음, 감정 리포트, 신고/계정 정지, 관리자 notification 통계 대시보드까지 현재 구현된 후순위 기능을 문서화했습니다.
 
 ---
@@ -285,7 +286,7 @@ MVP 단계에서는 아래 문장을 제품 경험의 중심에 둡니다.
 | 메시지 작성 보조 | KST 현재 시각 표시 | 작성 화면 상단에서 KST 기준 현재 시각을 초 단위로 확인 |
 | 메시지 작성 보조 | 쉬운 도착 시간 선택 | 빠른 프리셋, 날짜 입력, 1분 단위 시간 직접 입력, 15분 단위 quick minute 선택, KST 도착 미리보기 제공 |
 | 수신자 식별 | 타인 연락처 필수 | 타인에게 보내는 경우 이메일 또는 전화번호 중 하나를 필수로 저장 |
-| 외부 발송 | Gmail SMTP / Solapi / MCP fallback 발송 | 친구가 아닌 외부 수신자에게 도착 시점에 공개 링크를 이메일 또는 문자로 발송 |
+| 외부 발송 | Gmail SMTP / Solapi 발송 | 친구가 아닌 외부 수신자에게 도착 시점에 공개 링크를 이메일 또는 문자로 발송 |
 | 감성 옵션 | 발신인 숨기기 | 수신자가 발신자를 바로 알 수 없게 처리 |
 | 감성 옵션 | 도착일 숨기기 | 공개 열람 화면에서 정확한 예약일 노출 제어 |
 | AI 필터링 | OpenAI Moderation, 정책 guardrail prompt, 한국어 욕설/비하 표현 보강 | 저장 전 유해성 검사 |
@@ -616,7 +617,7 @@ maeari/
 | `MessageRecipient` | 수신자별 snapshot, `SELF`/`FRIEND`/`OTHER`, 발송 상태, 가입자 귀속, 수신함 삭제 timestamp |
 | `MessageAccessToken` | 공개 링크 token hash, 열람 횟수, 가입 후 귀속 정보 |
 | `ModerationLog` | OpenAI Moderation 및 guardrail 검사 이력 |
-| `NotificationLog` | IN_APP/Gmail SMTP/Solapi/MCP fallback 발송 이력, retry, idempotency |
+| `NotificationLog` | IN_APP/Gmail SMTP/Solapi 발송 이력, retry, idempotency |
 | `ContactSuppression` | EMAIL/SMS 수신거부 연락처 HMAC hash |
 
 ## 7.2 현재 Prisma schema 기준 요약
@@ -668,7 +669,7 @@ MODERATION_FAILED
 
 검사 실패 상태의 메시지는 미검증 콘텐츠이므로 수신자에게 공개하지 않습니다. 따라서 `MessageAccessToken`은 moderation 통과 후 `PENDING`으로 전환될 때 생성하는 것을 원칙으로 합니다.
 
-보관함 삭제는 실제 row 삭제가 아니라 사용자별 soft delete입니다. 발신함에서는 `Message.senderDeletedAt`, 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 목록에서 제외합니다. 이 방식은 공개 링크 token, notification log, moderation log, 발송 감사 추적을 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
+보관함 삭제는 상태별 혼합 정책을 사용합니다. 발신함에서는 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지를 hard delete하고, 이미 도착했거나 실패한 `SENT`, `FAILED` 메시지는 `Message.senderDeletedAt`으로 발신자 화면에서만 제외합니다. 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 사용자별 soft delete를 적용합니다. 이 방식은 이미 외부에 도착했거나 감사 추적이 필요한 공개 링크 token, notification log, moderation log를 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
 
 ## 7.3 receiverInfo JSON 예시
 
@@ -824,7 +825,7 @@ model MessageRecipient {
 
 ### NotificationLog 확장
 
-Gmail SMTP, Solapi SMS, MCP fallback을 포함한 외부 알림의 재시도와 idempotency를 위해 `NotificationLog`에 다음 필드를 추가합니다.
+Gmail SMTP, Solapi SMS를 포함한 외부 알림의 재시도와 idempotency를 위해 `NotificationLog`에 다음 필드를 추가합니다.
 
 ```prisma
 model NotificationLog {
@@ -877,11 +878,6 @@ model NotificationLog {
 | `SOLAPI_RATE_LIMITED` | 예 | 지수 backoff 후 재시도 |
 | `SOLAPI_NETWORK_ERROR` | 예 | 지수 backoff 후 재시도 |
 | `SOLAPI_SERVER_ERROR` | 예 | 지수 backoff 후 재시도 |
-| `MCP_TOOL_UNAVAILABLE` | 예 | `PENDING`, `nextRetryAt` 설정 |
-| `MCP_PROVIDER_AUTH_FAILED` | 아니오 | `FAILED`, 운영 설정 확인 필요 |
-| `MCP_PROVIDER_RATE_LIMITED` | 예 | 지수 backoff 후 재시도 |
-| `MCP_PROVIDER_TIMEOUT` | 예 | 지수 backoff 후 재시도 |
-| `MCP_PROVIDER_REJECTED` | 아니오 | provider 거절 사유 저장 |
 | `INVALID_RECEIVER_CONTACT` | 아니오 | 입력값 검증 실패, 메시지 생성 차단 |
 | `DELIVERY_RETRY_EXHAUSTED` | 아니오 | 최종 실패 처리 |
 
@@ -959,6 +955,17 @@ MVP에서는 두 가지 선택지가 있습니다.
 | POST | `/api/auth/logout` | 필요 | 로그아웃 |
 | GET | `/api/me` | 필요 | 현재 로그인 사용자 조회 |
 
+## 9.1.1 Contact API
+
+| Method | Endpoint | 인증 | 설명 |
+| --- | --- | --- | --- |
+| GET | `/api/me/contacts` | 필요 | 내 발신 연락처 목록 조회 |
+| POST | `/api/me/contacts` | 필요 | 이메일/전화번호 발신 연락처 추가 및 OTP 발송 |
+| POST | `/api/me/contacts/:id/send-code` | 필요 | OTP 인증 코드 재발송 |
+| POST | `/api/me/contacts/:id/verify` | 필요 | OTP 인증 코드 검증 |
+| PATCH | `/api/me/contacts/:id` | 필요 | 연락처 label 또는 기본 연락처 여부 수정 |
+| DELETE | `/api/me/contacts/:id` | 필요 | 발신 연락처 soft delete |
+
 ## 9.2 Message API
 
 | Method | Endpoint | 인증 | 설명 |
@@ -972,7 +979,7 @@ MVP에서는 두 가지 선택지가 있습니다.
 | PATCH | `/api/messages/:id/cancel` | 필요 | 예약 메시지 취소 |
 | PATCH | `/api/messages/:id/archive` | 필요 | 받은 메시지 아카이브 |
 | PATCH | `/api/messages/:id/unarchive` | 필요 | 받은 메시지 아카이브 복구 |
-| DELETE | `/api/messages/:id` | 필요 | 취소된 보낸 마음 또는 받은 마음을 내 보관함에서 제거 |
+| DELETE | `/api/messages/:id` | 필요 | 보낸/받은 마음을 내 보관함에서 제거. 발신자는 상태별 hard/soft delete 정책 적용 |
 
 ## 9.3 Public API
 
@@ -982,6 +989,7 @@ MVP에서는 두 가지 선택지가 있습니다.
 | POST | `/api/public/messages/:token/replies` | 불필요 | 공개 링크 익명 답장 작성 |
 | POST | `/api/public/messages/:token/reports` | 불필요 | 공개 링크 메시지 신고 |
 | POST | `/api/public/notification-suppressions` | 불필요 | 이메일/SMS 알림 수신거부 |
+| DELETE | `/api/public/notification-suppressions` | 불필요 | 이메일/SMS 알림 다시 받기 |
 
 ## 9.3.1 Report API
 
@@ -1043,7 +1051,7 @@ MVP에서는 두 가지 선택지가 있습니다.
 
 ## 9.4 Notification Provider 내부 설계
 
-외부 발송은 공개 HTTP API로 직접 노출하지 않고 `NotificationProcessor` 내부에서 실행합니다. `ExternalNotificationProvider` dispatcher는 Gmail SMTP, Solapi SMS, MCP fallback provider를 같은 내부 인터페이스로 다룹니다.
+외부 발송은 공개 HTTP API로 직접 노출하지 않고 `NotificationProcessor` 내부에서 실행합니다. `ExternalNotificationProvider` dispatcher는 Gmail SMTP와 Solapi provider를 같은 내부 인터페이스로 다룹니다.
 
 ```ts
 type SendNotificationInput = {
@@ -1066,7 +1074,7 @@ type SendNotificationResult = {
 };
 ```
 
-EMAIL 채널은 Gmail SMTP provider를 우선 사용하고, Gmail SMTP가 꺼져 있으면 MCP email tool을 fallback으로 사용합니다. SMS 채널은 Solapi provider를 우선 사용하고, Solapi가 꺼져 있으면 MCP SMS tool을 fallback으로 사용합니다. 해당 채널에 사용할 provider가 하나도 없으면 성공 처리하지 않고 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`, `errorCode = NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
+EMAIL 채널은 Gmail SMTP provider를 사용하고, SMS 채널은 Solapi provider를 사용합니다. 해당 채널 provider가 꺼져 있거나 필수 설정이 없으면 성공 처리하지 않고 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`, `errorCode = NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
 
 ## 9.5 Auth Link Message API
 
@@ -1673,9 +1681,9 @@ isRunning = true 인 동안 다음 cron tick은 skip
 
 ## 11.5 EventEmitter 기반 알림 분리 구조
 
-스케줄러는 예약 시간이 된 메시지를 `SENT`로 바꾸고 `message.sent` event만 발행합니다. 실제 서비스 내 알림, Gmail SMTP 이메일, Solapi 문자, MCP fallback 발송, 실패 재시도는 `NotificationProcessor`가 담당합니다.
+스케줄러는 예약 시간이 된 메시지를 `SENT`로 바꾸고 `message.sent` event만 발행합니다. 실제 서비스 내 알림, Gmail SMTP 이메일, Solapi 문자, 실패 재시도는 `NotificationProcessor`가 담당합니다.
 
-Gmail SMTP, Solapi, MCP fallback 중 해당 채널에 사용할 provider가 없으면 fake 발송 성공을 만들지 않습니다. 외부 수신자에게 실제 알림을 보낼 수 없는 경우 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`로 저장해 발송 성공처럼 보이지 않게 합니다.
+Gmail SMTP 또는 Solapi 중 해당 채널에 사용할 provider가 없으면 fake 발송 성공을 만들지 않습니다. 외부 수신자에게 실제 알림을 보낼 수 없는 경우 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`로 저장해 발송 성공처럼 보이지 않게 합니다.
 
 ```ts
 import { EventEmitter } from "node:events";
@@ -1734,7 +1742,7 @@ domainEvents.on(MESSAGE_SENT_EVENT, async (payload) => {
 5. NotificationLog를 PENDING으로 먼저 생성하거나 기존 idempotencyKey 로그 재사용
 6. 선택된 channel의 연락처를 정규화하고 ContactSuppression 조회
 7. 수신거부된 연락처이면 provider 호출 없이 NotificationLog=SKIPPED, errorCode=CONTACT_SUPPRESSED
-8. EMAIL은 Gmail SMTP 우선, SMS는 Solapi 우선으로 호출하고 필요 시 MCP fallback 호출
+8. EMAIL은 Gmail SMTP, SMS는 Solapi provider 호출
 9. 성공 시 NotificationLog=SENT, providerMessageId 저장, MessageRecipient=SENT
 10. retryable 실패 시 NotificationLog=PENDING, nextRetryAt 저장
 11. non-retryable 실패 또는 재시도 한도 초과 시 NotificationLog=FAILED, MessageRecipient=FAILED
@@ -2225,35 +2233,17 @@ GMAIL_SMTP_FROM_NAME=
 GMAIL_SMTP_FROM_ADDRESS=
 GMAIL_SMTP_CONNECTION_TIMEOUT_MS=
 
-SMTP_ENABLED=
-SMTP_HOST=
-SMTP_PORT=
-SMTP_SECURE=
-SMTP_EMAIL=
-SMTP_PASSWORD=
-SMTP_FROM_NAME=
-SMTP_FROM_ADDRESS=
-
 SOLAPI_SMS_ENABLED=
 SOLAPI_API_KEY=
 SOLAPI_API_SECRET=
 SOLAPI_SENDER_NUMBER=
-
-MCP_NOTIFICATION_ENABLED=
-MCP_NOTIFICATION_SERVER=
-MCP_NOTIFICATION_API_KEY=
-MCP_NOTIFICATION_AUTH_HEADER=
-MCP_NOTIFICATION_AUTH_SCHEME=
-MCP_NOTIFICATION_TIMEOUT_MS=
-MCP_EMAIL_TOOL=
-MCP_SMS_TOOL=
 ```
 
-`GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`가 필수입니다. `SMTP_EMAIL`, `SMTP_PASSWORD`, `SMTP_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM_NAME`, `SMTP_FROM_ADDRESS` alias도 호환됩니다.
+`GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`가 필수입니다. 예전 로컬 MVP용 alias 변수는 더 이상 사용하지 않습니다.
 
 `SOLAPI_SMS_ENABLED=true`이면 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`가 필수입니다. `SOLAPI_SMS_ENABLED`가 비어 있으면 세 값이 모두 있을 때 자동으로 활성화됩니다. 발신번호는 하이픈 없이 숫자만 허용합니다.
 
-`MCP_NOTIFICATION_ENABLED=false`이면 MCP 관련 server/tool/auth 값이 비어 있어도 서버는 시작할 수 있습니다. Gmail SMTP 또는 Solapi가 꺼진 채널에 fallback provider도 없으면 외부 발송을 성공 처리하지 않고 `NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다. `MCP_NOTIFICATION_ENABLED=true`이면 `MCP_NOTIFICATION_SERVER`, `MCP_NOTIFICATION_API_KEY`, `MCP_EMAIL_TOOL`, `MCP_SMS_TOOL`은 필수입니다.
+Gmail SMTP 또는 Solapi가 꺼진 채널은 외부 발송을 성공 처리하지 않고 `NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
 
 ## 14.3 Web 환경 변수
 
@@ -2310,13 +2300,11 @@ dotenv.config({
 });
 
 const gmailSmtpEnabled =
-  optionalBooleanEnvFrom(["GMAIL_SMTP_ENABLED", "SMTP_ENABLED"]) ??
-  Boolean(optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]) && optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]));
+  optionalBooleanEnv("GMAIL_SMTP_ENABLED") ??
+  Boolean(optionalEnv("GMAIL_SMTP_USER") && optionalEnv("GMAIL_SMTP_APP_PASSWORD"));
 const solapiSmsEnabled =
-  optionalBooleanEnvFrom(["SOLAPI_SMS_ENABLED"]) ??
+  optionalBooleanEnv("SOLAPI_SMS_ENABLED") ??
   Boolean(optionalEnv("SOLAPI_API_KEY") && optionalEnv("SOLAPI_API_SECRET") && optionalEnv("SOLAPI_SENDER_NUMBER"));
-const mcpNotificationEnabled = optionalBooleanEnv("MCP_NOTIFICATION_ENABLED", false);
-
 export const config = {
   nodeEnv: requireEnv("NODE_ENV"),
   apiPort: requireNumberEnv("API_PORT"),
@@ -2342,26 +2330,18 @@ export const config = {
   notificationRetryCron: optionalEnv("NOTIFICATION_RETRY_CRON") ?? "*/5 * * * *",
   notificationMaxAttempts: optionalNumberEnv("NOTIFICATION_MAX_ATTEMPTS", 3),
   gmailSmtpEnabled,
-  gmailSmtpHost: optionalEnvFrom(["GMAIL_SMTP_HOST", "SMTP_HOST"]) ?? "smtp.gmail.com",
-  gmailSmtpPort: optionalNumberEnvFrom(["GMAIL_SMTP_PORT", "SMTP_PORT"], 465),
-  gmailSmtpSecure: optionalBooleanEnvFrom(["GMAIL_SMTP_SECURE", "SMTP_SECURE"]) ?? true,
-  gmailSmtpUser: gmailSmtpEnabled ? requireEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]) : optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]),
-  gmailSmtpAppPassword: gmailSmtpEnabled ? requireEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]) : optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]),
-  gmailSmtpFromName: optionalEnvFrom(["GMAIL_SMTP_FROM_NAME", "SMTP_FROM_NAME"]) ?? "매아리",
-  gmailSmtpFromAddress: optionalEnvFrom(["GMAIL_SMTP_FROM_ADDRESS", "SMTP_FROM_ADDRESS"]),
+  gmailSmtpHost: optionalEnv("GMAIL_SMTP_HOST") ?? "smtp.gmail.com",
+  gmailSmtpPort: optionalNumberEnv("GMAIL_SMTP_PORT", 465),
+  gmailSmtpSecure: optionalBooleanEnv("GMAIL_SMTP_SECURE") ?? true,
+  gmailSmtpUser: gmailSmtpEnabled ? requireEnv("GMAIL_SMTP_USER") : optionalEnv("GMAIL_SMTP_USER"),
+  gmailSmtpAppPassword: gmailSmtpEnabled ? requireEnv("GMAIL_SMTP_APP_PASSWORD") : optionalEnv("GMAIL_SMTP_APP_PASSWORD"),
+  gmailSmtpFromName: optionalEnv("GMAIL_SMTP_FROM_NAME") ?? "매아리",
+  gmailSmtpFromAddress: optionalEnv("GMAIL_SMTP_FROM_ADDRESS"),
   gmailSmtpConnectionTimeoutMs: optionalNumberEnv("GMAIL_SMTP_CONNECTION_TIMEOUT_MS", 10000),
   solapiSmsEnabled,
   solapiApiKey: solapiSmsEnabled ? requireEnv("SOLAPI_API_KEY") : optionalEnv("SOLAPI_API_KEY"),
   solapiApiSecret: solapiSmsEnabled ? requireEnv("SOLAPI_API_SECRET") : optionalEnv("SOLAPI_API_SECRET"),
   solapiSenderNumber: solapiSmsEnabled ? requirePhoneNumberEnv("SOLAPI_SENDER_NUMBER") : optionalPhoneNumberEnv("SOLAPI_SENDER_NUMBER"),
-  mcpNotificationEnabled,
-  mcpNotificationServer: mcpNotificationEnabled ? requireEnv("MCP_NOTIFICATION_SERVER") : optionalEnv("MCP_NOTIFICATION_SERVER"),
-  mcpNotificationApiKey: mcpNotificationEnabled ? requireEnv("MCP_NOTIFICATION_API_KEY") : optionalEnv("MCP_NOTIFICATION_API_KEY"),
-  mcpNotificationAuthHeader: optionalEnv("MCP_NOTIFICATION_AUTH_HEADER") ?? "Authorization",
-  mcpNotificationAuthScheme: optionalEnv("MCP_NOTIFICATION_AUTH_SCHEME") ?? "Bearer",
-  mcpNotificationTimeoutMs: optionalNumberEnv("MCP_NOTIFICATION_TIMEOUT_MS", 10000),
-  mcpEmailTool: mcpNotificationEnabled ? requireEnv("MCP_EMAIL_TOOL") : optionalEnv("MCP_EMAIL_TOOL"),
-  mcpSmsTool: mcpNotificationEnabled ? requireEnv("MCP_SMS_TOOL") : optionalEnv("MCP_SMS_TOOL"),
 };
 
 function requireEnv(key: string): string {
@@ -2378,28 +2358,6 @@ function optionalEnv(key: string): string | undefined {
   const value = process.env[key];
   const normalized = value?.trim();
   return normalized && normalized.length > 0 ? normalized : undefined;
-}
-
-function requireEnvFrom(keys: string[]): string {
-  const value = optionalEnvFrom(keys);
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${keys.join(" or ")}`);
-  }
-
-  return value;
-}
-
-function optionalEnvFrom(keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = optionalEnv(key);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
 }
 
 function requireNumberEnv(key: string): number {
@@ -2428,22 +2386,6 @@ function optionalNumberEnv(key: string, fallback: number): number {
   return value;
 }
 
-function optionalNumberEnvFrom(keys: string[], fallback: number): number {
-  const raw = optionalEnvFrom(keys);
-
-  if (!raw) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-
-  if (!Number.isFinite(value)) {
-    throw new Error(`Environment variable must be a number: ${keys.join(" or ")}`);
-  }
-
-  return value;
-}
-
 function requireBooleanEnv(key: string): boolean {
   const value = requireEnv(key);
 
@@ -2454,29 +2396,15 @@ function requireBooleanEnv(key: string): boolean {
   return value === "true";
 }
 
-function optionalBooleanEnv(key: string, fallback: boolean): boolean {
+function optionalBooleanEnv(key: string): boolean | undefined {
   const value = optionalEnv(key);
-
-  if (!value) {
-    return fallback;
-  }
-
-  if (value !== "true" && value !== "false") {
-    throw new Error(`Environment variable must be "true" or "false": ${key}`);
-  }
-
-  return value === "true";
-}
-
-function optionalBooleanEnvFrom(keys: string[]): boolean | undefined {
-  const value = optionalEnvFrom(keys);
 
   if (!value) {
     return undefined;
   }
 
   if (value !== "true" && value !== "false") {
-    throw new Error(`Environment variable must be "true" or "false": ${keys.join(" or ")}`);
+    throw new Error(`Environment variable must be "true" or "false": ${key}`);
   }
 
   return value === "true";
@@ -2663,7 +2591,8 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - mock moderation 결과를 사용하지 않음
 - 공개 열람 URL token 생성 가능
 - 공개 링크로 열람한 메시지가 가입 후 로그인 사용자 수신함에 귀속됨
-- 취소된 보낸 마음은 `senderDeletedAt`으로 발신함에서 제거 가능
+- 예약 전/검사 실패/취소 보낸 마음은 hard delete 가능
+- 도착 완료/실패 보낸 마음은 `senderDeletedAt`으로 발신함에서 제거 가능
 - 받은 마음은 `receiverDeletedAt`으로 수신함에서 제거 가능
 
 ---
@@ -2789,9 +2718,7 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - `NotificationProvider` interface 작성
 - `GmailSmtpNotificationProvider` 작성
 - `SolapiSmsNotificationProvider` 작성
-- `McpNotificationProvider` fallback adapter 작성
 - Gmail SMTP와 Solapi 설정 env 추가: `GMAIL_SMTP_*`, `SOLAPI_*`
-- MCP 설정 env는 fallback adapter로 유지: `MCP_NOTIFICATION_ENABLED`, `MCP_NOTIFICATION_SERVER`, `MCP_EMAIL_TOOL`, `MCP_SMS_TOOL`
 - `NotificationLog` idempotency/retry 필드 추가
 - `ContactSuppression` 기반 EMAIL/SMS 수신거부 pre-flight 추가
 - 외부 수신자 channel 선택 로직 작성
@@ -2806,7 +2733,7 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 
 - 외부 수신자는 이메일 또는 전화번호 중 하나 없이는 메시지 생성 불가
 - provider 미설정 시 발송 성공으로 표시하지 않고 `SKIPPED/FAILED` 기록
-- Gmail SMTP, Solapi 또는 MCP fallback 발송 성공 시 `NotificationLog=SENT`, `MessageRecipient=SENT`
+- Gmail SMTP 또는 Solapi 발송 성공 시 `NotificationLog=SENT`, `MessageRecipient=SENT`
 - retryable 실패는 최대 3회 재시도
 - non-retryable 실패는 최종 실패로 기록
 - 같은 수신자/이벤트/channel 조합은 idempotency key로 중복 발송되지 않음
@@ -2860,7 +2787,7 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 
 ## Phase 4. 보관함 고도화
 
-- 취소된 보낸 마음 삭제와 받은 마음 삭제의 기본 soft delete는 구현 완료
+- 보낸 마음 상태별 hard/soft delete와 받은 마음 soft delete는 구현 완료
 - 감정 태그 기반 필터 v1 구현 완료
 - 월별 감정 리포트 v1 구현 완료
 - 받은 메시지 아카이브 v1 구현 완료

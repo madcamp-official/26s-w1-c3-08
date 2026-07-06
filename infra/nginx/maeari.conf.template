@@ -4,9 +4,17 @@ server {
 
     client_max_body_size 2m;
 
+    error_page 502 503 504 =503 /maeari-maintenance.html;
+
+    location = /maeari-maintenance.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:${API_PORT}/api/;
         proxy_http_version 1.1;
+        proxy_intercept_errors on;
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -21,6 +29,7 @@ server {
     location / {
         proxy_pass http://127.0.0.1:${WEB_PORT};
         proxy_http_version 1.1;
+        proxy_intercept_errors on;
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

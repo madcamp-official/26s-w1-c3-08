@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { BellOff, Clock3, Gift, LogIn, RefreshCw, Send, ShieldAlert } from "lucide-react";
+import { Bell, BellOff, Clock3, Gift, LogIn, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
 import { Notice } from "@/components/Notice";
 import { emotionLabel, formatDateTime } from "@/lib/format";
@@ -32,6 +32,8 @@ type PublicMessage = {
   canReply: boolean;
   canSuppressEmailNotification: boolean;
   canSuppressSmsNotification: boolean;
+  isEmailNotificationSuppressed: boolean;
+  isSmsNotificationSuppressed: boolean;
 };
 
 type ArrivalGate = {
@@ -84,25 +86,33 @@ export default function ArrivalPage() {
     return () => window.clearInterval(timer);
   }, [params.token]);
 
-  async function handleSuppressNotifications(channel: SuppressionChannel) {
+  async function handleToggleSuppression(channel: SuppressionChannel, suppressed: boolean) {
     setSuppressingChannel(channel);
     setSuppressionNotices((previous) => ({ ...previous, [channel]: undefined }));
 
     try {
-      await apiFetch<{ suppressed: true }>("/public/notification-suppressions", {
-        method: "POST",
+      const response = await apiFetch<{ channel: SuppressionChannel; suppressed: boolean }>("/public/notification-suppressions", {
+        method: suppressed ? "DELETE" : "POST",
         body: JSON.stringify({
           token: params.token,
           channel,
         }),
       });
+      setMessage((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        if (response.channel === "EMAIL") {
+          return { ...previous, isEmailNotificationSuppressed: response.suppressed };
+        }
+
+        return { ...previous, isSmsNotificationSuppressed: response.suppressed };
+      });
       setSuppressionNotices((previous) => ({
         ...previous,
         [channel]: {
-          title:
-            channel === "SMS"
-              ? "이 전화번호로는 매아리 문자 알림을 다시 보내지 않을게요."
-              : "이 이메일 주소로는 매아리 이메일 알림을 다시 보내지 않을게요.",
+          title: createSuppressionNoticeTitle(channel, response.suppressed),
           tone: "success",
         },
       }));
@@ -317,19 +327,17 @@ export default function ArrivalPage() {
                 {message.canSuppressEmailNotification ? (
                   <SuppressionButton
                     channel="EMAIL"
-                    label="이 이메일 알림 다시 받지 않기"
-                    notice={suppressionNotices.EMAIL}
+                    suppressed={message.isEmailNotificationSuppressed}
                     suppressingChannel={suppressingChannel}
-                    onSuppress={handleSuppressNotifications}
+                    onToggle={handleToggleSuppression}
                   />
                 ) : null}
                 {message.canSuppressSmsNotification ? (
                   <SuppressionButton
                     channel="SMS"
-                    label="이 문자 알림 다시 받지 않기"
-                    notice={suppressionNotices.SMS}
+                    suppressed={message.isSmsNotificationSuppressed}
                     suppressingChannel={suppressingChannel}
-                    onSuppress={handleSuppressNotifications}
+                    onToggle={handleToggleSuppression}
                   />
                 ) : null}
               </div>
@@ -363,28 +371,46 @@ function themeClass(theme?: string | null) {
 
 function SuppressionButton({
   channel,
-  label,
-  notice,
+  suppressed,
   suppressingChannel,
-  onSuppress,
+  onToggle,
 }: {
   channel: SuppressionChannel;
-  label: string;
-  notice?: { title: string; tone: "success" | "danger" };
+  suppressed: boolean;
   suppressingChannel: SuppressionChannel | null;
-  onSuppress: (channel: SuppressionChannel) => Promise<void>;
+  onToggle: (channel: SuppressionChannel, suppressed: boolean) => Promise<void>;
 }) {
   const isSuppressing = suppressingChannel === channel;
+  const label =
+    channel === "SMS"
+      ? suppressed
+        ? "이 문자 알림 다시 받기"
+        : "이 문자 알림 다시 받지 않기"
+      : suppressed
+        ? "이 이메일 알림 다시 받기"
+        : "이 이메일 알림 다시 받지 않기";
 
   return (
     <button
       type="button"
-      onClick={() => void onSuppress(channel)}
-      disabled={Boolean(suppressingChannel) || notice?.tone === "success"}
+      onClick={() => void onToggle(channel, suppressed)}
+      disabled={Boolean(suppressingChannel)}
       className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
     >
-      <BellOff size={16} />
+      {suppressed ? <Bell size={16} /> : <BellOff size={16} />}
       {isSuppressing ? "저장 중" : label}
     </button>
   );
+}
+
+function createSuppressionNoticeTitle(channel: SuppressionChannel, suppressed: boolean) {
+  if (channel === "SMS") {
+    return suppressed
+      ? "이 전화번호로는 매아리 문자 알림을 다시 보내지 않을게요."
+      : "이 전화번호로 매아리 문자 알림을 다시 받을 수 있어요.";
+  }
+
+  return suppressed
+    ? "이 이메일 주소로는 매아리 이메일 알림을 다시 보내지 않을게요."
+    : "이 이메일 주소로 매아리 이메일 알림을 다시 받을 수 있어요.";
 }

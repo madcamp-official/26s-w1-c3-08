@@ -326,7 +326,7 @@ export default function MessageDetailPage() {
                   className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
                 >
                   <Trash2 size={16} />
-                  삭제
+                  {message.viewerRole === "SENDER" ? senderDeleteLabel(message.status) : "받은 마음에서 삭제"}
                 </button>
               ) : null}
               <button
@@ -344,6 +344,14 @@ export default function MessageDetailPage() {
       ) : null}
     </AppShell>
   );
+}
+
+function senderDeleteLabel(status: string) {
+  if (["PENDING", "MODERATION_FAILED", "CANCELED"].includes(status)) {
+    return "예약 삭제";
+  }
+
+  return "보낸 마음에서 삭제";
 }
 
 function toBrowserPublicUrl(publicUrl: string) {

@@ -7,18 +7,15 @@ const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".en
 dotenv.config({ path: resolveEnvPath(".env") });
 dotenv.config({ path: resolveEnvPath(envFile), override: true });
 
-const mcpNotificationEnabled = optionalBooleanEnv("MCP_NOTIFICATION_ENABLED", false);
 const gmailSmtpEnabled =
-  optionalBooleanEnvFrom(["GMAIL_SMTP_ENABLED", "SMTP_ENABLED"]) ??
-  Boolean(optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]) && optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]));
-const gmailSmtpUser = gmailSmtpEnabled
-  ? requireEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"])
-  : optionalEnvFrom(["GMAIL_SMTP_USER", "SMTP_EMAIL"]);
+  optionalBooleanEnv("GMAIL_SMTP_ENABLED") ??
+  Boolean(optionalEnv("GMAIL_SMTP_USER") && optionalEnv("GMAIL_SMTP_APP_PASSWORD"));
+const gmailSmtpUser = gmailSmtpEnabled ? requireEnv("GMAIL_SMTP_USER") : optionalEnv("GMAIL_SMTP_USER");
 const gmailSmtpAppPassword = gmailSmtpEnabled
-  ? requireEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"])
-  : optionalEnvFrom(["GMAIL_SMTP_APP_PASSWORD", "SMTP_PASSWORD"]);
+  ? requireEnv("GMAIL_SMTP_APP_PASSWORD")
+  : optionalEnv("GMAIL_SMTP_APP_PASSWORD");
 const solapiSmsEnabled =
-  optionalBooleanEnvFrom(["SOLAPI_SMS_ENABLED"]) ??
+  optionalBooleanEnv("SOLAPI_SMS_ENABLED") ??
   Boolean(optionalEnv("SOLAPI_API_KEY") && optionalEnv("SOLAPI_API_SECRET") && optionalEnv("SOLAPI_SENDER_NUMBER"));
 const solapiApiKey = solapiSmsEnabled ? requireEnv("SOLAPI_API_KEY") : optionalEnv("SOLAPI_API_KEY");
 const solapiApiSecret = solapiSmsEnabled ? requireEnv("SOLAPI_API_SECRET") : optionalEnv("SOLAPI_API_SECRET");
@@ -56,28 +53,18 @@ export const config = {
   notificationRetryCron: optionalEnv("NOTIFICATION_RETRY_CRON") ?? "*/5 * * * *",
   notificationMaxAttempts: optionalNumberEnv("NOTIFICATION_MAX_ATTEMPTS", 3),
   gmailSmtpEnabled,
-  gmailSmtpHost: optionalEnvFrom(["GMAIL_SMTP_HOST", "SMTP_HOST"]) ?? "smtp.gmail.com",
-  gmailSmtpPort: optionalNumberEnvFrom(["GMAIL_SMTP_PORT", "SMTP_PORT"], 465),
-  gmailSmtpSecure: optionalBooleanEnvFrom(["GMAIL_SMTP_SECURE", "SMTP_SECURE"]) ?? true,
+  gmailSmtpHost: optionalEnv("GMAIL_SMTP_HOST") ?? "smtp.gmail.com",
+  gmailSmtpPort: optionalNumberEnv("GMAIL_SMTP_PORT", 465),
+  gmailSmtpSecure: optionalBooleanEnv("GMAIL_SMTP_SECURE") ?? true,
   gmailSmtpUser,
   gmailSmtpAppPassword,
-  gmailSmtpFromName: optionalEnvFrom(["GMAIL_SMTP_FROM_NAME", "SMTP_FROM_NAME"]) ?? "매아리",
-  gmailSmtpFromAddress: optionalEnvFrom(["GMAIL_SMTP_FROM_ADDRESS", "SMTP_FROM_ADDRESS"]) ?? gmailSmtpUser,
+  gmailSmtpFromName: optionalEnv("GMAIL_SMTP_FROM_NAME") ?? "매아리",
+  gmailSmtpFromAddress: optionalEnv("GMAIL_SMTP_FROM_ADDRESS") ?? gmailSmtpUser,
   gmailSmtpConnectionTimeoutMs: optionalNumberEnv("GMAIL_SMTP_CONNECTION_TIMEOUT_MS", 10000),
   solapiSmsEnabled,
   solapiApiKey,
   solapiApiSecret,
   solapiSenderNumber,
-  mcpNotificationEnabled,
-  mcpNotificationServer: mcpNotificationEnabled ? requireEnv("MCP_NOTIFICATION_SERVER") : optionalEnv("MCP_NOTIFICATION_SERVER"),
-  mcpEmailTool: mcpNotificationEnabled ? requireEnv("MCP_EMAIL_TOOL") : optionalEnv("MCP_EMAIL_TOOL"),
-  mcpSmsTool: mcpNotificationEnabled ? requireEnv("MCP_SMS_TOOL") : optionalEnv("MCP_SMS_TOOL"),
-  mcpNotificationApiKey: mcpNotificationEnabled
-    ? requireEnv("MCP_NOTIFICATION_API_KEY")
-    : optionalEnv("MCP_NOTIFICATION_API_KEY"),
-  mcpNotificationAuthHeader: optionalEnv("MCP_NOTIFICATION_AUTH_HEADER") ?? "Authorization",
-  mcpNotificationAuthScheme: optionalEnv("MCP_NOTIFICATION_AUTH_SCHEME") ?? "Bearer",
-  mcpNotificationTimeoutMs: optionalNumberEnv("MCP_NOTIFICATION_TIMEOUT_MS", 10000),
 };
 
 function resolveEnvPath(fileName: string) {
@@ -95,16 +82,6 @@ function requireEnv(key: string): string {
 
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`);
-  }
-
-  return value;
-}
-
-function requireEnvFrom(keys: string[]): string {
-  const value = optionalEnvFrom(keys);
-
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${keys.join(" or ")}`);
   }
 
   return value;
@@ -140,18 +117,6 @@ function optionalPhoneNumberEnv(key: string) {
   return value;
 }
 
-function optionalEnvFrom(keys: string[]) {
-  for (const key of keys) {
-    const value = optionalEnv(key);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
 function requireNumberEnv(key: string): number {
   const value = Number(requireEnv(key));
 
@@ -178,22 +143,6 @@ function optionalNumberEnv(key: string, fallback: number): number {
   return value;
 }
 
-function optionalNumberEnvFrom(keys: string[], fallback: number): number {
-  const raw = optionalEnvFrom(keys);
-
-  if (!raw) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-
-  if (!Number.isFinite(value)) {
-    throw new Error(`Environment variable must be a number: ${keys.join(" or ")}`);
-  }
-
-  return value;
-}
-
 function requireBooleanEnv(key: string): boolean {
   const value = requireEnv(key);
 
@@ -204,25 +153,11 @@ function requireBooleanEnv(key: string): boolean {
   return value === "true";
 }
 
-function optionalBooleanEnvFrom(keys: string[]): boolean | undefined {
-  const value = optionalEnvFrom(keys);
-
-  if (!value) {
-    return undefined;
-  }
-
-  if (value !== "true" && value !== "false") {
-    throw new Error(`Environment variable must be "true" or "false": ${keys.join(" or ")}`);
-  }
-
-  return value === "true";
-}
-
-function optionalBooleanEnv(key: string, fallback: boolean): boolean {
+function optionalBooleanEnv(key: string): boolean | undefined {
   const value = optionalEnv(key);
 
   if (!value) {
-    return fallback;
+    return undefined;
   }
 
   if (value !== "true" && value !== "false") {

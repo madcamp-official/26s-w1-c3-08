@@ -20,12 +20,14 @@ import {
   type ModerationResult,
 } from "../moderation/moderation.service.js";
 import { assertActiveFriendship } from "../friends/friend.service.js";
+import { assertVerifiedSenderContact } from "../contacts/contact.service.js";
 import type { CreateMessageInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
   const messageId = crypto.randomUUID();
   const schedule = resolveSchedule(input);
+  const senderContact = await assertVerifiedSenderContact(userId, input.senderContactId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
   const attachments = await persistAttachments(messageId, input.attachments ?? []);
@@ -52,6 +54,8 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
       data: {
         id: messageId,
         senderId: userId,
+        senderContactId: senderContact.id,
+        senderContactSnapshot: senderContact.snapshot,
         title: input.title,
         content: input.content,
         emotionTag: input.emotionTag,
@@ -93,6 +97,8 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     data: {
       id: messageId,
       senderId: userId,
+      senderContactId: senderContact.id,
+      senderContactSnapshot: senderContact.snapshot,
       title: input.title,
       content: input.content,
       emotionTag: input.emotionTag,
@@ -355,7 +361,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
     canCancel:
       isSender &&
       (message.status === MessageStatus.PENDING || message.status === MessageStatus.MODERATION_FAILED),
-    canDeleteFromMailbox: isSender ? message.status === MessageStatus.CANCELED : Boolean(recipient),
+    canDeleteFromMailbox: isSender ? isSenderDeletableStatus(message.status) : Boolean(recipient),
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     senderName: message.isSenderHidden ? null : message.sender.nickname,
@@ -478,18 +484,30 @@ export async function deleteMessageFromMailbox(userId: string, messageId: string
   }
 
   if (message.senderId === userId) {
-    if (message.status !== MessageStatus.CANCELED) {
-      throw new AppError("MESSAGE_NOT_DELETABLE", "취소된 메시지만 보낸 마음에서 삭제할 수 있어요.", 409);
-    }
-
-    if (!message.senderDeletedAt) {
-      await prisma.message.update({
+    if (
+      message.status === MessageStatus.PENDING ||
+      message.status === MessageStatus.MODERATION_FAILED ||
+      message.status === MessageStatus.CANCELED
+    ) {
+      await prisma.message.delete({
         where: { id: message.id },
-        data: { senderDeletedAt: new Date() },
       });
+
+      return { deleted: true };
     }
 
-    return { deleted: true };
+    if (message.status === MessageStatus.SENT || message.status === MessageStatus.FAILED) {
+      if (!message.senderDeletedAt) {
+        await prisma.message.update({
+          where: { id: message.id },
+          data: { senderDeletedAt: new Date() },
+        });
+      }
+
+      return { deleted: true };
+    }
+
+    throw new AppError("MESSAGE_NOT_DELETABLE", "이 상태의 메시지는 보낸 마음에서 삭제할 수 없어요.", 409);
   }
 
   const recipient = message.recipients.find((item) => item.receiverUserId === userId);
@@ -676,6 +694,16 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
 
 function getReceiverInputs(input: CreateMessageInput) {
   return input.recipients?.length ? input.recipients : input.receiverInfo ? [input.receiverInfo] : [];
+}
+
+function isSenderDeletableStatus(status: MessageStatus) {
+  return (
+    status === MessageStatus.PENDING ||
+    status === MessageStatus.MODERATION_FAILED ||
+    status === MessageStatus.CANCELED ||
+    status === MessageStatus.SENT ||
+    status === MessageStatus.FAILED
+  );
 }
 
 async function normalizeReceiver(receiverInfo: NonNullable<CreateMessageInput["receiverInfo"]>, userId: string) {

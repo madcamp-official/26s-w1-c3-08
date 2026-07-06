@@ -1,7 +1,8 @@
-import { MessageStatus } from "@maeari/database";
+import { MessageStatus, NotificationChannel, RecipientDeliveryStatus } from "@maeari/database";
 import { AppError } from "../../lib/app-error.js";
+import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
 import { prisma } from "../../lib/prisma.js";
-import { hashPublicToken } from "../../lib/tokens.js";
+import { hashContact, hashPublicToken } from "../../lib/tokens.js";
 import { getModerationInputHash, moderateMessageWithRetry } from "../moderation/moderation.service.js";
 
 export async function getPublicMessage(rawToken: string) {
@@ -53,6 +54,15 @@ export async function getPublicMessage(rawToken: string) {
     throw new AppError("MESSAGE_UNAVAILABLE", "지금은 이 마음을 열람할 수 없어요.", 409);
   }
 
+  if (accessToken.recipient.deliveryStatus !== RecipientDeliveryStatus.SENT) {
+    throw new AppError("MESSAGE_UNAVAILABLE", "지금은 이 마음을 열람할 수 없어요.", 409);
+  }
+
+  const [isEmailNotificationSuppressed, isSmsNotificationSuppressed] = await Promise.all([
+    isContactSuppressed(NotificationChannel.EMAIL, accessToken.recipient.receiverEmail),
+    isContactSuppressed(NotificationChannel.SMS, accessToken.recipient.receiverPhone),
+  ]);
+
   await prisma.messageAccessToken.update({
     where: { tokenHash },
     data: {
@@ -84,7 +94,32 @@ export async function getPublicMessage(rawToken: string) {
     canReply: message.isReplyEnabled,
     canSuppressEmailNotification: Boolean(accessToken.recipient.receiverEmail),
     canSuppressSmsNotification: Boolean(accessToken.recipient.receiverPhone),
+    isEmailNotificationSuppressed,
+    isSmsNotificationSuppressed,
   };
+}
+
+async function isContactSuppressed(channel: NotificationChannel, contact?: string | null) {
+  const normalizedContact =
+    channel === NotificationChannel.EMAIL
+      ? normalizeOptionalEmailContact(contact)
+      : normalizeOptionalPhoneContact(contact);
+
+  if (!normalizedContact) {
+    return false;
+  }
+
+  const contactHash = hashContact(channel, normalizedContact);
+  const suppression = await prisma.contactSuppression.findUnique({
+    where: {
+      channel_contactHash: {
+        channel,
+        contactHash,
+      },
+    },
+  });
+
+  return Boolean(suppression);
 }
 
 export async function createPublicMessageReply(
