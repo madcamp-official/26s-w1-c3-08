@@ -45,6 +45,11 @@ export const config = {
   openaiModerationModel: requireEnv("OPENAI_MODERATION_MODEL"),
   openaiGuardrailModel: optionalEnv("OPENAI_GUARDRAIL_MODEL") ?? "gpt-5.4-mini",
   publicTokenPepper: requireEnv("PUBLIC_TOKEN_PEPPER"),
+  uploadDir: optionalEnv("UPLOAD_DIR") ?? path.resolve(process.cwd(), "uploads"),
+  uploadPublicPath: optionalEnv("UPLOAD_PUBLIC_PATH") ?? "/api/uploads",
+  maxAttachmentCount: optionalNumberEnv("MAX_ATTACHMENT_COUNT", 3),
+  maxAttachmentBytes: optionalNumberEnv("MAX_ATTACHMENT_BYTES", 2 * 1024 * 1024),
+  adminKakaoIds: parseCsvEnv("ADMIN_KAKAO_IDS"),
   deliveryCron: requireEnv("DELIVERY_CRON"),
   moderationRetryCron: requireEnv("MODERATION_RETRY_CRON"),
   moderationMaxAttempts: requireNumberEnv("MODERATION_MAX_ATTEMPTS"),
@@ -225,6 +230,13 @@ function optionalBooleanEnv(key: string, fallback: boolean): boolean {
   }
 
   return value === "true";
+}
+
+function parseCsvEnv(key: string) {
+  return (optionalEnv(key) ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function isDomesticPhoneNumber(value: string) {

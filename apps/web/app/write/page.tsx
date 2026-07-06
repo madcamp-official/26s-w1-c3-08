@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Home, RotateCcw, Send } from "lucide-react";
+import { CalendarClock, CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -26,6 +26,33 @@ type Friend = {
 
 type ReceiverType = "SELF" | "FRIEND" | "OTHER";
 type PreferredChannel = "AUTO" | "EMAIL" | "SMS";
+type ArrivalMode = "FIXED" | "RANDOM_WINDOW";
+type MessageTheme = "LAVENDER" | "MOSS" | "SUNSET" | "MIDNIGHT" | "PAPER";
+type HintPreset = "NONE" | "ONE_HOUR" | "ONE_DAY";
+
+type ReceiverInfoPayload = {
+  type: ReceiverType;
+  friendshipId?: string;
+  userId?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  preferredChannel?: PreferredChannel;
+};
+
+type RecipientDraft = {
+  id: string;
+  label: string;
+  payload: ReceiverInfoPayload;
+};
+
+type AttachmentDraft = {
+  id: string;
+  fileName: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  dataBase64: string;
+  sizeBytes: number;
+};
 
 type CompletedMessage = {
   id: string;
@@ -55,6 +82,14 @@ const presetOptions = [
 
 const quarterMinuteOptions = ["00", "15", "30", "45"];
 
+const themeOptions: Array<[MessageTheme, string]> = [
+  ["LAVENDER", "보라빛 봉투"],
+  ["MOSS", "차분한 초록"],
+  ["SUNSET", "저녁 노을"],
+  ["MIDNIGHT", "한밤의 별"],
+  ["PAPER", "종이 편지"],
+];
+
 export default function WritePage() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -64,14 +99,22 @@ export default function WritePage() {
   const [receiverEmail, setReceiverEmail] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
   const [preferredChannel, setPreferredChannel] = useState<PreferredChannel>("AUTO");
+  const [recipientDrafts, setRecipientDrafts] = useState<RecipientDraft[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [emotionTag, setEmotionTag] = useState("THANKS");
   const [customEmotionTag, setCustomEmotionTag] = useState("");
+  const [arrivalMode, setArrivalMode] = useState<ArrivalMode>("FIXED");
   const [arrivalDate, setArrivalDate] = useState("");
   const [arrivalTime, setArrivalTime] = useState("");
+  const [randomEndDate, setRandomEndDate] = useState("");
+  const [randomEndTime, setRandomEndTime] = useState("");
+  const [hintPreset, setHintPreset] = useState<HintPreset>("NONE");
+  const [theme, setTheme] = useState<MessageTheme>("LAVENDER");
   const [isSenderHidden, setIsSenderHidden] = useState(false);
   const [isDateHidden, setIsDateHidden] = useState(false);
+  const [isReplyEnabled, setIsReplyEnabled] = useState(true);
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [completedMessage, setCompletedMessage] = useState<CompletedMessage | null>(null);
@@ -82,7 +125,9 @@ export default function WritePage() {
   const minArrivalDate = useMemo(() => toKstDateInput(new Date()), []);
 
   useEffect(() => {
-    setArrivalFromDate(roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000)));
+    const firstArrival = roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
+    setArrivalFromDate(firstArrival);
+    setRandomEndFromDate(new Date(firstArrival.getTime() + 24 * 60 * 60 * 1000));
   }, []);
 
   useEffect(() => {
@@ -128,47 +173,52 @@ export default function WritePage() {
     setCompletedMessage(null);
 
     try {
+      const randomEndAtDate = toDateFromKstInput(randomEndDate, randomEndTime);
+
       if (!scheduledAtDate || scheduledAtDate.getTime() <= Date.now()) {
         setNotice({ title: "도착 시간은 현재보다 뒤로 골라 주세요.", tone: "danger" });
         return;
       }
 
-      if (receiverType === "FRIEND" && !selectedFriend) {
-        setNotice({ title: "마음을 받을 친구를 선택해 주세요.", tone: "danger" });
+      if (arrivalMode === "RANDOM_WINDOW" && (!randomEndAtDate || randomEndAtDate.getTime() <= scheduledAtDate.getTime())) {
+        setNotice({ title: "랜덤 도착 종료 시간은 시작 시간보다 뒤로 골라 주세요.", tone: "danger" });
         return;
       }
 
-      const sanitizedPhone = sanitizePhoneNumber(receiverPhone);
+      const recipients = recipientDrafts.length ? recipientDrafts.map((draft) => draft.payload) : [createReceiverInfo()];
 
-      if (receiverType === "OTHER" && receiverPhone.trim() && !isDomesticPhoneNumber(sanitizedPhone)) {
-        setNotice({ title: "전화번호는 국내 번호 10~11자리로 입력해 주세요.", tone: "danger" });
+      if (!recipients.length || !validateCurrentReceiverIfNeeded(recipientDrafts.length === 0)) {
         return;
       }
 
-      if (receiverType === "OTHER" && preferredChannel === "EMAIL" && !receiverEmail.trim()) {
-        setNotice({ title: "이메일 알림을 보내려면 수신자 이메일이 필요해요.", tone: "danger" });
-        return;
-      }
+      const hintAt = createHintAt(scheduledAtDate);
 
-      if (receiverType === "OTHER" && preferredChannel === "SMS" && !sanitizedPhone) {
-        setNotice({ title: "문자 알림을 보내려면 수신자 전화번호가 필요해요.", tone: "danger" });
-        return;
-      }
-
-      if (receiverType === "OTHER" && preferredChannel === "AUTO" && !receiverEmail.trim() && !sanitizedPhone) {
-        setNotice({ title: "연락처로 보내려면 이메일이나 전화번호 중 하나가 필요해요.", tone: "danger" });
+      if (hintAt && hintAt.getTime() <= Date.now()) {
+        setNotice({ title: "힌트 알림 시간은 현재보다 뒤여야 해요.", tone: "danger" });
         return;
       }
 
       const response = await apiFetch<CreateMessageResponse>("/messages", {
         method: "POST",
         body: JSON.stringify({
-          receiverInfo: createReceiverInfo(),
+          receiverInfo: recipients[0],
+          recipients,
           title,
           content,
           emotionTag,
           customEmotionTag: emotionTag === "CUSTOM" ? customEmotionTag : undefined,
-          scheduledAt: scheduledAtDate.toISOString(),
+          scheduledAt: arrivalMode === "FIXED" ? scheduledAtDate.toISOString() : undefined,
+          arrivalMode,
+          arrivalWindowStartAt: arrivalMode === "RANDOM_WINDOW" ? scheduledAtDate.toISOString() : undefined,
+          arrivalWindowEndAt: arrivalMode === "RANDOM_WINDOW" ? randomEndAtDate?.toISOString() : undefined,
+          hintAt: hintAt?.toISOString(),
+          theme,
+          isReplyEnabled,
+          attachments: attachments.map((attachment) => ({
+            fileName: attachment.fileName,
+            mimeType: attachment.mimeType,
+            dataBase64: attachment.dataBase64,
+          })),
           isSenderHidden,
           isDateHidden,
         }),
@@ -179,7 +229,7 @@ export default function WritePage() {
         setCompletedMessage({
           id: response.message.id,
           title,
-          receiverLabel: getReceiverLabel(),
+          receiverLabel: recipientDrafts.length ? `${recipientDrafts.length}명` : getReceiverLabel(),
           scheduledAt: response.message.scheduledAt ? new Date(response.message.scheduledAt) : scheduledAtDate,
           publicUrl: browserPublicUrl,
         });
@@ -202,7 +252,7 @@ export default function WritePage() {
     }
   }
 
-  function createReceiverInfo() {
+  function createReceiverInfo(): ReceiverInfoPayload {
     if (receiverType === "FRIEND" && selectedFriend) {
       return {
         type: "FRIEND",
@@ -227,6 +277,75 @@ export default function WritePage() {
     };
   }
 
+  function validateCurrentReceiverIfNeeded(shouldValidate: boolean) {
+    if (!shouldValidate) {
+      return true;
+    }
+
+    if (receiverType === "FRIEND" && !selectedFriend) {
+      setNotice({ title: "마음을 받을 친구를 선택해 주세요.", tone: "danger" });
+      return false;
+    }
+
+    const sanitizedPhone = sanitizePhoneNumber(receiverPhone);
+
+    if (receiverType === "OTHER" && receiverPhone.trim() && !isDomesticPhoneNumber(sanitizedPhone)) {
+      setNotice({ title: "전화번호는 국내 번호 10~11자리로 입력해 주세요.", tone: "danger" });
+      return false;
+    }
+
+    if (receiverType === "OTHER" && !receiverName.trim()) {
+      setNotice({ title: "연락처 수신자는 이름이 필요해요.", tone: "danger" });
+      return false;
+    }
+
+    if (receiverType === "OTHER" && preferredChannel === "EMAIL" && !receiverEmail.trim()) {
+      setNotice({ title: "이메일 알림을 보내려면 수신자 이메일이 필요해요.", tone: "danger" });
+      return false;
+    }
+
+    if (receiverType === "OTHER" && preferredChannel === "SMS" && !sanitizedPhone) {
+      setNotice({ title: "문자 알림을 보내려면 수신자 전화번호가 필요해요.", tone: "danger" });
+      return false;
+    }
+
+    if (receiverType === "OTHER" && preferredChannel === "AUTO" && !receiverEmail.trim() && !sanitizedPhone) {
+      setNotice({ title: "연락처로 보내려면 이메일이나 전화번호 중 하나가 필요해요.", tone: "danger" });
+      return false;
+    }
+
+    return true;
+  }
+
+  function addRecipientDraft() {
+    setNotice(null);
+
+    if (!validateCurrentReceiverIfNeeded(true)) {
+      return;
+    }
+
+    const payload = createReceiverInfo();
+    const key = JSON.stringify(payload);
+
+    if (recipientDrafts.some((draft) => JSON.stringify(draft.payload) === key)) {
+      setNotice({ title: "이미 추가한 수신자예요.", tone: "default" });
+      return;
+    }
+
+    setRecipientDrafts((previous) => [
+      ...previous,
+      {
+        id: crypto.randomUUID(),
+        label: getReceiverLabel(),
+        payload,
+      },
+    ]);
+  }
+
+  function removeRecipientDraft(id: string) {
+    setRecipientDrafts((previous) => previous.filter((draft) => draft.id !== id));
+  }
+
   function getReceiverLabel() {
     if (receiverType === "FRIEND") {
       return selectedFriend?.nickname ?? "친구";
@@ -246,15 +365,25 @@ export default function WritePage() {
     setReceiverEmail("");
     setReceiverPhone("");
     setPreferredChannel("AUTO");
+    setRecipientDrafts([]);
     setTitle("");
     setContent("");
     setEmotionTag("THANKS");
     setCustomEmotionTag("");
+    setArrivalMode("FIXED");
+    setRandomEndDate("");
+    setRandomEndTime("");
+    setHintPreset("NONE");
+    setTheme("LAVENDER");
     setIsSenderHidden(false);
     setIsDateHidden(false);
+    setIsReplyEnabled(true);
+    setAttachments([]);
     setCompletedMessage(null);
     setNotice(null);
-    setArrivalFromDate(roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000)));
+    const nextArrival = roundToNextKstQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
+    setArrivalFromDate(nextArrival);
+    setRandomEndFromDate(new Date(nextArrival.getTime() + 24 * 60 * 60 * 1000));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -267,9 +396,43 @@ export default function WritePage() {
     setArrivalTime(toKstTimeInput(date));
   }
 
+  function setRandomEndFromDate(date: Date) {
+    setRandomEndDate(toKstDateInput(date));
+    setRandomEndTime(toKstTimeInput(date));
+  }
+
   function applyQuarterMinute(minute: string) {
     const hour = arrivalTime.split(":")[0] || "09";
     setArrivalTime(`${hour.padStart(2, "0")}:${minute}`);
+  }
+
+  function createHintAt(reference: Date) {
+    if (hintPreset === "ONE_HOUR") {
+      return new Date(reference.getTime() - 60 * 60 * 1000);
+    }
+
+    if (hintPreset === "ONE_DAY") {
+      return new Date(reference.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    return null;
+  }
+
+  async function handleAttachmentChange(fileList: FileList | null) {
+    if (!fileList) {
+      return;
+    }
+
+    try {
+      const files = Array.from(fileList).slice(0, 3 - attachments.length);
+      const next = await Promise.all(files.map(readAttachmentFile));
+      setAttachments((previous) => [...previous, ...next].slice(0, 3));
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof Error ? caught.message : "이미지를 첨부하지 못했어요.",
+        tone: "danger",
+      });
+    }
   }
 
   return (
@@ -395,11 +558,10 @@ export default function WritePage() {
             </label>
           </div>
 
-          {receiverType === "FRIEND" ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-              <select
-                required
-                value={selectedFriendshipId}
+	          {receiverType === "FRIEND" ? (
+	            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+	              <select
+	                value={selectedFriendshipId}
                 onChange={(event) => setSelectedFriendshipId(event.target.value)}
                 className="focus-ring rounded-md border border-slate-300 px-3 py-2"
               >
@@ -422,10 +584,9 @@ export default function WritePage() {
 
           {receiverType === "OTHER" ? (
             <>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
-                <input
-                  required
-                  value={receiverName}
+	              <div className="mt-4 grid gap-3 md:grid-cols-4">
+	                <input
+	                  value={receiverName}
                   onChange={(event) => setReceiverName(event.target.value)}
                   placeholder="수신자 이름"
                   className="focus-ring rounded-md border border-slate-300 px-3 py-2"
@@ -457,10 +618,58 @@ export default function WritePage() {
               </div>
               <p className="mt-2 text-sm text-slate-500">
                 자동 선택은 이메일이 있으면 이메일을 먼저 사용하고, 이메일이 없으면 문자로 도착 알림을 보내요.
-              </p>
-            </>
-          ) : null}
-        </section>
+	              </p>
+	            </>
+	          ) : null}
+	          <div className="mt-4 flex flex-wrap gap-2">
+	            <button
+	              type="button"
+	              onClick={addRecipientDraft}
+	              className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+	            >
+	              <Plus size={16} />
+	              수신자 목록에 추가
+	            </button>
+	            {recipientDrafts.length > 0 ? (
+	              <button
+	                type="button"
+	                onClick={() => setRecipientDrafts([])}
+	                className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+	              >
+	                목록 비우기
+	              </button>
+	            ) : null}
+	          </div>
+	          {recipientDrafts.length > 0 ? (
+	            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+	              <p className="text-sm font-semibold text-ink">전송할 수신자 {recipientDrafts.length}명</p>
+	              <div className="mt-3 grid gap-2">
+	                {recipientDrafts.map((draft) => (
+	                  <div
+	                    key={draft.id}
+	                    className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+	                  >
+	                    <span className="min-w-0 truncate">
+	                      {draft.label} · {receiverTypeLabel(draft.payload.type)}
+	                    </span>
+	                    <button
+	                      type="button"
+	                      onClick={() => removeRecipientDraft(draft.id)}
+	                      className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-600"
+	                      aria-label="수신자 제거"
+	                    >
+	                      <Trash2 size={15} />
+	                    </button>
+	                  </div>
+	                ))}
+	              </div>
+	            </div>
+	          ) : (
+	            <p className="mt-3 text-sm text-slate-500">
+	              여러 명에게 보내려면 수신자를 하나씩 추가하세요. 목록이 비어 있으면 현재 선택한 한 명에게 전송돼요.
+	            </p>
+	          )}
+	        </section>
 
         <section className="rounded-md border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-semibold text-ink">내용</h2>
@@ -482,9 +691,9 @@ export default function WritePage() {
               placeholder="본문"
               className="focus-ring resize-y rounded-md border border-slate-300 px-3 py-2"
             />
-            <div className="grid gap-3 md:grid-cols-2">
-              <select
-                value={emotionTag}
+	            <div className="grid gap-3 md:grid-cols-2">
+	              <select
+	                value={emotionTag}
                 onChange={(event) => setEmotionTag(event.target.value)}
                 className="focus-ring rounded-md border border-slate-300 px-3 py-2"
               >
@@ -500,16 +709,95 @@ export default function WritePage() {
                   onChange={(event) => setCustomEmotionTag(event.target.value)}
                   placeholder="감정 태그"
                   className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-                />
-              ) : null}
-            </div>
-          </div>
-        </section>
+	                />
+	              ) : null}
+	            </div>
+	            <div className="grid gap-3 md:grid-cols-2">
+	              <select
+	                value={theme}
+	                onChange={(event) => setTheme(event.target.value as MessageTheme)}
+	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	              >
+	                {themeOptions.map(([value, label]) => (
+	                  <option key={value} value={value}>
+	                    {label}
+	                  </option>
+	                ))}
+	              </select>
+	              <label className="focus-ring inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700">
+	                <input
+	                  type="checkbox"
+	                  checked={isReplyEnabled}
+	                  onChange={(event) => setIsReplyEnabled(event.target.checked)}
+	                  className="mr-2"
+	                />
+	                공개 링크에서 익명 답장 허용
+	              </label>
+	            </div>
+	            <div className="rounded-md border border-slate-200 p-3">
+	              <label className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">
+	                <ImagePlus size={16} />
+	                이미지 첨부
+	                <input
+	                  type="file"
+	                  accept="image/png,image/jpeg,image/webp,image/gif"
+	                  multiple
+	                  className="sr-only"
+	                  onChange={(event) => void handleAttachmentChange(event.target.files)}
+	                />
+	              </label>
+	              {attachments.length > 0 ? (
+	                <div className="mt-3 grid gap-2 md:grid-cols-3">
+	                  {attachments.map((attachment) => (
+	                    <div key={attachment.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+	                      <img src={attachment.dataBase64} alt="" className="aspect-video w-full rounded-md object-cover" />
+	                      <div className="mt-2 flex items-center justify-between gap-2">
+	                        <p className="min-w-0 truncate text-xs text-slate-600">{attachment.fileName}</p>
+	                        <button
+	                          type="button"
+	                          onClick={() =>
+	                            setAttachments((previous) => previous.filter((item) => item.id !== attachment.id))
+	                          }
+	                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300"
+	                          aria-label="첨부 이미지 제거"
+	                        >
+	                          <Trash2 size={14} />
+	                        </button>
+	                      </div>
+	                    </div>
+	                  ))}
+	                </div>
+	              ) : null}
+	            </div>
+	          </div>
+	        </section>
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-base font-semibold text-ink">도착 설정</h2>
-          <div className="grid gap-4">
-            <div className="flex flex-wrap gap-2">
+	        <section className="rounded-md border border-slate-200 bg-white p-5">
+	          <h2 className="mb-4 text-base font-semibold text-ink">도착 설정</h2>
+	          <div className="grid gap-4">
+	            <div className="grid gap-3 md:grid-cols-2">
+	              <label className="rounded-md border border-slate-200 p-3">
+	                <input
+	                  type="radio"
+	                  name="arrivalMode"
+	                  checked={arrivalMode === "FIXED"}
+	                  onChange={() => setArrivalMode("FIXED")}
+	                  className="mr-2"
+	                />
+	                정해진 시간에 도착
+	              </label>
+	              <label className="rounded-md border border-slate-200 p-3">
+	                <input
+	                  type="radio"
+	                  name="arrivalMode"
+	                  checked={arrivalMode === "RANDOM_WINDOW"}
+	                  onChange={() => setArrivalMode("RANDOM_WINDOW")}
+	                  className="mr-2"
+	                />
+	                기간 안에서 랜덤 도착
+	              </label>
+	            </div>
+	            <div className="flex flex-wrap gap-2">
               {presetOptions.map(([key, label]) => (
                 <button
                   key={key}
@@ -537,11 +825,11 @@ export default function WritePage() {
               <input
                 required
                 type="date"
-                value={arrivalDate}
-                min={minArrivalDate}
-                onChange={(event) => setArrivalDate(event.target.value)}
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-              />
+	                value={arrivalDate}
+	                min={minArrivalDate}
+	                onChange={(event) => setArrivalDate(event.target.value)}
+	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	              />
               <input
                 required
                 type="time"
@@ -549,13 +837,50 @@ export default function WritePage() {
                 value={arrivalTime}
                 onChange={(event) => setArrivalTime(event.target.value)}
                 aria-label="도착 시간"
-                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-              />
-            </div>
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              도착 예정: {scheduledAtDate ? formatKstArrival(scheduledAtDate) : "날짜와 시간을 선택해 주세요."}
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
+	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	              />
+	            </div>
+	            {arrivalMode === "RANDOM_WINDOW" ? (
+	              <div className="grid gap-3 md:grid-cols-2">
+	                <input
+	                  required
+	                  type="date"
+	                  value={randomEndDate}
+	                  min={arrivalDate || minArrivalDate}
+	                  onChange={(event) => setRandomEndDate(event.target.value)}
+	                  aria-label="랜덤 도착 종료 날짜"
+	                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	                />
+	                <input
+	                  required
+	                  type="time"
+	                  step={60}
+	                  value={randomEndTime}
+	                  onChange={(event) => setRandomEndTime(event.target.value)}
+	                  aria-label="랜덤 도착 종료 시간"
+	                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	                />
+	              </div>
+	            ) : null}
+	            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+	              {arrivalMode === "RANDOM_WINDOW"
+	                ? `랜덤 도착 구간: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "시작 미정"} ~ ${
+	                    toDateFromKstInput(randomEndDate, randomEndTime)
+	                      ? formatKstArrival(toDateFromKstInput(randomEndDate, randomEndTime) as Date)
+	                      : "종료 미정"
+	                  }`
+	                : `도착 예정: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "날짜와 시간을 선택해 주세요."}`}
+	            </div>
+	            <select
+	              value={hintPreset}
+	              onChange={(event) => setHintPreset(event.target.value as HintPreset)}
+	              className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+	            >
+	              <option value="NONE">도착 전 힌트 알림 없음</option>
+	              <option value="ONE_HOUR">도착 1시간 전 힌트 알림</option>
+	              <option value="ONE_DAY">도착 하루 전 힌트 알림</option>
+	            </select>
+	            <div className="grid gap-3 md:grid-cols-2">
               <label className="rounded-md border border-slate-200 p-3">
                 <input
                   type="checkbox"
@@ -638,6 +963,45 @@ function formatPhoneInput(value: string) {
 
 function isDomesticPhoneNumber(value: string) {
   return /^0\d{9,10}$/.test(value);
+}
+
+function receiverTypeLabel(type: ReceiverType) {
+  if (type === "FRIEND") {
+    return "친구";
+  }
+
+  if (type === "OTHER") {
+    return "연락처";
+  }
+
+  return "미래의 나";
+}
+
+function readAttachmentFile(file: File): Promise<AttachmentDraft> {
+  return new Promise((resolve, reject) => {
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      reject(new Error("지원하지 않는 이미지 형식이에요."));
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      reject(new Error("이미지는 2MB 이하로 첨부해 주세요."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: crypto.randomUUID(),
+        fileName: file.name,
+        mimeType: file.type as AttachmentDraft["mimeType"],
+        dataBase64: String(reader.result),
+        sizeBytes: file.size,
+      });
+    };
+    reader.onerror = () => reject(new Error("이미지를 읽지 못했어요."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function createPresetDate(key: (typeof presetOptions)[number][0]) {

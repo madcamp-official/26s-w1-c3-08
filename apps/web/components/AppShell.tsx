@@ -3,13 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Edit3, Inbox, Send, UserRound, UsersRound } from "lucide-react";
+import { BarChart3, Edit3, Inbox, Send, UserRound, UsersRound } from "lucide-react";
 
 const navItems = [
   { href: "/write", label: "쓰기", icon: Edit3 },
   { href: "/inbox", label: "받은 마음", icon: Inbox },
   { href: "/sent", label: "보낸 마음", icon: Send },
   { href: "/friends", label: "친구", icon: UsersRound },
+  { href: "/reports", label: "리포트", icon: BarChart3 },
   { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
@@ -49,7 +50,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-5 border-t border-slate-200 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t border-slate-200 bg-white md:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (

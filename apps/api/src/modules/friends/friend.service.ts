@@ -97,6 +97,83 @@ export async function listFriendRequests(userId: string) {
   };
 }
 
+export async function searchFriendCandidates(userId: string, query: string) {
+  const keyword = query.trim();
+
+  if (keyword.length < 2) {
+    return [];
+  }
+
+  const upperKeyword = keyword.toUpperCase();
+  const [friendships, pendingRequests] = await Promise.all([
+    prisma.friendship.findMany({
+      where: {
+        deletedAt: null,
+        OR: [{ userAId: userId }, { userBId: userId }],
+      },
+      select: {
+        userAId: true,
+        userBId: true,
+      },
+    }),
+    prisma.friendRequest.findMany({
+      where: {
+        status: FriendRequestStatus.PENDING,
+        OR: [{ requesterId: userId }, { addresseeId: userId }],
+      },
+      select: {
+        requesterId: true,
+        addresseeId: true,
+      },
+    }),
+  ]);
+  const excludedIds = new Set<string>([userId]);
+
+  for (const friendship of friendships) {
+    excludedIds.add(friendship.userAId === userId ? friendship.userBId : friendship.userAId);
+  }
+
+  for (const request of pendingRequests) {
+    excludedIds.add(request.requesterId === userId ? request.addresseeId : request.requesterId);
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      id: {
+        notIn: [...excludedIds],
+      },
+      deletedAt: null,
+      suspendedAt: null,
+      OR: [
+        {
+          friendCode: upperKeyword,
+        },
+        {
+          nickname: {
+            contains: keyword,
+            mode: "insensitive",
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      nickname: true,
+      friendCode: true,
+      profileImageUrl: true,
+    },
+    orderBy: [{ lastLoginAt: "desc" }, { createdAt: "desc" }],
+    take: 8,
+  });
+
+  return users.map((user) => ({
+    userId: user.id,
+    nickname: user.nickname,
+    friendCode: user.friendCode,
+    profileImageUrl: user.profileImageUrl,
+  }));
+}
+
 export async function createFriendRequest(userId: string, input: CreateFriendRequestInput) {
   const friendCode = input.friendCode.trim().toUpperCase();
   const addressee = await prisma.user.findUnique({

@@ -3,6 +3,7 @@ import { config } from "./config/env.js";
 import { registerDomainEventHandlers } from "./events/register-events.js";
 import { retryFailedModerationMessages } from "./jobs/retry-failed-moderation.job.js";
 import { retryPendingNotifications } from "./jobs/retry-pending-notifications.job.js";
+import { sendArrivalHints } from "./jobs/send-arrival-hints.job.js";
 import { sendPendingMessages } from "./jobs/send-pending-messages.job.js";
 
 registerDomainEventHandlers();
@@ -10,6 +11,7 @@ registerDomainEventHandlers();
 let deliveryRunning = false;
 let moderationRetryRunning = false;
 let notificationRetryRunning = false;
+let arrivalHintRunning = false;
 
 function runDeliveryOnce(source: string) {
   if (deliveryRunning) {
@@ -71,10 +73,32 @@ function runNotificationRetryOnce(source: string) {
     });
 }
 
+function runArrivalHintsOnce(source: string) {
+  if (arrivalHintRunning) {
+    return;
+  }
+
+  arrivalHintRunning = true;
+  void sendArrivalHints()
+    .then((result) => {
+      if (result.processed > 0) {
+        console.log(`sendArrivalHints processed ${result.processed} message(s) from ${source}`);
+      }
+    })
+    .catch((error) => {
+      console.error("sendArrivalHints failed", error);
+    })
+    .finally(() => {
+      arrivalHintRunning = false;
+    });
+}
+
+cron.schedule(config.deliveryCron, () => runArrivalHintsOnce("cron"));
 cron.schedule(config.deliveryCron, () => runDeliveryOnce("cron"));
 cron.schedule(config.moderationRetryCron, () => runModerationRetryOnce("cron"));
 cron.schedule(config.notificationRetryCron, () => runNotificationRetryOnce("cron"));
 
+runArrivalHintsOnce("startup");
 runDeliveryOnce("startup");
 runModerationRetryOnce("startup");
 runNotificationRetryOnce("startup");

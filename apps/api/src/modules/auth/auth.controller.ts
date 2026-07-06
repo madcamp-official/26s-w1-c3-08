@@ -121,10 +121,16 @@ export const updateOnboardingNote = asyncHandler(async (request: Request, respon
       email: true,
       friendCode: true,
       onboardingNote: true,
+      suspendedAt: true,
     },
   });
 
-  response.json({ user });
+  response.json({
+    user: {
+      ...user,
+      isAdmin: config.adminKakaoIds.includes(user.kakaoId),
+    },
+  });
 });
 
 export const logout = asyncHandler(async (_request: Request, response: Response) => {

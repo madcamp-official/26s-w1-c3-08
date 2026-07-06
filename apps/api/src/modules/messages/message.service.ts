@@ -1,9 +1,14 @@
 import {
+  MessageArrivalMode,
   ModerationAttemptStatus,
   MessageStatus,
+  MessageTheme,
   RecipientDeliveryStatus,
   RecipientType,
 } from "@maeari/database";
+import crypto from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
 import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
@@ -19,6 +24,11 @@ import type { CreateMessageInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
+  const messageId = crypto.randomUUID();
+  const schedule = resolveSchedule(input);
+  const receiverInputs = getReceiverInputs(input);
+  const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
+  const attachments = await persistAttachments(messageId, input.attachments ?? []);
   const moderationInput = {
     title: input.title,
     content: input.content,
@@ -37,17 +47,22 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     });
   }
 
-  const receiver = await normalizeReceiver(input, userId);
-
   if (moderation.allowed === "unavailable") {
     const message = await prisma.message.create({
       data: {
+        id: messageId,
         senderId: userId,
         title: input.title,
         content: input.content,
         emotionTag: input.emotionTag,
         customEmotionTag: input.customEmotionTag,
-        scheduledAt: new Date(input.scheduledAt),
+        scheduledAt: schedule.scheduledAt,
+        arrivalMode: schedule.arrivalMode,
+        arrivalWindowStartAt: schedule.arrivalWindowStartAt,
+        arrivalWindowEndAt: schedule.arrivalWindowEndAt,
+        hintAt: input.hintAt ? new Date(input.hintAt) : undefined,
+        theme: input.theme ?? MessageTheme.LAVENDER,
+        isReplyEnabled: input.isReplyEnabled ?? true,
         isSenderHidden: input.isSenderHidden,
         isDateHidden: input.isDateHidden,
         status: MessageStatus.MODERATION_FAILED,
@@ -56,7 +71,10 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
         moderationNextRetryAt: moderation.retryAfter,
         moderationFailureReason: moderation.reason,
         recipients: {
-          create: receiver,
+          create: receivers,
+        },
+        attachments: {
+          create: attachments,
         },
       },
     });
@@ -70,30 +88,40 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     };
   }
 
-  const rawToken = createPublicToken();
+  const rawTokens = receivers.map(() => createPublicToken());
   const message = await prisma.message.create({
     data: {
+      id: messageId,
       senderId: userId,
       title: input.title,
       content: input.content,
       emotionTag: input.emotionTag,
       customEmotionTag: input.customEmotionTag,
-      scheduledAt: new Date(input.scheduledAt),
+      scheduledAt: schedule.scheduledAt,
+      arrivalMode: schedule.arrivalMode,
+      arrivalWindowStartAt: schedule.arrivalWindowStartAt,
+      arrivalWindowEndAt: schedule.arrivalWindowEndAt,
+      hintAt: input.hintAt ? new Date(input.hintAt) : undefined,
+      theme: input.theme ?? MessageTheme.LAVENDER,
+      isReplyEnabled: input.isReplyEnabled ?? true,
       isSenderHidden: input.isSenderHidden,
       isDateHidden: input.isDateHidden,
       status: MessageStatus.PENDING,
       moderationAttemptCount: 1,
       moderationLastCheckedAt: new Date(),
       recipients: {
-        create: {
+        create: receivers.map((receiver, index) => ({
           ...receiver,
           accessTokens: {
             create: {
-              tokenHash: hashPublicToken(rawToken),
-              tokenPreview: createTokenPreview(rawToken),
+              tokenHash: hashPublicToken(rawTokens[index] ?? createPublicToken()),
+              tokenPreview: createTokenPreview(rawTokens[index] ?? ""),
             },
           },
-        },
+        })),
+      },
+      attachments: {
+        create: attachments,
       },
     },
   });
@@ -102,7 +130,11 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
 
   return {
     message,
-    publicUrl: toPublicUrl(rawToken),
+    publicUrl: toPublicUrl(rawTokens[0]),
+    publicUrls: rawTokens.map((token, index) => ({
+      receiverName: receivers[index]?.receiverName ?? null,
+      publicUrl: toPublicUrl(token),
+    })),
   };
 }
 
@@ -180,6 +212,7 @@ export async function listReceivedMessages(userId: string) {
     where: {
       receiverUserId: userId,
       receiverDeletedAt: null,
+      receiverArchivedAt: null,
       message: {
         status: MessageStatus.SENT,
         senderDeletedAt: null,
@@ -212,6 +245,45 @@ export async function listReceivedMessages(userId: string) {
   return recipients.map(mapReceivedItem);
 }
 
+export async function listArchivedMessages(userId: string) {
+  const recipients = await prisma.messageRecipient.findMany({
+    where: {
+      receiverUserId: userId,
+      receiverDeletedAt: null,
+      receiverArchivedAt: {
+        not: null,
+      },
+      message: {
+        status: MessageStatus.SENT,
+      },
+    },
+    include: {
+      accessTokens: {
+        where: {
+          linkedUserId: userId,
+        },
+        select: {
+          linkedAt: true,
+          linkedUserId: true,
+        },
+      },
+      message: {
+        include: {
+          sender: {
+            select: {
+              id: true,
+              nickname: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ receiverArchivedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  return recipients.map(mapReceivedItem);
+}
+
 export async function getMessageDetail(userId: string, messageId: string) {
   const message = await prisma.message.findUnique({
     where: { id: messageId },
@@ -230,6 +302,13 @@ export async function getMessageDetail(userId: string, messageId: string) {
             take: 1,
           },
         },
+      },
+      attachments: {
+        orderBy: { createdAt: "asc" },
+      },
+      replies: {
+        where: { status: "VISIBLE" },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -262,6 +341,13 @@ export async function getMessageDetail(userId: string, messageId: string) {
     content: message.content,
     emotionTag: message.emotionTag,
     customEmotionTag: message.customEmotionTag,
+    theme: message.theme,
+    arrivalMode: message.arrivalMode,
+    arrivalWindowStartAt: message.arrivalWindowStartAt,
+    arrivalWindowEndAt: message.arrivalWindowEndAt,
+    hintAt: message.hintAt,
+    hintSentAt: message.hintSentAt,
+    isReplyEnabled: message.isReplyEnabled,
     scheduledAt: isSender || !message.isDateHidden ? message.scheduledAt : null,
     sentAt: isSender || !message.isDateHidden ? message.sentAt : null,
     status: message.status,
@@ -273,6 +359,22 @@ export async function getMessageDetail(userId: string, messageId: string) {
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     senderName: message.isSenderHidden ? null : message.sender.nickname,
+    attachments: message.attachments.map((attachment) => ({
+      id: attachment.id,
+      publicUrl: attachment.publicUrl,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+    })),
+    replies: (isSender ? message.replies : message.replies.filter((reply) => reply.messageRecipientId === recipient?.id)).map(
+      (reply) => ({
+        id: reply.id,
+        content: reply.content,
+        senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
+        isAnonymous: reply.isAnonymous,
+        createdAt: reply.createdAt,
+      }),
+    ),
     recipients: isSender
       ? message.recipients.map((item) => ({
           id: item.id,
@@ -406,6 +508,128 @@ export async function deleteMessageFromMailbox(userId: string, messageId: string
   return { deleted: true };
 }
 
+export async function bulkDeleteMessagesFromMailbox(userId: string, messageIds: string[]) {
+  const uniqueIds = [...new Set(messageIds)].filter(Boolean).slice(0, 100);
+  const results = [];
+
+  for (const messageId of uniqueIds) {
+    try {
+      await deleteMessageFromMailbox(userId, messageId);
+      results.push({ id: messageId, deleted: true });
+    } catch (error) {
+      results.push({
+        id: messageId,
+        deleted: false,
+        errorCode: error instanceof AppError ? error.code : "DELETE_FAILED",
+        errorMessage: error instanceof Error ? error.message : "삭제하지 못했어요.",
+      });
+    }
+  }
+
+  return {
+    deletedCount: results.filter((result) => result.deleted).length,
+    failedCount: results.filter((result) => !result.deleted).length,
+    results,
+  };
+}
+
+export async function reportMessage(userId: string, messageId: string, input: { reason: string; details?: string | null }) {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: {
+      recipients: {
+        select: {
+          id: true,
+          receiverUserId: true,
+        },
+      },
+    },
+  });
+
+  if (!message) {
+    throw new AppError("MESSAGE_NOT_FOUND", "메시지를 찾을 수 없어요.", 404);
+  }
+
+  const recipient = message.recipients.find((item) => item.receiverUserId === userId);
+  const canReport = message.senderId === userId || Boolean(recipient);
+
+  if (!canReport) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 신고할 권한이 없어요.", 403);
+  }
+
+  const reason = input.reason.trim();
+
+  if (reason.length < 1 || reason.length > 80) {
+    throw new AppError("REPORT_REASON_INVALID", "신고 사유를 선택해 주세요.", 400);
+  }
+
+  const report = await prisma.messageReport.create({
+    data: {
+      messageId: message.id,
+      messageRecipientId: recipient?.id,
+      reporterUserId: userId,
+      reason,
+      details: input.details?.trim() || null,
+    },
+  });
+
+  return {
+    report: {
+      id: report.id,
+      status: report.status,
+    },
+  };
+}
+
+export async function archiveReceivedMessage(userId: string, messageId: string) {
+  const recipient = await findReceiverRecipient(userId, messageId);
+
+  if (!recipient.receiverArchivedAt) {
+    await prisma.messageRecipient.update({
+      where: { id: recipient.id },
+      data: { receiverArchivedAt: new Date() },
+    });
+  }
+
+  return { archived: true };
+}
+
+export async function unarchiveReceivedMessage(userId: string, messageId: string) {
+  const recipient = await findReceiverRecipient(userId, messageId);
+
+  if (recipient.receiverArchivedAt) {
+    await prisma.messageRecipient.update({
+      where: { id: recipient.id },
+      data: { receiverArchivedAt: null },
+    });
+  }
+
+  return { archived: false };
+}
+
+async function findReceiverRecipient(userId: string, messageId: string) {
+  const recipient = await prisma.messageRecipient.findFirst({
+    where: {
+      messageId,
+      receiverUserId: userId,
+      receiverDeletedAt: null,
+      message: {
+        status: MessageStatus.SENT,
+      },
+    },
+    select: {
+      id: true,
+      receiverArchivedAt: true,
+    },
+  });
+
+  if (!recipient) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 마음을 보관함에서 이동할 권한이 없어요.", 403);
+  }
+
+  return recipient;
+}
+
 async function createModerationLog(messageId: string, moderation: ModerationResult, attemptNo: number, inputHash: string) {
   if (moderation.allowed === true) {
     await prisma.moderationLog.create({
@@ -450,9 +674,13 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
   });
 }
 
-async function normalizeReceiver(input: CreateMessageInput, userId: string) {
-  if (input.receiverInfo.type === "FRIEND") {
-    const friendship = await assertActiveFriendship(userId, input.receiverInfo.userId ?? "", input.receiverInfo.friendshipId);
+function getReceiverInputs(input: CreateMessageInput) {
+  return input.recipients?.length ? input.recipients : input.receiverInfo ? [input.receiverInfo] : [];
+}
+
+async function normalizeReceiver(receiverInfo: NonNullable<CreateMessageInput["receiverInfo"]>, userId: string) {
+  if (receiverInfo.type === "FRIEND") {
+    const friendship = await assertActiveFriendship(userId, receiverInfo.userId ?? "", receiverInfo.friendshipId);
 
     return {
       receiverUserId: friendship.friend.id,
@@ -469,21 +697,95 @@ async function normalizeReceiver(input: CreateMessageInput, userId: string) {
     };
   }
 
-  const receiverType = input.receiverInfo.type === "SELF" ? RecipientType.SELF : RecipientType.OTHER;
-  const receiverName = input.receiverInfo.type === "SELF" ? "미래의 나" : input.receiverInfo.name;
+  const receiverType = receiverInfo.type === "SELF" ? RecipientType.SELF : RecipientType.OTHER;
+  const receiverName = receiverInfo.type === "SELF" ? "미래의 나" : receiverInfo.name;
 
   return {
-    receiverUserId: input.receiverInfo.type === "SELF" ? userId : undefined,
+    receiverUserId: receiverInfo.type === "SELF" ? userId : undefined,
     receiverType,
     receiverName,
-    receiverEmail: normalizeOptionalEmailContact(input.receiverInfo.email) ?? undefined,
-    receiverPhone: normalizeOptionalPhoneContact(input.receiverInfo.phone) ?? undefined,
+    receiverEmail: normalizeOptionalEmailContact(receiverInfo.email) ?? undefined,
+    receiverPhone: normalizeOptionalPhoneContact(receiverInfo.phone) ?? undefined,
     receiverInfo: {
-      type: input.receiverInfo.type,
+      type: receiverInfo.type,
       name: receiverName,
-      email: normalizeOptionalEmailContact(input.receiverInfo.email) ?? undefined,
-      phone: normalizeOptionalPhoneContact(input.receiverInfo.phone) ?? undefined,
-      preferredChannel: input.receiverInfo.type === "OTHER" ? input.receiverInfo.preferredChannel ?? "AUTO" : undefined,
+      email: normalizeOptionalEmailContact(receiverInfo.email) ?? undefined,
+      phone: normalizeOptionalPhoneContact(receiverInfo.phone) ?? undefined,
+      preferredChannel: receiverInfo.type === "OTHER" ? receiverInfo.preferredChannel ?? "AUTO" : undefined,
     },
   };
+}
+
+function resolveSchedule(input: CreateMessageInput) {
+  if (input.arrivalMode === "RANDOM_WINDOW") {
+    const start = new Date(input.arrivalWindowStartAt ?? "");
+    const end = new Date(input.arrivalWindowEndAt ?? "");
+    const scheduledAt = new Date(start.getTime() + Math.floor(Math.random() * (end.getTime() - start.getTime())));
+
+    return {
+      scheduledAt,
+      arrivalMode: MessageArrivalMode.RANDOM_WINDOW,
+      arrivalWindowStartAt: start,
+      arrivalWindowEndAt: end,
+    };
+  }
+
+  return {
+    scheduledAt: new Date(input.scheduledAt ?? ""),
+    arrivalMode: MessageArrivalMode.FIXED,
+    arrivalWindowStartAt: undefined,
+    arrivalWindowEndAt: undefined,
+  };
+}
+
+async function persistAttachments(messageId: string, attachments: NonNullable<CreateMessageInput["attachments"]>) {
+  if (attachments.length > config.maxAttachmentCount) {
+    throw new AppError("TOO_MANY_ATTACHMENTS", `이미지는 최대 ${config.maxAttachmentCount}개까지 첨부할 수 있어요.`, 400);
+  }
+
+  const uploadDir = path.join(config.uploadDir, "messages", messageId);
+  await mkdir(uploadDir, { recursive: true });
+
+  return Promise.all(
+    attachments.map(async (attachment, index) => {
+      const buffer = decodeAttachment(attachment.dataBase64);
+
+      if (buffer.byteLength > config.maxAttachmentBytes) {
+        throw new AppError("ATTACHMENT_TOO_LARGE", "첨부 이미지는 허용된 용량보다 작아야 해요.", 400);
+      }
+
+      const extension = extensionForMimeType(attachment.mimeType);
+      const fileName = `${String(index + 1).padStart(2, "0")}-${crypto.randomUUID()}${extension}`;
+      const storageKey = `messages/${messageId}/${fileName}`;
+      await writeFile(path.join(uploadDir, fileName), buffer);
+
+      return {
+        storageKey,
+        publicUrl: `${config.serviceUrl}${config.uploadPublicPath}/${storageKey}`,
+        originalName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: buffer.byteLength,
+      };
+    }),
+  );
+}
+
+function decodeAttachment(dataBase64: string) {
+  const [, base64] = dataBase64.includes(",") ? dataBase64.split(",", 2) : ["", dataBase64];
+  return Buffer.from(base64 ?? "", "base64");
+}
+
+function extensionForMimeType(mimeType: string) {
+  switch (mimeType) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    default:
+      return ".bin";
+  }
 }

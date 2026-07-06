@@ -9,6 +9,7 @@ import {
   listFriendRequests,
   listFriends,
   rejectFriendRequest,
+  searchFriendCandidates,
 } from "./friend.service.js";
 
 export const listFriendsController = asyncHandler(async (request: Request, response: Response) => {
@@ -25,6 +26,16 @@ export const listFriendRequestsController = asyncHandler(async (request: Request
   }
 
   response.json({ requests: await listFriendRequests(request.user.id) });
+});
+
+export const searchFriendCandidatesController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const query = typeof request.query.q === "string" ? request.query.q : "";
+
+  response.json({ candidates: await searchFriendCandidates(request.user.id, query) });
 });
 
 export const createFriendRequestController = asyncHandler(async (request: Request, response: Response) => {

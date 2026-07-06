@@ -28,6 +28,7 @@ type SentMessage = {
     deliveryStatus: string;
     deliveredAt?: string | null;
   } | null;
+  receiverCount?: number;
   hasPublicLink: boolean;
 };
 
@@ -46,6 +47,7 @@ export default function SentPage() {
   const [messages, setMessages] = useState<SentMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<(typeof statusFilters)[number]["value"]>("ALL");
+  const [emotionFilter, setEmotionFilter] = useState("ALL");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -136,12 +138,39 @@ export default function SentPage() {
   }, []);
 
   const filteredMessages = useMemo(() => {
-    if (statusFilter === "ALL") {
-      return messages;
+    let next = messages;
+
+    if (statusFilter !== "ALL") {
+      next = next.filter((message) => message.status === statusFilter);
     }
 
-    return messages.filter((message) => message.status === statusFilter);
-  }, [messages, statusFilter]);
+    if (emotionFilter !== "ALL") {
+      next = next.filter((message) => `${message.emotionTag ?? "NONE"}:${message.customEmotionTag ?? ""}` === emotionFilter);
+    }
+
+    return next;
+  }, [emotionFilter, messages, statusFilter]);
+
+  const emotionFilters = useMemo(() => {
+    const seen = new Set<string>();
+
+    return messages.flatMap((message) => {
+      const value = `${message.emotionTag ?? "NONE"}:${message.customEmotionTag ?? ""}`;
+
+      if (seen.has(value)) {
+        return [];
+      }
+
+      seen.add(value);
+
+      return [
+        {
+          value,
+          label: emotionLabel(message.emotionTag, message.customEmotionTag),
+        },
+      ];
+    });
+  }, [messages]);
 
   return (
     <AppShell>
@@ -175,6 +204,33 @@ export default function SentPage() {
           </button>
         ))}
       </div>
+      {emotionFilters.length > 0 ? (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setEmotionFilter("ALL")}
+            className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${
+              emotionFilter === "ALL" ? "border-ink bg-ink text-white" : "border-slate-300 bg-white text-slate-700"
+            }`}
+          >
+            모든 감정
+          </button>
+          {emotionFilters.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => setEmotionFilter(filter.value)}
+              className={`focus-ring rounded-md border px-3 py-2 text-sm font-semibold ${
+                emotionFilter === filter.value
+                  ? "border-ink bg-ink text-white"
+                  : "border-slate-300 bg-white text-slate-700"
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
       {error ? <Notice title={error} tone="danger" /> : null}
       {loading ? <p className="text-sm text-slate-600">불러오는 중</p> : null}
@@ -211,7 +267,10 @@ export default function SentPage() {
                   {message.title}
                 </Link>
                 <p className="mt-2 text-sm text-slate-600">
-                  {message.receiver?.name ?? "수신자"} · {formatDateTime(message.scheduledAt)}
+                  {message.receiverCount && message.receiverCount > 1
+                    ? `${message.receiverCount}명`
+                    : message.receiver?.name ?? "수신자"}{" "}
+                  · {formatDateTime(message.scheduledAt)}
                 </p>
                 {message.receiver ? (
                   <p className="mt-1 text-xs text-slate-500">

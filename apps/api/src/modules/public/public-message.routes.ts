@@ -1,8 +1,14 @@
 import { Router } from "express";
 import { createNotificationSuppressionController } from "./notification-suppression.controller.js";
-import { getPublicMessageController } from "./public-message.controller.js";
+import {
+  createPublicMessageReplyController,
+  createPublicMessageReportController,
+  getPublicMessageController,
+} from "./public-message.controller.js";
 
 export const publicMessageRoutes = Router();
 
 publicMessageRoutes.get("/public/messages/:token", getPublicMessageController);
+publicMessageRoutes.post("/public/messages/:token/replies", createPublicMessageReplyController);
+publicMessageRoutes.post("/public/messages/:token/reports", createPublicMessageReportController);
 publicMessageRoutes.post("/public/notification-suppressions", createNotificationSuppressionController);

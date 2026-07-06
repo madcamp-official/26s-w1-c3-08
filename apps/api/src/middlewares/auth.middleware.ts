@@ -31,6 +31,7 @@ export async function authMiddleware(request: Request, _response: Response, next
         email: true,
         friendCode: true,
         onboardingNote: true,
+        suspendedAt: true,
       },
     });
 
@@ -38,7 +39,14 @@ export async function authMiddleware(request: Request, _response: Response, next
       throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
     }
 
-    request.user = user;
+    if (user.suspendedAt) {
+      throw new AppError("ACCOUNT_SUSPENDED", "운영 정책에 따라 이용이 제한된 계정입니다.", 403);
+    }
+
+    request.user = {
+      ...user,
+      isAdmin: config.adminKakaoIds.includes(user.kakaoId),
+    };
     next();
   } catch (error) {
     next(error instanceof AppError ? error : new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401));

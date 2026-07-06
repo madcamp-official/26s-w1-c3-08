@@ -29,24 +29,27 @@
 - **핵심 기능:**
   - 메인 대시보드와 서비스 브랜드 이미지
   - 카카오 OAuth 로그인
-  - 친구 코드 기반 친구 추가, 요청 수락/거절, 친구 목록 관리
+  - 친구 코드와 닉네임 기반 친구 찾기, 친구 추가, 요청 수락/거절, 친구 목록 관리
   - 예약 메시지 작성 및 보관
+  - 그룹 수신자, 이미지 첨부, 랜덤 도착, 도착 전 힌트, 메시지 테마
   - 메시지 작성 화면의 KST 기준 현재 시각 확인
   - 빠른 프리셋, 날짜 입력, 1분 단위 시간 입력, 15분 단위 quick minute 선택
   - OpenAI Moderation, 서비스 정책 guardrail prompt, 한국어 욕설/비하 표현 보강 검사
   - 예약 시간 도래 시 메시지 도착 처리
   - 친구/자기 자신 수신자는 서비스 내 수신함 도착 처리
-  - 외부 수신자는 이메일 또는 전화번호 기반 공개 링크 발송 준비
+  - 외부 수신자는 Gmail SMTP 이메일 또는 Solapi 문자로 공개 링크 발송
+  - 이메일/문자 수신거부, NotificationLog 재시도, 관리자 발송 통계
   - 비회원 공개 링크 열람
+  - 공개 링크 익명 답장과 메시지 신고
   - 공개 링크 열람 후 가입 시 수신함 자동 귀속
-  - 발신함, 수신함, 메시지 상세 화면
+  - 발신함, 수신함, 아카이브, 미래의 나, 감정 리포트, 메시지 상세 화면
 - **예상 사용자:**
   - 미래의 나에게 편지를 남기고 싶은 사용자
   - 가족, 연인, 친구에게 특정 날짜에 마음을 전하고 싶은 사용자
   - 이미 친구로 연결된 회원에게 조용히 마음을 예약하고 싶은 사용자
   - 가입 없이 공개 링크로 메시지를 먼저 확인하는 수신자
 
-상세 기획은 `MAEARI_PLAN.md`에 정리되어 있습니다.
+상세 기획은 `MAEARI_PLAN.md`에 정리되어 있습니다. 이 README는 2026-07-06 기준 코드에 반영된 이름 변경, Gmail SMTP, Solapi SMS, 수신거부, 친구 검색, 보관함 삭제, 이미지/그룹/답장/신고/관리자 기능을 함께 반영합니다.
 
 ---
 
@@ -62,6 +65,7 @@
 - [x] 현재 로그인 사용자 조회
 - [x] 가입 사용자별 친구 코드 생성
 - [x] 친구 코드로 친구 요청 생성
+- [x] 닉네임 또는 친구 코드 기반 친구 찾기
 - [x] 친구 요청 수락, 거절, 취소
 - [x] 친구 관계 soft delete
 - [x] 메시지 작성 시 친구 수신자 선택
@@ -96,11 +100,20 @@
 - [ ] 실제 카카오 알림톡 발송
 - [x] Solapi SMS provider credential 연결 및 문자 발송 경로 구현
 - [x] Gmail SMTP provider credential 연결 및 이메일 발송 경로 구현
-- [ ] 이미지 첨부
-- [ ] 그룹 전송
-- [ ] 익명 답장
-- [ ] 감정 리포트
-- [ ] 관리자 검수 화면
+- [x] 이미지 첨부
+- [x] 그룹 전송
+- [x] 익명 답장
+- [x] 감정 리포트
+- [x] 관리자 검수 화면
+- [x] 기간 랜덤 발송
+- [x] 도착 전 힌트 알림
+- [x] 메시지 봉투/테마 선택
+- [x] 받은 마음 아카이브, 복구, 일괄 삭제
+- [x] 미래의 나에게 쓴 편지 모아보기
+- [x] 보낸 마음, 받은 마음, 아카이브, 미래의 나 감정 태그 필터
+- [x] 신고 기능
+- [x] 계정 정지 정책
+- [x] NotificationLog 재시도 및 발송 통계 대시보드
 
 ---
 
@@ -119,6 +132,10 @@
 - `/write`: 예약 메시지 작성, 수신자 선택, KST 현재 시각 확인, 1분 단위 시간 설정
 - `/sent`: 보낸 마음 목록
 - `/inbox`: 받은 마음 목록
+- `/archive`: 받은 마음 아카이브
+- `/future`: 미래의 나에게 쓴 편지 모음
+- `/reports`: 감정 리포트
+- `/admin`: 관리자 검수 및 운영 로그
 - `/friends`: 친구 코드, 친구 요청, 친구 목록 관리
 - `/messages/[id]`: 메시지 상세
 - `/arrival/[token]`: 비회원 공개 링크 열람
@@ -191,20 +208,37 @@
 | POST | `/api/auth/logout` | 로그아웃 | 세션 쿠키 | `204 No Content` |
 | POST | `/api/auth/link-message` | 공개 링크 메시지를 로그인 사용자 수신함에 귀속 | `{ token }` | `{ linked, messageId, redirectTo }` |
 | GET | `/api/friends` | 친구 목록 조회 | 세션 쿠키 | `{ friends }` |
-| GET | `/api/friends/requests` | 받은/보낸 친구 요청 조회 | 세션 쿠키 | `{ incoming, outgoing }` |
+| GET | `/api/friends/requests` | 받은/보낸 친구 요청 조회 | 세션 쿠키 | `{ requests: { received, sent } }` |
+| GET | `/api/friends/search` | 닉네임 또는 친구 코드 기반 친구 찾기 | 세션 쿠키, `q` query | `{ candidates }` |
 | POST | `/api/friends/requests` | 친구 코드로 요청 생성 | `{ friendCode, message? }` | `{ request }` |
 | PATCH | `/api/friends/requests/:id/accept` | 친구 요청 수락 | 세션 쿠키, request id | `{ friendship }` |
 | PATCH | `/api/friends/requests/:id/reject` | 친구 요청 거절 | 세션 쿠키, request id | `{ request }` |
 | PATCH | `/api/friends/requests/:id/cancel` | 보낸 친구 요청 취소 | 세션 쿠키, request id | `{ request }` |
 | DELETE | `/api/friends/:friendshipId` | 친구 관계 삭제 | 세션 쿠키, friendship id | `{ deleted: true }` |
-| POST | `/api/messages` | 메시지 작성 및 예약 | 제목, 본문, 수신자, 예약일, 감성 옵션 | `{ message, publicUrl, notice? }` |
+| POST | `/api/messages` | 메시지 작성 및 예약 | 제목, 본문, 수신자/수신자 배열, 예약일/랜덤 구간, 감성 옵션, 첨부 | `{ message, publicUrl, publicUrls?, notice? }` |
 | GET | `/api/messages/sent` | 보낸 마음 목록 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/received` | 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
+| GET | `/api/messages/archived` | 아카이브한 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
+| POST | `/api/messages/bulk-delete` | 여러 보낸/받은 마음을 내 보관함에서 제거 | `{ messageIds }` | `{ deletedCount, failedCount, results }` |
 | GET | `/api/messages/:id` | 메시지 상세 조회 | 세션 쿠키, message id | `{ message }` |
 | POST | `/api/messages/:id/public-link` | 공개 링크 새로 생성 | 세션 쿠키, message id | `{ publicUrl }` |
 | PATCH | `/api/messages/:id/cancel` | 예약 메시지 취소 | 세션 쿠키, message id | `{ canceled: true }` |
+| PATCH | `/api/messages/:id/archive` | 받은 마음 아카이브 | 세션 쿠키, message id | `{ archived: true }` |
+| PATCH | `/api/messages/:id/unarchive` | 받은 마음 아카이브 복구 | 세션 쿠키, message id | `{ archived: false }` |
 | DELETE | `/api/messages/:id` | 보낸/받은 마음을 내 보관함에서 제거 | 세션 쿠키, message id | `{ deleted: true }` |
+| GET | `/api/reports/emotions` | 월별 감정 리포트 | 세션 쿠키, `month=YYYY-MM` | `{ report }` |
+| GET | `/api/admin/overview` | 관리자 운영 요약 | 관리자 세션 | `{ overview }` |
+| GET | `/api/admin/moderation-logs` | 관리자 moderation 로그 | 관리자 세션 | `{ logs }` |
+| GET | `/api/admin/notification-logs` | 관리자 notification 로그 | 관리자 세션 | `{ logs }` |
+| GET | `/api/admin/replies` | 관리자 익명 답장 검수 목록 | 관리자 세션 | `{ replies }` |
+| GET | `/api/admin/reports` | 관리자 신고 검수 목록 | 관리자 세션 | `{ reports }` |
+| PATCH | `/api/admin/replies/:id/hide` | 익명 답장 숨김 처리 | 관리자 세션 | `{ hidden: true }` |
+| PATCH | `/api/admin/reports/:id/review` | 신고 검토 완료/기각 | 관리자 세션 | `{ reviewed: true }` |
+| PATCH | `/api/admin/users/:id/suspend` | 사용자 계정 정지 | 관리자 세션 | `{ suspended: true }` |
+| PATCH | `/api/admin/users/:id/unsuspend` | 사용자 계정 정지 해제 | 관리자 세션 | `{ suspended: false }` |
 | GET | `/api/public/messages/:token` | 비회원 공개 링크 메시지 조회 | 공개 token | `{ message }` |
+| POST | `/api/public/messages/:token/replies` | 공개 링크 익명 답장 작성 | 공개 token, `{ content }` | `{ reply }` |
+| POST | `/api/public/messages/:token/reports` | 공개 링크 메시지 신고 | 공개 token, `{ reason, details? }` | `{ report }` |
 | POST | `/api/public/notification-suppressions` | 공개 링크 기반 이메일/문자 알림 수신거부 | `{ token, channel }` | `{ suppressed: true }` |
 
 ---
@@ -251,6 +285,11 @@ OPENAI_MODERATION_MODEL=omni-moderation-latest
 OPENAI_GUARDRAIL_MODEL=gpt-5.4-mini
 
 PUBLIC_TOKEN_PEPPER=
+UPLOAD_DIR=uploads
+UPLOAD_PUBLIC_PATH=/api/uploads
+MAX_ATTACHMENT_COUNT=3
+MAX_ATTACHMENT_BYTES=2097152
+ADMIN_KAKAO_IDS=
 
 GMAIL_SMTP_ENABLED=true
 GMAIL_SMTP_USER=
@@ -341,6 +380,7 @@ guardrail 응답은 `allowed`, `categories`, `severity`, `feedback`, `rationale`
 현재 저장소에는 외부 발송 provider가 실제 연동되어 있습니다.
 
 - `Message.status = SENT` 처리 직후 `message.sent` 이벤트 발행
+- `hintAt`이 지난 예약 메시지는 scheduler가 `ARRIVAL_HINT` 알림을 한 번 발송
 - `NotificationProcessor`가 가입 수신자는 `IN_APP`, 외부 수신자는 `SMS` 또는 `EMAIL`로 분기
 - `NotificationLog.idempotencyKey` 기반 중복 발송 방지
 - retryable 실패 시 `NotificationLog.PENDING` + `nextRetryAt`로 재시도 예약
@@ -395,6 +435,23 @@ MCP_SMS_TOOL=
 - 받은 마음은 같은 `DELETE /api/messages/:id`로 현재 사용자의 `MessageRecipient.receiverDeletedAt`을 기록해 수신함에서 제외합니다.
 - 실제 `Message`와 `MessageRecipient` row는 hard delete하지 않습니다. 발송 이력, 공개 token, notification log, 감사 추적을 보존하기 위한 사용자별 soft delete입니다.
 - `/sent`, `/inbox`, 메시지 상세 화면은 삭제 가능 상태일 때 `삭제` 버튼을 보여주고, 삭제된 항목은 목록에서 다시 노출하지 않습니다.
+- 받은 마음은 `PATCH /api/messages/:id/archive`로 아카이브할 수 있고 `/archive`에서 복구 또는 삭제할 수 있습니다.
+- `/messages/bulk-delete`와 받은 마음/아카이브 화면의 `일괄 삭제` 버튼으로 현재 보이는 여러 항목을 한 번에 보관함에서 제거할 수 있습니다.
+- v1 오래된 메시지 정리 정책은 자동 hard delete가 아니라 사용자 직접 아카이브/삭제와 soft delete입니다. 발송 이력, 공개 token, moderation/notification log는 감사 추적을 위해 보존합니다.
+
+### 2026-07-05 확장 기능 반영 요약
+
+카카오 알림톡을 제외한 후순위 기능을 실제 코드에 반영했습니다.
+
+- 그룹 전송: `POST /api/messages`가 `recipients` 배열을 받아 하나의 `Message`에 여러 `MessageRecipient`와 공개 token을 생성합니다.
+- 이미지 첨부: `/write`에서 최대 3개의 이미지를 data URL로 첨부하고, API가 `UPLOAD_DIR`에 저장한 뒤 `/api/uploads/*`로 제공합니다.
+- 랜덤 도착/힌트/테마: `arrivalMode=RANDOM_WINDOW`, 도착 구간, `hintAt`, `theme`, `isReplyEnabled`를 메시지에 저장합니다.
+- 도착 전 힌트: scheduler의 `sendArrivalHints` job이 `ARRIVAL_HINT` notification log를 생성하고 이메일/SMS/인앱 힌트를 보냅니다.
+- 익명 답장: `/arrival/[token]`에서 수신자가 답장을 남기면 moderation 후 `MessageReply`에 저장되고, 발신자는 메시지 상세에서 확인합니다.
+- 감정 리포트: `/reports`와 `GET /api/reports/emotions`에서 월별 보낸/받은 마음, 감정 분포, 상태 분포를 확인합니다.
+- 관리자 검수/통계: `ADMIN_KAKAO_IDS` 기반 `/admin` 화면과 `/api/admin/*` API로 moderation log, notification log, 재시도 대상, 채널/provider별 발송 통계, 익명 답장 검수를 제공합니다.
+- 신고/정지: 공개 링크와 로그인 상세 화면에서 메시지를 신고할 수 있고, 관리자는 신고를 검토하거나 발신자 계정을 정지/해제할 수 있습니다.
+- 보관함 고도화: `/sent`, `/inbox`, `/archive`, `/future`에 감정 태그 필터를 적용했고, 아카이브 복구, 일괄 삭제, 미래의 나에게 쓴 편지 모음을 추가했습니다.
 
 MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
 
@@ -418,9 +475,11 @@ MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
 - 메인/브랜드 UI: `apps/web/app/page.tsx`, `apps/web/components/AppShell.tsx`, `apps/web/app/icon.png`, `apps/web/app/apple-icon.png`, `apps/web/public/images/*`
 - 메시지 작성 UX: `apps/web/app/write/page.tsx`에서 KST 현재 시각, 날짜/시간 분리 입력, 15분 quick minute, 예약 완료 패널, 공개 링크 설명을 처리합니다.
 - 친구 기능: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/friends/*`, `apps/web/app/friends/page.tsx`에 친구 코드, 요청, 수락/거절/취소, 친구 삭제, 친구 수신자 선택 흐름을 추가했습니다.
+- 친구 찾기: `GET /api/friends/search`와 `/friends` 검색 UI에서 닉네임 또는 친구 코드로 아직 친구가 아니고 요청 중도 아닌 사용자를 찾을 수 있습니다.
 - 외부 수신/발송: `apps/api/src/processors/notification-provider.ts`, `apps/api/src/processors/notification.processor.ts`, `apps/api/src/jobs/retry-pending-notifications.job.ts`에서 Gmail SMTP, Solapi SMS, MCP fallback, idempotency, retry, provider 미설정 실패 처리를 담당합니다.
 - AI 유해성 필터링: `apps/api/src/modules/moderation/moderation.service.ts`, `apps/api/src/modules/moderation/moderation-policy.ts`에서 로컬 한국어 보강 규칙, OpenAI Moderation, 서비스 정책 guardrail prompt를 순차 적용합니다. guardrail prompt와 parser schema를 맞추고 legacy `is_harmful` 응답도 normalize하도록 안정화했습니다.
 - 보관함 삭제: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/messages/*`, `apps/web/app/sent/page.tsx`, `apps/web/app/inbox/page.tsx`, `apps/web/app/messages/[id]/page.tsx`에서 `senderDeletedAt`, `receiverDeletedAt`, `DELETE /api/messages/:id`, 취소 메시지 삭제 버튼, 받은 마음 삭제 버튼을 처리합니다.
+- 감정 필터/운영 통계: `/sent`, `/inbox`, `/archive`, `/future`는 감정 태그 필터를 제공하고, `/admin`은 `NotificationLog` 상태/채널/provider/실패 코드/재시도 예정 통계를 보여줍니다.
 - 운영 안정화: `apps/web/package.json` build script와 PM2 실행 방식을 Next.js standalone 기준으로 맞췄고, Nginx/Certbot 운영 도메인 기준 확인 절차를 문서화했습니다.
 
 ---
@@ -457,6 +516,7 @@ MCP tool은 최소한 다음 arguments를 받을 수 있어야 합니다.
 - 유해성 필터링은 Moderations API 단독이 아니라 서비스 정책 prompt와 로컬 한국어 보강 규칙을 함께 테스트한다.
 - guardrail prompt schema와 parser schema를 함께 관리하고, legacy 응답 normalize test와 실제 OpenAI smoke test를 배포 전 확인한다.
 - 보관함 삭제는 hard delete가 아니라 `senderDeletedAt`, `receiverDeletedAt` 기반 사용자별 숨김으로 유지한다.
+- 오래된 메시지 정리는 자동 삭제보다 사용자 직접 아카이브/삭제와 감사 로그 보존을 우선한다.
 - 알림톡을 붙일 때도 현재 `NotificationLog`의 provider 응답 기반 `SENT`/`FAILED`/`SKIPPED` 정책과 중복 방지 구조를 그대로 확장한다.
 
 ---

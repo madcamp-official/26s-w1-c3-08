@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Copy, Trash2, XCircle } from "lucide-react";
+import { Copy, ShieldAlert, Trash2, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -15,6 +15,13 @@ type MessageDetail = {
   content: string;
   emotionTag?: string | null;
   customEmotionTag?: string | null;
+  theme?: string | null;
+  arrivalMode?: string | null;
+  arrivalWindowStartAt?: string | null;
+  arrivalWindowEndAt?: string | null;
+  hintAt?: string | null;
+  hintSentAt?: string | null;
+  isReplyEnabled?: boolean;
   scheduledAt?: string | null;
   sentAt?: string | null;
   status: string;
@@ -24,6 +31,20 @@ type MessageDetail = {
   senderName?: string | null;
   isSenderHidden: boolean;
   isDateHidden: boolean;
+  attachments?: Array<{
+    id: string;
+    publicUrl: string;
+    originalName?: string | null;
+    mimeType: string;
+    sizeBytes: number;
+  }>;
+  replies?: Array<{
+    id: string;
+    content: string;
+    senderDisplayName?: string | null;
+    isAnonymous: boolean;
+    createdAt: string;
+  }>;
   moderationNextRetryAt?: string | null;
   recipients?: Array<{
     id: string;
@@ -124,6 +145,32 @@ export default function MessageDetailPage() {
     }
   }
 
+  async function reportMessage() {
+    const reason = window.prompt("신고 사유를 입력해 주세요. 예: 욕설, 괴롭힘, 스팸");
+
+    if (!reason) {
+      return;
+    }
+
+    setBusy(true);
+    setNotice(null);
+
+    try {
+      await apiFetch(`/messages/${params.id}/reports`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      setNotice({ title: "신고를 접수했어요.", tone: "success" });
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof ApiError ? caught.message : "신고를 접수하지 못했어요.",
+        tone: "danger",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     void load();
   }, [params.id, router]);
@@ -169,6 +216,17 @@ export default function MessageDetailPage() {
             {message.status === "MODERATION_FAILED" ? (
               <p className="text-petal">다음 검사: {formatDateTime(message.moderationNextRetryAt)}</p>
             ) : null}
+            {message.arrivalMode === "RANDOM_WINDOW" ? (
+              <p>
+                랜덤 구간: {formatDateTime(message.arrivalWindowStartAt)} ~ {formatDateTime(message.arrivalWindowEndAt)}
+              </p>
+            ) : null}
+            {message.hintAt ? (
+              <p>
+                힌트 알림: {formatDateTime(message.hintAt)}
+                {message.hintSentAt ? ` 발송 완료 ${formatDateTime(message.hintSentAt)}` : ""}
+              </p>
+            ) : null}
           </div>
           {message.recipients && message.recipients.length > 0 ? (
             <div className="mt-5 rounded-md border border-slate-200 bg-white p-4">
@@ -205,6 +263,37 @@ export default function MessageDetailPage() {
           <div className="mt-8 whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-4 leading-7 text-slate-800">
             {message.content}
           </div>
+          {message.attachments && message.attachments.length > 0 ? (
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {message.attachments.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={attachment.publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="focus-ring block overflow-hidden rounded-md border border-slate-200 bg-white"
+                >
+                  <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} className="w-full object-cover" />
+                </a>
+              ))}
+            </div>
+          ) : null}
+          {message.replies && message.replies.length > 0 ? (
+            <div className="mt-6 rounded-md border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-ink">답장</p>
+              <div className="mt-3 grid gap-2">
+                {message.replies.map((reply) => (
+                  <div key={reply.id} className="rounded-md bg-slate-50 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span>{reply.senderDisplayName ?? "익명 수신자"}</span>
+                      <span>{formatDateTime(reply.createdAt)}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{reply.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {["PENDING", "SENT"].includes(message.status) || message.canDeleteFromMailbox ? (
             <div className="mt-6 flex flex-wrap gap-2">
               {["PENDING", "SENT"].includes(message.status) && message.viewerRole === "SENDER" ? (
@@ -240,6 +329,15 @@ export default function MessageDetailPage() {
                   삭제
                 </button>
               ) : null}
+              <button
+                type="button"
+                onClick={() => void reportMessage()}
+                disabled={busy}
+                className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                <ShieldAlert size={16} />
+                신고
+              </button>
             </div>
           ) : null}
         </article>

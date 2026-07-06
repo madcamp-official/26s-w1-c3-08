@@ -24,10 +24,14 @@
 │   ├── 미래의 나에게 메시지를 보내는 사용자
 │   ├── 타인에게 메시지를 보내는 사용자
 │   ├── 받은 메시지를 보관하는 수신자
-│   └── 예약 메시지를 관리하는 사용자
+│   ├── 예약 메시지를 관리하는 사용자
+│   └── 관리자 권한이 있는 운영 사용자
 │
 └── 시스템 사용자
     ├── node-cron scheduler
+    ├── ModerationRetryScheduler
+    ├── NotificationRetryScheduler
+    ├── ArrivalHintScheduler
     ├── NotificationProcessor
     ├── Gmail SMTP provider
     ├── Solapi SMS provider
@@ -53,8 +57,11 @@
 ├── 12. 친구/자기 자신 수신자는 수신함에서 확인
 ├── 13. 외부 수신자는 Gmail SMTP 또는 Solapi SMS로 공개 링크 수신
 ├── 14. 수신자가 공개 링크로 열람
-├── 15. 필요 시 이메일/문자 알림 수신거부
-└── 16. 비회원 수신자가 가입하면 메시지 자동 보관
+├── 15. 필요 시 익명 답장 또는 신고 작성
+├── 16. 필요 시 이메일/문자 알림 수신거부
+├── 17. 비회원 수신자가 가입하면 메시지 자동 보관
+├── 18. 발신자/수신자가 보관함에서 감정 태그 필터, 아카이브, 삭제 수행
+└── 19. 관리자가 moderation/notification/reply/report 상태 점검
 ```
 
 ---
@@ -74,9 +81,13 @@
 │   │   ├── 공개 메시지 열람
 │   │   ├── token sessionStorage 저장
 │   │   ├── 메시지 도착 gate
+│   │   ├── 테마와 첨부 이미지 표시
 │   │   ├── 메시지 본문 열람
 │   │   ├── 발신인 숨김 처리
 │   │   ├── 도착일 숨김 처리
+│   │   ├── 익명 답장 작성
+│   │   ├── 메시지 신고
+│   │   ├── 이메일/문자 알림 수신거부
 │   │   ├── 회원가입 유도 CTA
 │   │   └── 오류 상태
 │   │       ├── token 없음
@@ -105,7 +116,9 @@
 │   │   ├── 마음 쓰기 진입
 │   │   ├── 보낸 마음 진입
 │   │   ├── 받은 마음 진입
-│   │   └── 친구 관리 진입
+│   │   ├── 친구 관리 진입
+│   │   ├── 감정 리포트 진입
+│   │   └── 미래의 나 진입
 │   │
 │   ├── /onboarding
 │   │   ├── 감성 질문
@@ -120,12 +133,18 @@
 │   │   │   │   ├── 친구
 │   │   │   │   └── 연락처
 │   │   │   ├── 친구 선택 또는 외부 수신자 정보 입력
+│   │   │   ├── 그룹 수신자 목록 추가/삭제
 │   │   │   ├── 이메일/전화번호 중 하나 이상 입력
 │   │   │   ├── 선호 채널: 자동 선택 / 이메일 / 문자
 │   │   │   ├── 제목 입력
 │   │   │   ├── 본문 입력
 │   │   │   ├── 감정 태그 선택
+│   │   │   ├── 이미지 첨부
 │   │   │   ├── KST 현재 시각 표시
+│   │   │   ├── 고정 도착 또는 기간 랜덤 도착 선택
+│   │   │   ├── 도착 전 힌트 선택
+│   │   │   ├── 메시지 테마 선택
+│   │   │   ├── 익명 답장 허용 여부
 │   │   │   └── 예약 날짜/시간 선택
 │   │   │
 │   │   ├── 감성 옵션
@@ -147,6 +166,7 @@
 │   │
 │   ├── /friends
 │   │   ├── 내 친구 코드
+│   │   ├── 닉네임 또는 친구 코드로 친구 찾기
 │   │   ├── 친구 코드로 요청 보내기
 │   │   ├── 받은 요청 수락/거절
 │   │   ├── 보낸 요청 취소
@@ -156,6 +176,7 @@
 │   ├── /sent
 │   │   ├── 내가 보낸 메시지 목록
 │   │   ├── 상태별 필터
+│   │   ├── 감정 태그 필터
 │   │   │   ├── 예약 대기
 │   │   │   ├── 발송 완료
 │   │   │   ├── 실패
@@ -167,11 +188,18 @@
 │   │   │   ├── 예약일
 │   │   │   └── 상태 badge
 │   │   ├── 예약 취소
+│   │   ├── 공개 링크 복사
+│   │   ├── 취소된 메시지 삭제
 │   │   └── 상세 보기
 │   │
 │   ├── /inbox
 │   │   ├── 내가 받은 메시지 목록
 │   │   ├── 자동 귀속된 공개 링크 메시지
+│   │   ├── 읽음/미열람 필터
+│   │   ├── 감정 태그 필터
+│   │   ├── 받은 마음 아카이브
+│   │   ├── 받은 마음 삭제
+│   │   ├── 현재 보이는 항목 일괄 삭제
 │   │   ├── 메시지 카드
 │   │   │   ├── 제목
 │   │   │   ├── 발신자 표시 또는 숨김
@@ -181,17 +209,52 @@
 │   │   ├── 빈 상태
 │   │   └── 상세 보기
 │   │
+│   ├── /archive
+│   │   ├── 아카이브한 받은 마음 목록
+│   │   ├── 감정 태그 필터
+│   │   ├── 받은 마음으로 복구
+│   │   ├── 아카이브에서 삭제
+│   │   └── 현재 보이는 항목 일괄 삭제
+│   │
+│   ├── /future
+│   │   ├── 미래의 나에게 쓴 마음 모음
+│   │   ├── 감정 태그 필터
+│   │   ├── 상태 badge
+│   │   └── 상세 보기
+│   │
+│   ├── /reports
+│   │   ├── 월별 감정 리포트
+│   │   ├── 보낸 마음/도착 완료/받은 마음/읽은 마음 지표
+│   │   ├── 보낸 마음 감정 분포
+│   │   ├── 받은 마음 감정 분포
+│   │   └── 보낸 마음 상태 분포
+│   │
+│   ├── /admin
+│   │   ├── ADMIN_KAKAO_IDS 기반 접근
+│   │   ├── 운영 요약 KPI
+│   │   ├── NotificationLog 재시도/채널/provider/실패 코드 통계
+│   │   ├── moderation log 목록
+│   │   ├── notification log 목록
+│   │   ├── 익명 답장 검수/숨김
+│   │   ├── 신고 검토/기각
+│   │   └── 신고 발신자 계정 정지/해제
+│   │
 │   ├── /messages/[id]
 │   │   ├── 메시지 상세
 │   │   ├── 제목
 │   │   ├── 본문
 │   │   ├── 감정 태그
+│   │   ├── 첨부 이미지
+│   │   ├── 테마/랜덤 도착/힌트 정보
 │   │   ├── 발신자 정보
 │   │   ├── 수신자 정보
 │   │   ├── 예약일/도착일
 │   │   ├── 상태
+│   │   ├── 익명 답장 목록
 │   │   ├── 공개 링크
 │   │   ├── 예약 취소
+│   │   ├── 보관함에서 삭제
+│   │   ├── 메시지 신고
 │   │   └── 목록으로 돌아가기
 │   │
 │   └── /my
@@ -199,6 +262,7 @@
 │       ├── 카카오 계정 정보
 │       ├── 닉네임
 │       ├── 이메일
+│       ├── 관리자 화면 진입
 │       ├── 로그아웃
 │       └── 탈퇴는 MVP 이후
 │
@@ -210,6 +274,13 @@
     │   ├── SENT 상태 변경
     │   └── message.sent event 발행
     │
+    ├── ArrivalHintScheduler
+    │   ├── delivery cron과 같은 주기로 실행
+    │   ├── PENDING 메시지 조회
+    │   ├── hintAt <= now AND hintSentAt IS NULL 필터
+    │   ├── ARRIVAL_HINT notification 생성
+    │   └── hintSentAt 기록
+    │
     ├── NotificationProcessor
     │   ├── message.sent event 수신
     │   ├── 가입 수신자 알림 생성
@@ -219,7 +290,14 @@
     │   ├── Solapi SMS 발송
     │   ├── MCP fallback 발송
     │   ├── NotificationLog 저장
+    │   ├── retryable 실패 시 nextRetryAt 기록
     │   └── 알림 실패 로그 기록
+    │
+    ├── NotificationRetryScheduler
+    │   ├── NotificationLog.status = PENDING 조회
+    │   ├── nextRetryAt <= now 필터
+    │   ├── EMAIL/SMS provider 재호출
+    │   └── 최대 시도 초과 시 FAILED 처리
     │
     ├── ModerationRetryScheduler
     │   ├── 하루 한 번 실행
@@ -231,7 +309,9 @@
     │
     └── Moderation
         ├── 메시지 저장 전 검사
+        ├── 로컬 한국어 욕설/비하 보강 검사
         ├── OpenAI Moderation API 호출
+        ├── 매아리 guardrail prompt 2차 판정
         ├── API 실패 시 즉시 1회 재시도
         ├── 2회 실패 시 MODERATION_FAILED 상태 저장
         ├── 하루 1회 자동 재검사
@@ -280,6 +360,9 @@
 ├── 친구
 │   └── /friends
 │
+├── 리포트
+│   └── /reports
+│
 └── 내 정보
     └── /my
 ```
@@ -303,6 +386,10 @@ Mobile Bottom Navigation
 ├── 친구
 │   ├── icon: users
 │   └── route: /friends
+│
+├── 리포트
+│   ├── icon: bar-chart
+│   └── route: /reports
 │
 └── 내 정보
     ├── icon: user
@@ -417,32 +504,61 @@ Mobile Bottom Navigation
 │       ├── submit payload는 숫자만 전송
 │       └── 선호 채널: AUTO / EMAIL / SMS
 │
+├── Section 1-1. 그룹 수신자
+│   ├── 현재 입력한 수신자 추가
+│   ├── 추가된 수신자 label 표시
+│   ├── 수신자별 payload 보존
+│   └── 추가된 수신자 삭제
+│
 ├── Section 2. 메시지 내용
 │   ├── 제목
 │   ├── 본문
-│   └── 감정 태그
+│   ├── 감정 태그
 │       ├── 고마움
 │       ├── 응원
 │       ├── 축하
 │       ├── 위로
 │       ├── 그리움
-│       └── 사랑
+│       ├── 사랑
+│       └── 직접 입력
+│   └── 이미지 첨부
+│       ├── JPEG/PNG/WebP/GIF
+│       ├── 최대 3개
+│       ├── 파일당 MAX_ATTACHMENT_BYTES 이하
+│       └── 미리보기와 삭제
 │
 ├── Section 3. 도착 설정
 │   ├── KST 현재 시각 초 단위 표시
+│   ├── 고정 도착
+│   ├── 기간 랜덤 도착
+│   │   ├── 시작 날짜/시간
+│   │   ├── 종료 날짜/시간
+│   │   └── 서버가 구간 안에서 scheduledAt 선택
 │   ├── 빠른 프리셋
 │   ├── 날짜 선택
 │   ├── 시/분 1분 단위 직접 입력
 │   ├── 15분 단위 quick minute 버튼
 │   ├── KST 도착 미리보기
 │   ├── 과거 시간 선택 방지
-│   └── timezone 안내
+│   ├── timezone 안내
+│   └── 도착 전 힌트
+│       ├── 없음
+│       ├── 1시간 전
+│       └── 하루 전
 │
 ├── Section 4. 감성 옵션
 │   ├── 발신인 숨기기
 │   │   └── isSenderHidden
-│   └── 도착일 숨기기
-│       └── isDateHidden
+│   ├── 도착일 숨기기
+│   │   └── isDateHidden
+│   ├── 익명 답장 허용
+│   │   └── isReplyEnabled
+│   └── 메시지 테마
+│       ├── LAVENDER
+│       ├── MOSS
+│       ├── SUNSET
+│       ├── MIDNIGHT
+│       └── PAPER
 │
 ├── 제출 전 검증
 │   ├── 필수값 확인
@@ -450,6 +566,10 @@ Mobile Bottom Navigation
 │   ├── 본문 길이
 │   ├── scheduledAt 미래 여부
 │   ├── receiverInfo 형식
+│   ├── recipients 배열 형식
+│   ├── 첨부 이미지 개수/크기/MIME type
+│   ├── RANDOM_WINDOW 종료 시간이 시작 시간보다 뒤인지 확인
+│   ├── hintAt이 현재보다 뒤이고 scheduledAt보다 앞인지 확인
 │   ├── FRIEND는 활성 친구 관계 필요
 │   ├── OTHER + AUTO는 이메일 또는 전화번호 중 하나 필요
 │   ├── OTHER + EMAIL은 이메일 필요
@@ -462,13 +582,14 @@ Mobile Bottom Navigation
 │       ├── OpenAI moderation
 │       ├── API 실패 시 즉시 1회 재시도
 │       ├── 통과 시 PENDING 저장
-│       ├── 통과 시 publicUrl 반환
+│       ├── 통과 시 수신자별 publicUrl 반환
 │       └── 2회 검사 실패 시 MODERATION_FAILED 저장
 │
 ├── 성공 상태
 │   ├── 예약 완료 메시지
 │   ├── publicUrl 용도 안내
-│   ├── publicUrl 복사
+│   ├── 첫 번째 publicUrl 복사
+│   ├── 수신자별 publicUrls 확인
 │   ├── 메인으로 이동
 │   ├── 발신함으로 이동
 │   └── 새 마음 쓰기
@@ -519,12 +640,17 @@ Mobile Bottom Navigation
 │   ├── 실패
 │   └── 취소
 │
+├── 감정 필터
+│   ├── 모든 감정
+│   └── 현재 목록에 있는 감정 태그
+│
 ├── 메시지 카드
 │   ├── 제목
 │   ├── 수신자명
 │   ├── 감정 태그
 │   ├── 예약일
 │   ├── 재검사 예정일
+│   ├── 수신자 수
 │   ├── 발송 상태
 │   └── 숨김 옵션 badge
 │
@@ -532,8 +658,10 @@ Mobile Bottom Navigation
 │   ├── 상세 보기
 │   ├── 공개 링크 복사
 │   │   └── MODERATION_FAILED 상태에서는 비활성
-│   └── 예약 취소
-│       └── PATCH /api/messages/:id/cancel
+│   ├── 예약 취소
+│   │   └── PATCH /api/messages/:id/cancel
+│   └── 취소된 메시지 삭제
+│       └── DELETE /api/messages/:id
 │
 └── 빈 상태
     ├── 아직 보낸 마음이 없어요
@@ -558,6 +686,7 @@ Mobile Bottom Navigation
 │
 ├── 목록 구성
 │   ├── 최신 도착순
+│   ├── 전체/미열람/읽음 필터
 │   ├── 감정 태그 필터
 │   ├── 읽음/미열람 상태
 │   └── 자동 보관 badge
@@ -572,6 +701,12 @@ Mobile Bottom Navigation
 │   │   ├── 표시
 │   │   └── 숨김: 어느 날 도착한 마음
 │   ├── 감정 태그
+│   ├── 보관
+│   │   └── PATCH /api/messages/:id/archive
+│   ├── 삭제
+│   │   └── DELETE /api/messages/:id
+│   ├── 일괄 삭제
+│   │   └── POST /api/messages/bulk-delete
 │   └── 상세 보기
 │
 └── 빈 상태
@@ -579,7 +714,130 @@ Mobile Bottom Navigation
     └── CTA: 미래의 나에게 마음 쓰기
 ```
 
-## 4.7 `/messages/[id]`
+## 4.7 `/archive`
+
+```txt
+/archive
+├── 목적
+│   └── 아카이브한 받은 마음을 따로 관리
+│
+├── 데이터 요청
+│   └── GET /api/messages/archived
+│
+├── 목록 구성
+│   ├── 최신 아카이브순
+│   ├── 감정 태그 필터
+│   └── 현재 보이는 항목 일괄 삭제
+│
+├── 카드 액션
+│   ├── 상세 보기
+│   ├── 받은 마음으로 복구
+│   │   └── PATCH /api/messages/:id/unarchive
+│   └── 삭제
+│       └── DELETE /api/messages/:id
+│
+└── 빈 상태
+    └── 아카이브한 마음이 없어요
+```
+
+## 4.8 `/future`
+
+```txt
+/future
+├── 목적
+│   └── 미래의 나에게 쓴 메시지만 모아보기
+│
+├── 데이터 요청
+│   └── GET /api/messages/sent
+│
+├── 클라이언트 필터
+│   ├── receiver.type = SELF
+│   └── 감정 태그 필터
+│
+├── 카드 표시
+│   ├── 상태 badge
+│   ├── 감정 태그
+│   ├── 제목
+│   └── 도착 예정 시각
+│
+└── 빈 상태
+    └── 미래의 나에게 맡긴 마음이 없어요
+```
+
+## 4.9 `/reports`
+
+```txt
+/reports
+├── 목적
+│   └── 월별 보낸/받은 마음의 감정 흐름 확인
+│
+├── 데이터 요청
+│   └── GET /api/reports/emotions?month=YYYY-MM
+│
+├── 입력
+│   └── month picker
+│
+├── 지표
+│   ├── 보낸 마음
+│   ├── 도착 완료
+│   ├── 받은 마음
+│   └── 읽은 마음
+│
+├── 분포
+│   ├── 보낸 마음 감정 분포
+│   ├── 받은 마음 감정 분포
+│   └── 보낸 마음 상태 분포
+│
+└── 오류 상태
+    ├── 인증 만료
+    └── 리포트 조회 실패
+```
+
+## 4.10 `/admin`
+
+```txt
+/admin
+├── 목적
+│   └── 운영자가 안전/발송/신고 상태를 확인하고 조치
+│
+├── 접근 권한
+│   ├── 로그인 필요
+│   └── request.user.isAdmin = true
+│
+├── 데이터 요청
+│   ├── GET /api/admin/overview
+│   ├── GET /api/admin/moderation-logs
+│   ├── GET /api/admin/notification-logs
+│   ├── GET /api/admin/replies
+│   └── GET /api/admin/reports
+│
+├── Overview
+│   ├── 사용자/메시지/예약/검사 대기/차단/신고 KPI
+│   ├── NotificationLog 전체/즉시 재시도/예약 재시도
+│   ├── 알림 상태별 통계
+│   ├── 채널별 통계
+│   ├── provider별 통계
+│   ├── 실패 코드 통계
+│   └── 수신자 deliveryStatus 통계
+│
+├── Moderation Logs
+│   └── 검사 상태, 피드백, 에러 메시지 확인
+│
+├── Notification Logs
+│   └── eventType/channel/status/provider/error 확인
+│
+├── Replies
+│   ├── 익명 답장 preview
+│   └── PATCH /api/admin/replies/:id/hide
+│
+└── Reports
+    ├── 신고 사유/상세 확인
+    ├── PATCH /api/admin/reports/:id/review
+    ├── PATCH /api/admin/users/:id/suspend
+    └── PATCH /api/admin/users/:id/unsuspend
+```
+
+## 4.11 `/messages/[id]`
 
 ```txt
 /messages/[id]
@@ -597,11 +855,16 @@ Mobile Bottom Navigation
 │   ├── 제목
 │   ├── 본문
 │   ├── 감정 태그
+│   ├── 첨부 이미지
+│   ├── 메시지 테마
+│   ├── 랜덤 도착 구간
+│   ├── 도착 전 힌트 시각
 │   ├── 발신자 정보
 │   ├── 수신자 정보
 │   ├── 예약일
 │   ├── 발송일
 │   ├── 상태
+│   ├── 익명 답장 목록
 │   ├── 공개 링크
 │   │   └── MODERATION_FAILED 상태에서는 없음
 │   └── 숨김 옵션
@@ -609,9 +872,12 @@ Mobile Bottom Navigation
 ├── 발신자 액션
 │   ├── 예약 취소
 │   ├── 공개 링크 복사
+│   ├── 취소된 메시지 삭제
 │   └── 발신함으로 돌아가기
 │
 ├── 수신자 액션
+│   ├── 메시지 신고
+│   ├── 받은 마음에서 삭제
 │   ├── 수신함으로 돌아가기
 │   └── 보관 유지
 │
@@ -621,7 +887,7 @@ Mobile Bottom Navigation
     └── 서버 오류
 ```
 
-## 4.8 `/arrival/[token]`
+## 4.12 `/arrival/[token]`
 
 ```txt
 /arrival/[token]
@@ -648,12 +914,23 @@ Mobile Bottom Navigation
 │   ├── 제목
 │   ├── 본문
 │   ├── 감정 태그
+│   ├── 테마
+│   ├── 첨부 이미지
 │   ├── 발신자
 │   │   ├── isSenderHidden=false: 발신자 표시
 │   │   └── isSenderHidden=true: 누군가
 │   └── 도착일
 │       ├── isDateHidden=false: 날짜 표시
 │       └── isDateHidden=true: 도착일 숨김 문구
+│
+├── 익명 답장
+│   ├── isReplyEnabled=true이면 입력 표시
+│   ├── POST /api/public/messages/:token/replies
+│   └── 답장도 moderation 후 저장
+│
+├── 신고
+│   ├── 신고 사유 입력
+│   └── POST /api/public/messages/:token/reports
 │
 ├── 수신거부
 │   ├── canSuppressEmailNotification=true이면 이메일 알림 수신거부 버튼 표시
@@ -675,7 +952,7 @@ Mobile Bottom Navigation
     └── 서버 오류
 ```
 
-## 4.9 `/my`
+## 4.13 `/my`
 
 ```txt
 /my
@@ -689,6 +966,7 @@ Mobile Bottom Navigation
 │   ├── 닉네임
 │   ├── 이메일
 │   ├── 카카오 연동 상태
+│   ├── 관리자 권한이면 /admin link
 │   └── 가입일
 │
 ├── 액션
@@ -739,14 +1017,19 @@ Auth
 ```txt
 Message Create
 ├── 입력
-│   ├── receiverInfo
+│   ├── receiverInfo 또는 recipients[]
 │   │   ├── SELF
 │   │   ├── FRIEND
 │   │   └── OTHER: name, email?, phone?, preferredChannel
 │   ├── title
 │   ├── content
 │   ├── emotionTag
-│   ├── scheduledAt
+│   ├── scheduledAt 또는 arrivalWindowStartAt/arrivalWindowEndAt
+│   ├── arrivalMode
+│   ├── hintAt
+│   ├── theme
+│   ├── isReplyEnabled
+│   ├── attachments[]
 │   ├── isSenderHidden
 │   └── isDateHidden
 │
@@ -755,6 +1038,9 @@ Message Create
 │   ├── required fields
 │   ├── content length
 │   ├── scheduledAt future only
+│   ├── RANDOM_WINDOW 구간 유효성
+│   ├── hintAt 유효성
+│   ├── attachments 개수/용량/MIME type
 │   ├── receiverInfo schema
 │   ├── 친구 수신자는 활성 Friendship 필요
 │   ├── 외부 수신자는 email 또는 phone 중 하나 필요
@@ -764,6 +1050,9 @@ Message Create
 │
 ├── AI Moderation
 │   ├── title/content/emotionTag 검사
+│   ├── 로컬 한국어 보강 규칙
+│   ├── OpenAI Moderations API
+│   ├── 매아리 guardrail prompt
 │   ├── flagged=false
 │   │   └── PENDING 저장 진행
 │   ├── flagged=true
@@ -779,10 +1068,14 @@ Message Create
 ├── DB 저장
 │   ├── 통과
 │   │   ├── Message 생성
+│   │   ├── MessageAttachment 생성
+│   │   ├── MessageRecipient 여러 개 생성 가능
 │   │   ├── status=PENDING
-│   │   └── MessageAccessToken 생성
+│   │   └── 수신자별 MessageAccessToken 생성
 │   └── 검사 실패
 │       ├── Message 생성
+│       ├── MessageAttachment 생성
+│       ├── MessageRecipient 생성
 │       ├── status=MODERATION_FAILED
 │       ├── moderationNextRetryAt 저장
 │       └── MessageAccessToken 생성 안 함
@@ -821,7 +1114,7 @@ Message Receive
 ```txt
 Scheduled Delivery
 ├── node-cron
-│   ├── 주기: 5분
+│   ├── 주기: DELIVERY_CRON
 │   ├── 조건: status=PENDING
 │   └── 조건: scheduledAt <= now
 │
@@ -850,7 +1143,7 @@ Scheduled Delivery
 ```txt
 Moderation Retry
 ├── node-cron
-│   ├── 주기: 하루 1회
+│   ├── 주기: MODERATION_RETRY_CRON
 │   ├── 조건: status=MODERATION_FAILED
 │   └── 조건: moderationNextRetryAt <= now
 │
@@ -878,7 +1171,28 @@ Moderation Retry
     └── moderationNextRetryAt = now + 1 day
 ```
 
-## 5.6 이메일/문자 알림 수신거부
+## 5.6 도착 전 힌트 알림
+
+```txt
+Arrival Hint
+├── node-cron
+│   ├── 주기: DELIVERY_CRON
+│   ├── 조건: Message.status = PENDING
+│   ├── 조건: hintAt <= now
+│   └── 조건: hintSentAt IS NULL
+│
+├── NotificationProcessor
+│   ├── eventType = ARRIVAL_HINT
+│   ├── 가입 수신자: IN_APP
+│   ├── 외부 수신자: EMAIL 또는 SMS
+│   ├── ContactSuppression pre-flight
+│   └── NotificationLog 기록
+│
+└── 완료
+    └── Message.hintSentAt = now
+```
+
+## 5.7 이메일/문자 알림 수신거부
 
 ```txt
 Notification Suppression
@@ -905,6 +1219,29 @@ Notification Suppression
     ├── NotificationProcessor가 발송 전 ContactSuppression 조회
     ├── hash가 있으면 provider 호출 생략
     └── NotificationLog.status = SKIPPED, errorCode = CONTACT_SUPPRESSED
+```
+
+## 5.8 익명 답장과 신고
+
+```txt
+Reply & Report
+├── 공개 링크 답장
+│   ├── /arrival/[token]
+│   ├── POST /api/public/messages/:token/replies
+│   ├── message.status = SENT 필요
+│   ├── isReplyEnabled = true 필요
+│   ├── 답장 본문 moderation
+│   └── MessageReply 저장
+│
+├── 공개 링크 신고
+│   ├── /arrival/[token]
+│   ├── POST /api/public/messages/:token/reports
+│   └── MessageReport 저장
+│
+└── 로그인 상세 신고
+    ├── /messages/[id]
+    ├── POST /api/messages/:id/reports
+    └── MessageReport 저장
 ```
 
 ---
@@ -1039,6 +1376,7 @@ Frontend Routes
 ├── /friends
 │   ├── GET /api/friends
 │   ├── GET /api/friends/requests
+│   ├── GET /api/friends/search
 │   ├── POST /api/friends/requests
 │   ├── PATCH /api/friends/requests/:id/accept
 │   ├── PATCH /api/friends/requests/:id/reject
@@ -1047,17 +1385,50 @@ Frontend Routes
 │
 ├── /sent
 │   ├── GET /api/messages/sent
-│   └── PATCH /api/messages/:id/cancel
+│   ├── POST /api/messages/:id/public-link
+│   ├── PATCH /api/messages/:id/cancel
+│   └── DELETE /api/messages/:id
 │
 ├── /inbox
-│   └── GET /api/messages/received
+│   ├── GET /api/messages/received
+│   ├── PATCH /api/messages/:id/archive
+│   ├── DELETE /api/messages/:id
+│   └── POST /api/messages/bulk-delete
+│
+├── /archive
+│   ├── GET /api/messages/archived
+│   ├── PATCH /api/messages/:id/unarchive
+│   ├── DELETE /api/messages/:id
+│   └── POST /api/messages/bulk-delete
+│
+├── /future
+│   └── GET /api/messages/sent
+│
+├── /reports
+│   └── GET /api/reports/emotions
+│
+├── /admin
+│   ├── GET /api/admin/overview
+│   ├── GET /api/admin/moderation-logs
+│   ├── GET /api/admin/notification-logs
+│   ├── GET /api/admin/replies
+│   ├── GET /api/admin/reports
+│   ├── PATCH /api/admin/replies/:id/hide
+│   ├── PATCH /api/admin/reports/:id/review
+│   ├── PATCH /api/admin/users/:id/suspend
+│   └── PATCH /api/admin/users/:id/unsuspend
 │
 ├── /messages/[id]
 │   ├── GET /api/messages/:id
-│   └── PATCH /api/messages/:id/cancel
+│   ├── POST /api/messages/:id/public-link
+│   ├── PATCH /api/messages/:id/cancel
+│   ├── POST /api/messages/:id/reports
+│   └── DELETE /api/messages/:id
 │
 ├── /arrival/[token]
 │   ├── GET /api/public/messages/:token
+│   ├── POST /api/public/messages/:token/replies
+│   ├── POST /api/public/messages/:token/reports
 │   └── POST /api/public/notification-suppressions
 │
 └── /my
@@ -1080,7 +1451,8 @@ Database Models
 │   ├── /write sender
 │   ├── /sent sender
 │   ├── /inbox receiver
-│   └── /friends friend code and relation
+│   ├── /friends friend code, search, relation
+│   └── /admin suspension
 │
 ├── Message
 │   ├── /write 생성
@@ -1089,6 +1461,8 @@ Database Models
 │   ├── /inbox 목록
 │   ├── /messages/[id] 상세
 │   ├── /arrival/[token] 공개 열람
+│   ├── /reports 감정 집계
+│   ├── /admin report/reply/moderation context
 │   ├── Scheduler 상태 변경
 │   └── ModerationRetryScheduler 재검사
 │
@@ -1096,7 +1470,24 @@ Database Models
 │   ├── /write 수신자 snapshot
 │   ├── /sent 수신자별 발송 상태
 │   ├── /inbox 귀속 사용자
+│   ├── /archive 아카이브/복구
+│   ├── /future SELF 필터
 │   └── NotificationProcessor channel 결정
+│
+├── MessageAttachment
+│   ├── /write 이미지 저장
+│   ├── /messages/[id] 첨부 표시
+│   └── /arrival/[token] 첨부 표시
+│
+├── MessageReply
+│   ├── /arrival/[token] 익명 답장 생성
+│   ├── /messages/[id] 발신자 답장 확인
+│   └── /admin 답장 검수/숨김
+│
+├── MessageReport
+│   ├── /arrival/[token] 공개 링크 신고
+│   ├── /messages/[id] 로그인 신고
+│   └── /admin 신고 검토/계정 정지
 │
 ├── MessageAccessToken
 │   ├── /write 생성 결과 publicUrl
@@ -1108,7 +1499,8 @@ Database Models
 │   ├── NotificationProcessor 발송 이력
 │   ├── Gmail SMTP provider 결과
 │   ├── Solapi SMS provider 결과
-│   └── retry job 대상
+│   ├── retry job 대상
+│   └── /admin 발송 통계와 로그
 │
 ├── ContactSuppression
 │   ├── /arrival/[token] 수신거부 결과
@@ -1157,8 +1549,21 @@ Exception IA
 │
 ├── 예약 오류
 │   ├── 과거 날짜 선택
+│   ├── 랜덤 도착 구간 오류
+│   ├── 힌트 시간이 현재보다 과거이거나 도착 이후인 경우
 │   ├── scheduler 실패
 │   └── FAILED 상태 표시
+│
+├── 알림 오류
+│   ├── provider 미설정
+│   ├── ContactSuppression으로 발송 생략
+│   ├── retryable 실패는 nextRetryAt 예약
+│   └── 최종 실패는 NotificationLog.status = FAILED
+│
+├── 관리자 접근 오류
+│   ├── 로그인 필요
+│   ├── 관리자 권한 없음
+│   └── 계정 정지 사용자는 auth middleware에서 차단
 │
 └── 서버 오류
     ├── 재시도
@@ -1180,20 +1585,28 @@ IA Priority
 │   ├── /sent
 │   ├── /arrival/[token]
 │   ├── /inbox
+│   ├── /friends
 │   ├── POST /api/messages
 │   ├── GET /api/public/messages/:token
 │   ├── POST /api/public/notification-suppressions
 │   └── POST /api/auth/link-message
 │
 ├── P1
-│   ├── /friends
 │   ├── /messages/[id]
 │   ├── /my
-│   ├── 친구 요청/수락/거절/취소 API
+│   ├── /archive
+│   ├── /future
+│   ├── /reports
+│   ├── 친구 검색/요청/수락/거절/취소 API
 │   ├── PATCH /api/messages/:id/cancel
+│   ├── DELETE /api/messages/:id
 │   ├── Gmail SMTP 이메일 발송
 │   ├── Solapi SMS 발송
 │   ├── ContactSuppression pre-flight
+│   ├── 감정 태그 필터
+│   ├── 이미지 첨부
+│   ├── 그룹 전송
+│   ├── 익명 답장/신고
 │   ├── AI moderation feedback states
 │   ├── AI 검사 실패 상태
 │   ├── 하루 1회 moderation retry job
@@ -1201,10 +1614,10 @@ IA Priority
 │
 └── P2
     ├── /onboarding
-    ├── 감정 태그 필터
+    ├── /admin
     ├── 읽음 상태
     ├── 공개 링크 실패 전용 화면
-    ├── NotificationLog 화면은 MVP 이후
+    ├── NotificationLog 운영 대시보드
     └── 카카오 알림톡 연동
 ```
 
@@ -1224,7 +1637,10 @@ Development Order
 ├── 2. Message Create
 │   ├── /write
 │   ├── 친구 수신자 선택
+│   ├── 그룹 수신자 배열
 │   ├── 외부 수신자 email/phone/preferredChannel 입력
+│   ├── 이미지 첨부
+│   ├── 랜덤 도착/힌트/테마/답장 허용 설정
 │   ├── POST /api/messages
 │   ├── moderation feedback
 │   ├── moderation immediate retry
@@ -1235,6 +1651,8 @@ Development Order
 │   ├── /arrival/[token]
 │   ├── sessionStorage token 저장
 │   ├── GET /api/public/messages/:token
+│   ├── POST /api/public/messages/:token/replies
+│   ├── POST /api/public/messages/:token/reports
 │   ├── POST /api/public/notification-suppressions
 │   └── 가입 CTA
 │
@@ -1246,17 +1664,32 @@ Development Order
 ├── 5. Storage
 │   ├── /sent
 │   ├── /inbox
+│   ├── /archive
+│   ├── /future
 │   ├── /messages/[id]
-│   └── cancel action
+│   ├── 감정 필터
+│   ├── cancel action
+│   └── soft delete action
 │
 ├── 6. Friends
 │   ├── /friends
 │   ├── friendCode
+│   ├── friend search
 │   ├── FriendRequest
 │   └── Friendship
 │
-└── 7. System
+├── 7. Reports & Admin
+│   ├── /reports
+│   ├── /admin
+│   ├── moderation logs
+│   ├── notification dashboard
+│   ├── reply moderation
+│   ├── report review
+│   └── account suspension
+│
+└── 8. System
     ├── scheduler
+    ├── arrival hint scheduler
     ├── moderation retry scheduler
     ├── domainEvents
     ├── NotificationProcessor

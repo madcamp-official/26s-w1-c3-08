@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -12,6 +13,7 @@ type Me = {
   nickname: string;
   email?: string | null;
   onboardingNote?: string | null;
+  isAdmin?: boolean;
 };
 
 export default function MyPage() {
@@ -71,6 +73,15 @@ export default function MyPage() {
             <LogOut size={16} />
             로그아웃
           </button>
+          {user.isAdmin ? (
+            <Link
+              href="/admin"
+              className="focus-ring ml-2 mt-6 inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
+            >
+              <ShieldCheck size={16} />
+              관리자
+            </Link>
+          ) : null}
         </section>
       ) : null}
     </AppShell>

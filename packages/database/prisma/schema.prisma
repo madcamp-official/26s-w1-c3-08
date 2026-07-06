@@ -17,6 +17,19 @@ enum MessageStatus {
   CANCELED
 }
 
+enum MessageArrivalMode {
+  FIXED
+  RANDOM_WINDOW
+}
+
+enum MessageTheme {
+  LAVENDER
+  MOSS
+  SUNSET
+  MIDNIGHT
+  PAPER
+}
+
 enum RecipientType {
   SELF
   FRIEND
@@ -74,6 +87,18 @@ enum FriendRequestStatus {
   EXPIRED
 }
 
+enum MessageReplyStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   kakaoId         String    @unique @db.VarChar(64)
@@ -83,6 +108,8 @@ model User {
   profileImageUrl String?   @db.VarChar(2048)
   onboardingNote  String?   @db.Text
   lastLoginAt     DateTime? @db.Timestamptz(3)
+  suspendedAt     DateTime? @db.Timestamptz(3)
+  suspensionReason String?  @db.Text
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt       DateTime? @db.Timestamptz(3)
@@ -95,6 +122,7 @@ model User {
   friendshipsAsA      Friendship[]         @relation("FriendshipUserA")
   friendshipsAsB      Friendship[]         @relation("FriendshipUserB")
   createdFriendships  Friendship[]         @relation("FriendshipCreatedBy")
+  submittedReports    MessageReport[]      @relation("ReportReporter")
 
   @@index([email])
   @@index([createdAt])
@@ -108,6 +136,13 @@ model Message {
   emotionTag               EmotionTag?
   customEmotionTag         String?       @db.VarChar(40)
   scheduledAt              DateTime      @db.Timestamptz(3)
+  arrivalMode              MessageArrivalMode @default(FIXED)
+  arrivalWindowStartAt     DateTime?     @db.Timestamptz(3)
+  arrivalWindowEndAt       DateTime?     @db.Timestamptz(3)
+  hintAt                   DateTime?     @db.Timestamptz(3)
+  hintSentAt               DateTime?     @db.Timestamptz(3)
+  theme                    MessageTheme  @default(LAVENDER)
+  isReplyEnabled           Boolean       @default(true)
   sentAt                   DateTime?     @db.Timestamptz(3)
   canceledAt               DateTime?     @db.Timestamptz(3)
   failedAt                 DateTime?     @db.Timestamptz(3)
@@ -127,11 +162,15 @@ model Message {
 
   sender         User                 @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipients     MessageRecipient[]
+  attachments    MessageAttachment[]
+  replies        MessageReply[]
+  reports        MessageReport[]
   moderationLogs ModerationLog[]
 
   @@index([senderId, createdAt])
   @@index([senderId, senderDeletedAt])
   @@index([status, scheduledAt])
+  @@index([status, hintAt])
   @@index([status, moderationNextRetryAt])
   @@index([createdAt])
 }
@@ -149,6 +188,7 @@ model MessageRecipient {
   deliveredAt    DateTime?               @db.Timestamptz(3)
   readAt         DateTime?               @db.Timestamptz(3)
   receiverDeletedAt DateTime?            @db.Timestamptz(3)
+  receiverArchivedAt DateTime?           @db.Timestamptz(3)
   createdAt      DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime                @updatedAt @db.Timestamptz(3)
 
@@ -156,13 +196,78 @@ model MessageRecipient {
   receiverUser  User?                @relation("RecipientUser", fields: [receiverUserId], references: [id], onDelete: SetNull)
   accessTokens  MessageAccessToken[]
   notifications NotificationLog[]
+  replies       MessageReply[]
+  reports       MessageReport[]
 
   @@index([messageId])
   @@index([receiverUserId, readAt])
   @@index([receiverUserId, receiverDeletedAt])
+  @@index([receiverUserId, receiverArchivedAt])
   @@index([deliveryStatus])
   @@index([receiverEmail])
   @@index([receiverPhone])
+}
+
+model MessageReport {
+  id                 String       @id @default(uuid()) @db.Uuid
+  messageId          String       @db.Uuid
+  messageRecipientId String?      @db.Uuid
+  reporterUserId     String?      @db.Uuid
+  reason             String       @db.VarChar(80)
+  details            String?      @db.Text
+  status             ReportStatus @default(PENDING)
+  reviewedAt         DateTime?    @db.Timestamptz(3)
+  reviewNote         String?      @db.Text
+  createdAt          DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(3)
+
+  message   Message           @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient MessageRecipient? @relation(fields: [messageRecipientId], references: [id], onDelete: SetNull)
+  reporter  User?             @relation("ReportReporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
+
+  @@index([messageId, createdAt])
+  @@index([messageRecipientId])
+  @@index([reporterUserId])
+  @@index([status, createdAt])
+}
+
+model MessageAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  messageId    String   @db.Uuid
+  publicUrl    String   @db.VarChar(2048)
+  storageKey   String   @db.VarChar(512)
+  originalName String?  @db.VarChar(255)
+  mimeType     String   @db.VarChar(80)
+  sizeBytes    Int
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([createdAt])
+}
+
+model MessageReply {
+  id                 String             @id @default(uuid()) @db.Uuid
+  messageId          String             @db.Uuid
+  messageRecipientId String             @db.Uuid
+  content            String             @db.Text
+  senderDisplayName  String?            @db.VarChar(80)
+  isAnonymous        Boolean            @default(true)
+  status             MessageReplyStatus @default(VISIBLE)
+  moderationInputHash String?           @db.Char(64)
+  moderationCategories Json?
+  hiddenAt           DateTime?          @db.Timestamptz(3)
+  hiddenReason       String?            @db.Text
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+
+  message   Message          @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+  @@index([messageRecipientId, createdAt])
+  @@index([status, createdAt])
 }
 
 model MessageAccessToken {

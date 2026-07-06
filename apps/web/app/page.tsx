@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarClock, Edit3, Inbox, Send, UsersRound } from "lucide-react";
+import { BarChart3, CalendarClock, Edit3, Inbox, Send, Sparkles, UsersRound } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 
 const actions = [
@@ -33,6 +33,20 @@ const actions = [
     title: "친구",
     body: "친구 코드와 요청을 관리해요.",
     icon: UsersRound,
+    tone: "bg-white text-ink border border-slate-200",
+  },
+  {
+    href: "/reports",
+    title: "감정 리포트",
+    body: "남기고 받은 마음의 흐름을 확인해요.",
+    icon: BarChart3,
+    tone: "bg-white text-ink border border-slate-200",
+  },
+  {
+    href: "/future",
+    title: "미래의 나",
+    body: "나에게 맡겨둔 마음을 모아봐요.",
+    icon: Sparkles,
     tone: "bg-white text-ink border border-slate-200",
   },
 ];

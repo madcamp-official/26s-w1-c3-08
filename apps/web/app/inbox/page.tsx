@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { Archive, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -39,6 +39,7 @@ export default function InboxPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   async function load(options?: { silent?: boolean }) {
     if (!options?.silent) {
@@ -75,6 +76,49 @@ export default function InboxPage() {
       });
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function archiveMessage(id: string) {
+    setNotice(null);
+
+    try {
+      await apiFetch(`/messages/${id}/archive`, { method: "PATCH" });
+      setNotice({ title: "아카이브에 보관했어요.", tone: "success" });
+      await load();
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof ApiError ? caught.message : "아카이브하지 못했어요.",
+        tone: "danger",
+      });
+    }
+  }
+
+  async function bulkDeleteVisible() {
+    if (filteredMessages.length === 0 || !window.confirm("현재 보이는 받은 마음을 모두 삭제할까요?")) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    setNotice(null);
+
+    try {
+      const response = await apiFetch<{ deletedCount: number; failedCount: number }>("/messages/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ messageIds: filteredMessages.map((message) => message.id) }),
+      });
+      setNotice({
+        title: `${response.deletedCount}개를 삭제했어요.${response.failedCount ? ` 실패 ${response.failedCount}개` : ""}`,
+        tone: response.failedCount ? "default" : "success",
+      });
+      await load();
+    } catch (caught) {
+      setNotice({
+        title: caught instanceof ApiError ? caught.message : "일괄 삭제하지 못했어요.",
+        tone: "danger",
+      });
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -131,14 +175,32 @@ export default function InboxPage() {
           <h1 className="text-2xl font-semibold text-ink">받은 마음</h1>
           <p className="mt-2 text-sm text-slate-600">나에게 도착한 마음을 모아두었어요.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
-        >
-          <RefreshCw size={16} />
-          새로고침
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+          >
+            <RefreshCw size={16} />
+            새로고침
+          </button>
+          <Link
+            href="/archive"
+            className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+          >
+            <Archive size={16} />
+            아카이브
+          </Link>
+          <button
+            type="button"
+            onClick={() => void bulkDeleteVisible()}
+            disabled={bulkDeleting || filteredMessages.length === 0}
+            className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            <Trash2 size={16} />
+            일괄 삭제
+          </button>
+        </div>
       </div>
       <div className="mb-5 flex flex-wrap gap-2">
         {readFilters.map((filter) => (
@@ -227,15 +289,25 @@ export default function InboxPage() {
                 <p className="mt-2 line-clamp-2 text-sm text-slate-600">{message.preview}</p>
                 <p className="mt-3 text-xs font-medium text-slate-500">{formatDateTime(message.arrivedAt)}</p>
               </Link>
-              <button
-                type="button"
-                onClick={() => void deleteFromInbox(message.id)}
-                disabled={deletingId === message.id}
-                className="focus-ring inline-flex w-fit items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
-              >
-                <Trash2 size={16} />
-                {deletingId === message.id ? "삭제 중" : "삭제"}
-              </button>
+	              <div className="flex shrink-0 flex-wrap gap-2">
+	                <button
+	                  type="button"
+	                  onClick={() => void archiveMessage(message.id)}
+	                  className="focus-ring inline-flex w-fit items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+	                >
+	                  <Archive size={16} />
+	                  보관
+	                </button>
+	                <button
+	                  type="button"
+	                  onClick={() => void deleteFromInbox(message.id)}
+	                  disabled={deletingId === message.id}
+	                  className="focus-ring inline-flex w-fit items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+	                >
+	                  <Trash2 size={16} />
+	                  {deletingId === message.id ? "삭제 중" : "삭제"}
+	                </button>
+	              </div>
             </div>
           </article>
         ))}
