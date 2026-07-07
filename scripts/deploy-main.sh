@@ -6,7 +6,7 @@ set -Eeuo pipefail
 # Default flow:
 #   1. refuse deploy if the local working tree is dirty
 #   2. fetch + fast-forward pull origin/main
-#   3. install dependencies
+#   3. install dependencies, including devDependencies required for builds
 #   4. validate/generate Prisma client
 #   5. build API and Web
 #   6. deploy DB migrations
@@ -238,7 +238,7 @@ main() {
   ensure_pm2_services_exist
 
   if [[ "$RUN_INSTALL" == "1" ]]; then
-    run_step "Installing dependencies" pnpm install --frozen-lockfile
+    run_step "Installing dependencies" pnpm install --frozen-lockfile --prod=false
   fi
 
   if [[ "$RUN_DB_VALIDATE" == "1" ]]; then
