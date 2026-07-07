@@ -490,6 +490,11 @@ export async function listReceivedMessages(userId: string) {
             orderBy: { createdAt: "asc" },
             take: 1,
           },
+          _count: {
+            select: {
+              attachments: true,
+            },
+          },
         },
       },
     },
@@ -532,6 +537,11 @@ export async function listArchivedMessages(userId: string) {
           attachments: {
             orderBy: { createdAt: "asc" },
             take: 1,
+          },
+          _count: {
+            select: {
+              attachments: true,
+            },
           },
         },
       },
