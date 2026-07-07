@@ -14,12 +14,18 @@ type ArchivedMessage = {
   id: string;
   recipientId: string;
   title: string;
+  thumbnail?: MessageThumbnail | null;
   preview: string;
   emotionTag?: string | null;
   customEmotionTag?: string | null;
   senderName?: string | null;
   arrivedAt?: string | null;
   readAt?: string | null;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function ArchivePage() {
@@ -44,7 +50,7 @@ export default function ArchivePage() {
         return;
       }
 
-      setError(caught instanceof Error ? caught.message : "아카이브를 불러오지 못했어요.");
+      setError(caught instanceof Error ? caught.message : "마음 보관함을 불러오지 못했어요.");
     } finally {
       setLoading(false);
     }
@@ -70,7 +76,7 @@ export default function ArchivePage() {
 
     try {
       await apiFetch(`/messages/${id}`, { method: "DELETE" });
-      setNotice({ title: "아카이브에서 삭제했어요.", tone: "success" });
+      setNotice({ title: "마음 보관함에서 삭제했어요.", tone: "success" });
       await load();
     } catch (caught) {
       setNotice({
@@ -81,7 +87,7 @@ export default function ArchivePage() {
   }
 
   async function bulkDelete() {
-    if (filteredMessages.length === 0 || !window.confirm("현재 보이는 아카이브 마음을 모두 삭제할까요?")) {
+    if (filteredMessages.length === 0 || !window.confirm("현재 보이는 마음 보관함의 마음을 모두 삭제할까요?")) {
       return;
     }
 
@@ -145,7 +151,7 @@ export default function ArchivePage() {
     <AppShell>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="maeari-page-title">아카이브</h1>
+          <h1 className="maeari-page-title">마음 보관함</h1>
           <p className="maeari-page-copy mt-2">받은 마음 중 따로 보관한 것들을 모아두었어요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -178,7 +184,7 @@ export default function ArchivePage() {
       {notice ? <Notice title={notice.title} tone={notice.tone} /> : null}
       {error ? <Notice title={error} tone="danger" /> : null}
       {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
-      {!loading && messages.length === 0 ? <Notice title="아카이브한 마음이 없어요." /> : null}
+      {!loading && messages.length === 0 ? <Notice title="보관한 마음이 없어요." /> : null}
       {emotionFilters.length > 0 ? (
         <div className="maeari-filterbar mb-5">
           <button
@@ -206,7 +212,7 @@ export default function ArchivePage() {
           <article key={message.recipientId} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
-                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+                <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
