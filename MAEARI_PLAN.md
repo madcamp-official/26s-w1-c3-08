@@ -31,7 +31,7 @@
 - 친구가 아닌 외부 수신자에게는 이메일 또는 전화번호 중 하나를 필수로 받고, 발송 시간이 되면 Gmail SMTP 또는 Solapi 기반 외부 발송 provider를 통해 이메일 또는 문자로 공개 열람 링크를 전달하는 흐름
 - 도착 시간 입력은 단일 `datetime-local` 입력에서 빠른 프리셋, 날짜 입력, 1분 단위 시간 직접 입력, 15분 단위 quick minute 선택, KST 도착 미리보기를 결합한 UX로 개선
 - 메인 대시보드 `/`를 추가하고 작성/발신함/수신함/친구 관리로 진입하는 첫 화면을 제공
-- 메시지 작성 완료 후 예약 완료 화면, 발신함 이동, 새 마음 쓰기, 메인 이동을 제공
+- 메시지 작성 성공/오류 결과를 화면 중앙 팝업으로 표시하고, 성공 팝업에서 예약 상세/발신함/새 마음 쓰기/메인 이동을 제공
 - OpenAI Moderation API 외에 매아리 서비스 정책 guardrail prompt 기반 2차 판정 추가
 - 한국어 욕설과 비하 표현 일부를 로컬 규칙으로 보강 차단
 - guardrail prompt와 parser의 JSON schema를 `allowed/categories/severity/feedback/rationale` 기준으로 맞추고 legacy `is_harmful` 응답도 normalize하도록 안정화
@@ -75,6 +75,7 @@
 - 친구가 아닌 타인 수신자는 이메일 또는 전화번호 중 하나가 필수입니다.
 - `NotificationProvider`, Gmail SMTP provider, Solapi SMS provider를 추가했습니다.
 - `NotificationLog`에 provider, idempotencyKey, attemptCount, nextRetryAt 등을 추가해 중복 발송과 재시도 추적을 지원합니다.
+- Gmail SMTP와 Solapi provider의 발송 식별자는 `NotificationLog.providerMessageId`에 저장해 운영 로그와 재시도 판단에 사용합니다.
 - provider 미설정 시 발송 성공으로 처리하지 않고 `SKIPPED`/`FAILED`로 기록합니다.
 - retryable 실패는 retry job에서 재시도할 수 있게 분리했습니다.
 - Gmail SMTP/Nodemailer는 EMAIL 채널의 1순위 provider입니다. `GMAIL_SMTP_ENABLED=true`이면 `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`를 필수로 검증합니다.
@@ -93,7 +94,7 @@
 - 도착 날짜와 시간을 분리하고, 시간은 `type="time"` + `step=60`으로 1분 단위 직접 입력이 가능합니다.
 - 15분 단위 quick minute 버튼을 제공해 `00`, `15`, `30`, `45`분을 빠르게 선택할 수 있습니다.
 - 기존 30분 단위 select는 제거했습니다.
-- 작성 완료 후 입력을 그대로 남겨두는 대신 예약 완료 패널을 보여주고, 예약 상세/발신함/새 마음 쓰기/메인 이동을 제공합니다.
+- 작성 완료 후 입력 위치와 무관하게 결과를 바로 인지할 수 있도록 화면 중앙 팝업을 보여주고, 예약 상세/발신함/새 마음 쓰기/메인 이동을 제공합니다.
 - 공개 링크는 “수신자가 비회원이거나 알림 provider가 없을 때 도착 후 열람할 수 있는 수동 공유 링크”라는 용도를 화면에 설명했습니다.
 
 ### AI 유해성 필터링
@@ -185,7 +186,7 @@
 - 로그인 전 초대 링크를 열면 `sessionStorage.maeari.pendingFriendInviteToken`에 보관하고 `/auth/callback`에서 로그인 완료 후 자동 claim합니다.
 - 메시지 첨부는 web 기본 경로를 multipart form-data로 전환했습니다. JSON payload는 `payload` field에, 이미지는 `attachments` field에 담고 API가 multer로 MIME/개수/용량/총량을 검증합니다.
 - 운영 DB를 기존 MVP 이름 `maeum_arrival`에서 `maeari`로 전환했습니다. Docker Postgres의 DB/USER healthcheck도 `maeari` 기준이며, 기존 DB와 dry-run DB는 final dump 검증 후 제거했습니다.
-- 기존 bootstrap role `maeum`은 Postgres system-required 객체 때문에 삭제할 수 없어 `NOLOGIN`으로 잠근 상태입니다.
+- 2026-07-07 기준 앱 환경변수와 PM2 프로세스는 `maeari` DB만 사용합니다. 기존 bootstrap role `maeum`은 Postgres system-required role이라 삭제할 수 없지만 `NOLOGIN` 상태이며, template DB owner는 `maeari`로 정리했습니다.
 - 운영 DB dump가 git에 올라가지 않도록 `backups/`를 `.gitignore`에 추가했습니다.
 
 ---
@@ -475,6 +476,7 @@ maeari-scheduler  -> 예약 메시지 처리 scheduler
   -> POST /api/messages
      - 첨부가 없으면 JSON
      - 첨부가 있으면 multipart payload + attachments
+     - payload + 이미지 3개 multipart 요청 허용
   -> Auth middleware
   -> Request validation
   -> 서버가 senderContactId payload를 무시하고 verified strict PHONE 직접 선택
@@ -1125,7 +1127,7 @@ type SendNotificationResult = {
 };
 ```
 
-EMAIL 채널은 Gmail SMTP provider를 사용하고, SMS 채널은 Solapi provider를 사용합니다. 해당 채널 provider가 꺼져 있거나 필수 설정이 없으면 성공 처리하지 않고 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`, `errorCode = NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다.
+EMAIL 채널은 Gmail SMTP provider를 사용하고, SMS 채널은 Solapi provider를 사용합니다. 해당 채널 provider가 꺼져 있거나 필수 설정이 없으면 성공 처리하지 않고 `NotificationLog.status = SKIPPED`, `MessageRecipient.deliveryStatus = FAILED`, `errorCode = NOTIFICATION_PROVIDER_NOT_CONFIGURED`로 기록합니다. Gmail SMTP와 Solapi 응답에서 확보한 provider message id 또는 group id는 `NotificationLog.providerMessageId`에 저장합니다.
 
 ## 9.5 Auth Link Message API
 
@@ -1239,7 +1241,26 @@ payload: JSON.stringify(createMessageRequestWithoutAttachments)
 attachments: File[]
 ```
 
-API는 `message-upload.middleware.ts`에서 `payload` JSON을 파싱하고, `attachments` 파일을 memory buffer로 받은 뒤 MIME type, 개수, 개별 용량, 총량을 검증해 service 입력의 `attachments[]`로 변환합니다. 첨부가 없으면 일반 JSON body도 허용합니다.
+API는 `message-upload.middleware.ts`에서 `payload` JSON을 파싱하고, `attachments` 파일을 memory buffer로 받은 뒤 MIME type, 원본 파일 확장자, 개수, 개별 용량, 총량을 검증해 service 입력의 `attachments[]`로 변환합니다. 첨부가 없으면 일반 JSON body도 허용합니다.
+
+multipart 제한은 file count와 field count를 엄격하게 유지하되, parser parts 제한은 `MAX_ATTACHMENT_COUNT + 2`로 둡니다. 이 값은 `payload` field와 이미지 3개가 함께 들어오는 정상 요청을 허용하기 위한 여유이며, 이미지 4개 이상은 계속 `TOO_MANY_ATTACHMENTS`로 차단합니다.
+
+첨부 형식 allowlist는 다음과 같습니다.
+
+```txt
+허용 확장자: .jpg, .jpeg, .png, .webp
+허용 MIME: image/jpeg, image/png, image/webp
+```
+
+프론트엔드는 파일 선택창의 `accept`와 `createAttachmentDraft` 검증에서 같은 allowlist를 사용합니다. 서버는 multer 단계에서 MIME과 확장자를 확인하고, `persistAttachments` 직전에 파일 매직바이트를 다시 검사합니다.
+
+```txt
+JPEG: FF D8 FF
+PNG:  89 50 4E 47 0D 0A 1A 0A
+WEBP: RIFF .... WEBP
+```
+
+따라서 확장자만 바꾼 파일, 잘못된 MIME type, GIF/HEIC/PDF/텍스트 파일은 저장 전에 `ATTACHMENT_TYPE_UNSUPPORTED`로 차단됩니다.
 
 ## 9.7 메시지 작성 Response 예시
 
@@ -1991,7 +2012,7 @@ export async function retryFailedModerationMessages() {
 - 유해성 차단
 - 서버 오류
 
-예약 완료 상태에서는 작성 폼을 계속 보여주기보다 완료 패널을 우선 노출합니다. 완료 패널에는 예약 상태, 예약 시간, 공개 링크의 용도, 발신함 이동, 새 마음 쓰기, 메인 이동을 함께 제공합니다. 공개 링크는 자동 발송 수단이 아니라 수신자가 비회원이거나 외부 provider가 아직 연결되지 않았을 때 도착 후 수동으로 열람할 수 있는 fallback 링크입니다.
+예약 완료 또는 오류 상태에서는 작성 위치와 무관하게 결과를 확인할 수 있도록 화면 중앙 팝업을 우선 노출합니다. 성공 팝업에는 예약 상태, 예약 시간, 공개 링크의 용도, 예약 상세 보기, 발신함 이동, 새 마음 쓰기, 메인 이동을 함께 제공합니다. 오류/검증 실패 팝업은 확인 버튼으로 닫을 수 있습니다. 공개 링크는 자동 발송 수단이 아니라 수신자가 비회원이거나 외부 provider가 아직 연결되지 않았을 때 도착 후 수동으로 열람할 수 있는 fallback 링크입니다.
 
 AI 검사 실패 상태에서는 `publicUrl`을 보여주지 않습니다. 대신 “작성한 마음은 임시로 보관했고, 하루에 한 번 자동으로 다시 검사할게요.” 안내와 함께 발신함으로 이동할 수 있게 합니다.
 
@@ -2917,49 +2938,153 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 
 ---
 
-## 19. 개발 우선순위
+## 19. 현재 개발 우선순위
 
-1. DB schema와 프로젝트 구조를 먼저 확정한다.
-2. 카카오 로그인보다 메시지 생성 도메인 모델을 먼저 안정화한다.
-3. 메시지 작성 API에는 반드시 AI moderation을 포함한다.
-4. 친구 관계 모델과 친구 선택 수신 흐름을 추가한다.
-5. 비회원 열람 링크를 초기에 설계해 바이럴 유입의 기반을 만든다.
-6. 예약 스케줄러는 메시지 상태 변경과 알림 발송 처리를 분리한다.
-7. 사용할 외부 provider가 없을 때 성공 처리하지 않는 외부 발송 실패 정책을 유지한다.
-8. Nginx와 PM2 설정은 MVP 배포 가능한 수준으로 단순하게 유지한다.
+1. 운영 DB schema와 Prisma migration 상태를 코드 기준 최신으로 유지한다.
+2. 메시지 작성, OCR moderation, 답장, 알림, 마음나무 scheduler가 서로 상태를 꼬지 않도록 검증한다.
+3. Kakao 로그인, 전화번호 인증, Gmail SMTP, Solapi SMS, Twilio Lookup, OpenAI guardrail의 운영 env를 분리 관리한다.
+4. 외부 알림 provider가 실패하거나 수신거부 상태일 때 성공처럼 보이지 않도록 `NotificationLog`와 메시지/수신자 상태를 동기화한다.
+5. 사용자 화면에서는 `/write`, `/sent`, `/inbox`, `/tree`, `/my`를 핵심 QA 대상으로 둔다.
+6. Nginx/PM2 운영은 production build와 `db:deploy` 이후 재시작하는 절차를 유지한다.
 
 ---
 
-## 20. 최종 실행 순서
+## 20. 운영 적용 순서
 
 ```txt
-1. Step 1: 프로젝트 구조 및 Prisma DB 설계
-2. Step 2: AI 필터링 및 메시지 작성 API
-3. Step 3: 예약 메시지 scheduler
-4. Step 4: Nginx reverse proxy 설정
-5. Step 5: 친구 추가/친구 선택 수신 구현
-6. Step 6: Gmail SMTP 이메일 / Solapi 문자 발송 구현
-7. Step 7: 도착 시간 UX 개선
-8. 로컬 테스트
-9. EC2 배포
-10. HTTPS 적용
-11. 카카오 OAuth 운영 redirect URI 등록
-12. 소규모 사용자 테스트
-13. 알림톡 연동 검토
+1. .env.local 또는 .env.production의 DATABASE_URL이 maeari DB를 가리키는지 확인
+2. pnpm db:validate
+3. pnpm db:deploy
+4. pnpm --filter @maeari/api typecheck
+5. pnpm --filter @maeari/web typecheck
+6. pnpm --filter @maeari/database typecheck
+7. pnpm --filter @maeari/api build
+8. pnpm --filter @maeari/web build
+9. pm2 restart maeari-api --update-env
+10. pm2 restart maeari-scheduler --update-env
+11. pm2 restart maeari-web --update-env
+12. curl -I https://maeari.madcamp-kaist.org/
+13. curl -I https://maeari.madcamp-kaist.org/api/health
 ```
 
 ---
 
-## 21. 다음 작업
+## 21. 현재 운영 검증 체크리스트
 
-이 계획서를 기준으로 실제 개발은 다음 순서로 진행합니다.
+- 이미지 OCR: `.jpg/.jpeg/.png/.webp` 첨부 1~3개 업로드, GIF/HEIC/PDF 차단, 이미지 속 텍스트 moderation 차단 확인.
+- 답장함: `/arrival/[token]` 답장 작성, `/sent` 답장함 표시, 답장 읽음/삭제, 발신자 이메일 알림 확인.
+- QR: 마음쓰기 완료 모달, `/sent`, `/messages/[id]`에서 QR 표시/스캔/PNG 저장 확인.
+- 연락처 claim: 이메일/전화번호 인증 후 과거 OTHER 수신 메시지가 `/inbox`에 연결되는지 확인.
+- 마음나무: `/tree` 생성, `/tree/[token]` 비회원 제출, scheduler 도착 후 owner 열람과 알림 확인.
+- 배포: `db:deploy`, API/Web build, PM2 restart, Nginx health check 순서 준수.
 
-**다음 단계: Step 1. 프로젝트 구조 및 DB 설계**
+---
 
-Step 1에서 작성할 실제 파일은 다음과 같습니다.
+## 22. 2026-07-06 신규 기능 구현 반영
 
-- `package.json`
-- `pnpm-workspace.yaml`
-- `packages/database/prisma/schema.prisma`
-- `.env.example`
-- `docker-compose.yml`
+### 22.1 이미지 OCR 기반 안전 검사
+
+- 이미지 첨부는 `.jpg`, `.jpeg`, `.png`, `.webp`만 허용합니다.
+- API는 `tesseract.js`의 `Tesseract.recognize`를 사용해 업로드된 이미지의 OCR 텍스트를 추출합니다.
+- 기본 OCR 언어는 `kor+eng`이며, 운영 env의 `IMAGE_OCR_LANGUAGES`로 조정할 수 있습니다.
+- OCR 텍스트는 기존 메시지 제목/본문/감정 태그와 함께 moderation/guardrail에 전달합니다.
+- OCR 실패 또는 timeout은 `MODERATION_FAILED`로 저장하고 기존 moderation retry job에서 저장된 첨부 파일을 다시 OCR 검사합니다.
+- 이미지 장면 자체의 폭력성/선정성 판단은 v1 범위에서 제외하고, 이미지 안의 텍스트 유해성만 처리합니다.
+- `tesseract.js` v7은 `recognize` named export를 제공하지 않으므로, API는 default import 후 `Tesseract.recognize(...)`로 호출합니다.
+
+### 22.2 답장 알림과 보낸 마음 답장함
+
+- 공개 도착 링크에서 답장이 생성되면 `message.reply.created` 이벤트를 발행합니다.
+- `NotificationProcessor`는 `REPLY_RECEIVED` 앱 내 알림을 만들고, 발신자의 verified EMAIL이 있으면 이메일 알림도 보냅니다.
+- 답장 이메일에는 원문/답장 내용이 포함되지 않으며 메시지 상세 링크만 포함합니다.
+- `/sent`는 기존 보낸 마음 탭과 답장함 탭을 함께 제공합니다.
+
+### 22.3 QR 공유
+
+- 기존 `publicUrl` API는 유지합니다.
+- 웹은 URL을 `qrcode.react`로 QR 렌더링하며, 링크 복사와 QR PNG 저장을 제공합니다.
+- SMS/이메일 알림은 계속 URL 텍스트를 발송합니다.
+
+### 22.4 연락처 인증 후 과거 비회원 수신 연결
+
+- `verifyUserContact`와 Kakao 이메일 자동 등록 후 `receiverEmail`/`receiverPhone`이 일치하는 미연결 OTHER 수신자를 현재 user로 연결합니다.
+- 다른 user에게 이미 연결된 수신자는 변경하지 않습니다.
+- 이미 도착한 메시지는 받은 마음에 노출되고, 외부 알림 실패로 단일 수신 메시지가 `FAILED`인 경우 내부 수신으로 복구 가능한 범위에서 `SENT`로 복구합니다.
+
+### 22.5 마음나무
+
+- `/tree`에서 회원이 공개 링크를 만들고, `/tree/[token]`에서 비회원이 텍스트 편지를 남깁니다.
+- 마음나무 생성자는 verified PHONE 보유가 필요합니다.
+- 비회원 제출은 기존 텍스트 guardrail을 즉시 통과해야 저장됩니다.
+- scheduler는 `DELIVERY_CRON` 주기로 `ACTIVE` 마음나무 중 `scheduledAt`이 지난 항목을 `DELIVERED`로 전환하고 제출물을 일괄 공개합니다.
+
+### 22.6 운영 DB migration 상태
+
+- 2026-07-07 기준 운영 `maeari` DB에 `20260706150000_ocr_replies_qr_collections` migration을 적용했습니다.
+- `prisma migrate status` 결과는 `Database schema is up to date!`입니다.
+- 따라서 이 단계의 남은 작업은 schema 작성이 아니라 OCR/답장함/QR/마음나무의 수동 QA와 provider 실발송 검증입니다.
+
+### 22.7 2026-07-07 운영 안정화 반영
+
+#### OCR env 적용 순서
+
+운영 OCR은 외부 Vision API가 아니라 API 서버 내부 `tesseract.js` 기반 OCR입니다. 설정은 API와 scheduler가 읽으므로, env 변경 후 둘 다 재시작해야 합니다.
+
+```env
+IMAGE_OCR_MODERATION_ENABLED=true
+IMAGE_OCR_LANGUAGES=kor+eng
+IMAGE_OCR_TIMEOUT_MS=8000
+IMAGE_OCR_MAX_TEXT_CHARS=4000
+```
+
+적용 순서:
+
+```txt
+1. .env.local 또는 .env.production에 OCR env 추가
+2. pnpm --filter @maeari/api typecheck
+3. pnpm --filter @maeari/api build
+4. pm2 restart maeari-api --update-env
+5. pm2 restart maeari-scheduler --update-env
+6. pm2 save
+7. curl -I http://127.0.0.1:4000/api/health
+8. curl -I https://maeari.madcamp-kaist.org/api/health
+```
+
+#### 첨부 이미지 검증 계층
+
+이미지 파일은 다음 네 계층을 모두 통과해야 합니다.
+
+| 계층 | 위치 | 검증 내용 |
+| --- | --- | --- |
+| Browser accept | `apps/web/app/write/page.tsx` | `.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp` |
+| Client validation | `createAttachmentDraft` | MIME과 파일명 확장자 검사, 2MB 개별 용량 검사 |
+| Multipart middleware | `message-upload.middleware.ts` | multer `fileFilter`에서 MIME과 originalname 확장자 검사 |
+| Service validation | `message.service.ts` | 저장 직전 JPEG/PNG/WEBP 매직바이트 검사 |
+
+이중 검증 이유:
+
+- 브라우저 `accept`는 사용자 편의 기능일 뿐 보안 경계가 아닙니다.
+- MIME type은 API 직접 호출로 위조될 수 있습니다.
+- 확장자는 사용자가 임의로 바꿀 수 있습니다.
+- 따라서 실제 파일 header까지 검사해 허용 이미지가 아닌 파일이 `UPLOAD_DIR`에 저장되지 않도록 합니다.
+
+#### 운영 DB 정리 상태
+
+- 앱 환경변수는 `DATABASE_URL=.../maeari?schema=public`, `POSTGRES_DB=maeari`, `POSTGRES_USER=maeari` 기준입니다.
+- 운영 DB 목록에는 `maeari`만 남아 있으며, 기존 `maeum_arrival`과 `maeari_dryrun` DB는 삭제된 상태입니다.
+- `maeum` role은 Postgres bootstrap role이라 삭제할 수 없지만 `NOLOGIN` 상태입니다.
+- `template0`, `template1` owner는 `maeari`로 정리했습니다.
+- 구형 DB를 사용하는 client connection은 0개입니다.
+
+#### PM2 복구 확인
+
+- API가 `tesseract.js` import 오류로 `online`이지만 4000 포트를 listen하지 못하는 상황이 발생할 수 있음을 확인했습니다.
+- 복구 기준은 PM2 `online`만이 아니라 다음 health check까지 포함합니다.
+
+```bash
+ss -ltnp | rg ':3000|:4000|:80|:443'
+curl -I http://127.0.0.1:4000/api/health
+curl -I http://127.0.0.1:3000/
+curl -I https://maeari.madcamp-kaist.org/api/health
+curl -I https://maeari.madcamp-kaist.org/
+```

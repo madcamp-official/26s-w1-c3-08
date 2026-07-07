@@ -99,32 +99,46 @@ export default function FriendInvitePage() {
   const unavailableMessage = getUnavailableMessage(preview?.availability.reason);
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
-      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 shadow-soft">
+    <main className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
+      <header className="h-[74px] border-b border-[#F1EEF8] bg-white px-5">
+        <div className="flex h-full items-center">
+          <Image
+            src="/images/maeari-app-icon.png"
+            alt="매아리"
+            width={42}
+            height={42}
+            className="h-[42px] w-[42px] rounded-[10px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
+            priority
+          />
+          <span className="ml-3 text-[25px] font-medium tracking-[0.02em] text-[#9A85E1]">매아리</span>
+        </div>
+      </header>
+
+      <section className="figma-panel mx-auto mt-[31px] w-[calc(100%-32px)] max-w-md p-6">
         {loading ? (
           <div className="flex flex-col items-center gap-4 py-8 text-center">
-            <Loader2 className="animate-spin text-petal" />
-            <p className="text-sm font-medium text-slate-700">친구 초대 링크를 확인하고 있어요.</p>
+            <Loader2 className="animate-spin text-brand-accent" />
+            <p className="text-sm font-medium text-[#6E738A]">친구 초대 링크를 확인하고 있어요.</p>
           </div>
         ) : (
           <div className="grid gap-5">
             <div className="flex items-center gap-3">
-              <div className="relative h-12 w-12 overflow-hidden rounded-md bg-[#fbf7ff]">
-                <Image src="/images/maeari-mark.png" alt="" fill sizes="48px" className="object-cover" />
+              <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-[#fbf7ff]">
+                <Image src="/images/maeari-app-icon.png" alt="" fill sizes="48px" className="object-cover" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-ink">친구 초대</h1>
-                <p className="mt-1 text-sm text-slate-500">매아리에서 친구로 연결돼요.</p>
+                <h1 className="text-xl font-semibold text-[#4E536B]">친구 초대</h1>
+                <p className="mt-1 text-sm text-[#A2A6BF]">매아리에서 친구로 연결돼요.</p>
               </div>
             </div>
 
             {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
 
             {preview ? (
-              <div className="rounded-md bg-slate-50 p-4">
-                <p className="text-sm text-slate-500">초대한 사람</p>
-                <p className="mt-1 text-lg font-semibold text-ink">{preview.invite.inviter.nickname}</p>
-                <p className="mt-3 text-sm text-slate-500">{formatDateTime(preview.invite.expiresAt)}까지 유효</p>
+              <div className="rounded-lg bg-brand-gray p-4">
+                <p className="text-sm text-[#A2A6BF]">초대한 사람</p>
+                <p className="mt-1 text-lg font-semibold text-[#4E536B]">{preview.invite.inviter.nickname}</p>
+                <p className="mt-3 text-sm text-[#A2A6BF]">{formatDateTime(preview.invite.expiresAt)}까지 유효</p>
               </div>
             ) : null}
 
@@ -133,7 +147,7 @@ export default function FriendInvitePage() {
                 type="button"
                 onClick={() => void claimInvite()}
                 disabled={claiming}
-                className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-md bg-petal px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 <UserPlus size={18} />
                 {claiming ? "친구로 연결 중" : "다시 시도"}
@@ -145,7 +159,7 @@ export default function FriendInvitePage() {
             <button
               type="button"
               onClick={() => router.replace("/friends")}
-              className="focus-ring rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              className="focus-ring rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold text-[#6E738A]"
             >
               친구 페이지로 이동
             </button>

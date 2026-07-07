@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -159,9 +160,14 @@ export default function PhoneVerificationPage() {
 
   return (
     <AppShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink">전화번호 인증</h1>
-        <p className="mt-2 text-sm text-slate-600">마음을 쓰기 전에 010 휴대전화 번호를 인증해 주세요.</p>
+      <div className="figma-panel mb-6 grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#4E536B]">전화번호 인증</h1>
+          <p className="mt-2 text-sm leading-6 text-[#A2A6BF]">마음을 쓰기 전에 010 휴대전화 번호를 인증해 주세요.</p>
+        </div>
+        <div className="relative mt-6 hidden h-[150px] overflow-hidden rounded-[10px] bg-[#F3EEFD] md:mt-0 md:block">
+          <Image src="/images/maeari-moon-letter.png" alt="" fill sizes="260px" className="object-cover object-center" />
+        </div>
       </div>
 
       <div className="grid gap-5">
@@ -170,7 +176,7 @@ export default function PhoneVerificationPage() {
         {loading ? <Notice title="전화번호 인증 상태를 확인하고 있어요." tone="default" /> : null}
 
         {!loading && verifiedPhone ? (
-          <section className="rounded-md border border-emerald-200 bg-emerald-50 p-5">
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-emerald-950">
@@ -182,7 +188,7 @@ export default function PhoneVerificationPage() {
               <button
                 type="button"
                 onClick={() => router.replace(nextPath)}
-                className="focus-ring rounded-md bg-moss px-4 py-2 text-sm font-semibold text-white"
+                className="focus-ring rounded-lg bg-brand-sub px-4 py-2 text-sm font-semibold text-white"
               >
                 {nextPath === "/write" ? "마음 쓰러 가기" : "돌아가기"}
               </button>
@@ -190,10 +196,10 @@ export default function PhoneVerificationPage() {
           </section>
         ) : null}
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
+        <section className="rounded-lg border figma-panel p-5">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={18} className="text-moss" />
-            <h2 className="text-base font-semibold text-ink">인증번호 받기</h2>
+            <ShieldCheck size={18} className="text-brand-sub" />
+            <h2 className="text-base font-semibold text-[#4E536B]">인증번호 받기</h2>
           </div>
           <form onSubmit={sendCode} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
             <input
@@ -204,23 +210,23 @@ export default function PhoneVerificationPage() {
               maxLength={16}
               onChange={(event) => setPhoneValue(formatPhoneInput(event.target.value))}
               placeholder="010-1234-5678"
-              className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+              className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2"
             />
             <button
               type="submit"
               disabled={sending}
-              className="focus-ring rounded-md bg-petal px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="focus-ring rounded-lg bg-brand-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {sending ? "발송 중" : "인증번호 발송"}
             </button>
           </form>
         </section>
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
+        <section className="rounded-lg border figma-panel p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-ink">인증번호 입력</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="text-base font-semibold text-[#4E536B]">인증번호 입력</h2>
+              <p className="mt-1 text-sm text-[#A2A6BF]">
                 {pendingPhone ? "문자로 받은 6자리 번호를 입력해 주세요." : "먼저 인증번호를 발송해 주세요."}
               </p>
             </div>
@@ -228,7 +234,7 @@ export default function PhoneVerificationPage() {
               type="button"
               onClick={() => void resendCode()}
               disabled={!pendingContactId || sending}
-              className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
             >
               <RefreshCw size={15} />
               재발송
@@ -243,12 +249,12 @@ export default function PhoneVerificationPage() {
               inputMode="numeric"
               maxLength={6}
               placeholder="6자리 인증번호"
-              className="focus-ring rounded-md border border-slate-300 px-3 py-2"
+              className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2"
             />
             <button
               type="submit"
               disabled={!pendingContactId || verifying}
-              className="focus-ring rounded-md bg-moss px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="focus-ring rounded-lg bg-brand-sub px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {verifying ? "확인 중" : "인증 완료"}
             </button>

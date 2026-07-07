@@ -217,13 +217,13 @@ export default function AdminPage() {
     <AppShell>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">관리자</h1>
-          <p className="mt-2 text-sm text-slate-600">검사, 발송, 답장 상태를 확인해요.</p>
+          <h1 className="text-2xl font-semibold text-[#4E536B]">관리자</h1>
+          <p className="mt-2 text-sm text-[#A2A6BF]">검사, 발송, 답장 상태를 확인해요.</p>
         </div>
         <button
           type="button"
           onClick={() => void load()}
-          className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
         >
           <RefreshCw size={16} />
           새로고침
@@ -231,14 +231,14 @@ export default function AdminPage() {
       </div>
       {notice ? <Notice title={notice.title} tone={notice.tone} /> : null}
       {error ? <Notice title={error} tone="danger" /> : null}
-      {loading ? <p className="text-sm text-slate-600">불러오는 중</p> : null}
+      {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
       {overview ? (
         <div className="grid gap-4">
           <section className="grid gap-3 md:grid-cols-4">
             {overviewKpis(overview).map(([key, value]) => (
-              <div key={key} className="rounded-md border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold text-slate-500">{overviewLabel(key)}</p>
-                <p className="mt-2 text-2xl font-semibold text-ink">{value}</p>
+              <div key={key} className="rounded-lg border figma-panel p-4">
+                <p className="text-xs font-semibold text-[#A2A6BF]">{overviewLabel(key)}</p>
+                <p className="mt-2 text-2xl font-semibold text-[#4E536B]">{value}</p>
               </div>
             ))}
           </section>
@@ -292,11 +292,11 @@ export default function AdminPage() {
           </section>
           <LogSection title="Moderation Logs">
             {moderationLogs.map((log) => (
-              <div key={log.id} className="rounded-md bg-slate-50 p-3 text-sm">
-                <p className="font-semibold text-ink">
+              <div key={log.id} className="rounded-lg bg-brand-gray p-3 text-sm">
+                <p className="font-semibold text-[#4E536B]">
                   {log.message.title} · {log.status} · {statusLabel(log.message.status)}
                 </p>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-[#A2A6BF]">
                   {log.message.senderName} · {formatDateTime(log.checkedAt)}
                 </p>
                 {log.feedback || log.errorMessage ? (
@@ -307,11 +307,11 @@ export default function AdminPage() {
           </LogSection>
           <LogSection title="Notification Logs">
             {notificationLogs.map((log) => (
-              <div key={log.id} className="rounded-md bg-slate-50 p-3 text-sm">
-                <p className="font-semibold text-ink">
+              <div key={log.id} className="rounded-lg bg-brand-gray p-3 text-sm">
+                <p className="font-semibold text-[#4E536B]">
                   {log.recipient.messageTitle} · {log.eventType} · {log.channel} · {log.status}
                 </p>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-[#A2A6BF]">
                   {log.recipient.name ?? "수신자"} · {log.recipient.contactMasked ?? "연락처 없음"} ·{" "}
                   {log.provider ?? "provider 없음"}
                 </p>
@@ -321,20 +321,20 @@ export default function AdminPage() {
           </LogSection>
           <LogSection title="Replies">
             {replies.map((reply) => (
-              <div key={reply.id} className="rounded-md bg-slate-50 p-3 text-sm">
+              <div key={reply.id} className="rounded-lg bg-brand-gray p-3 text-sm">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="font-semibold text-ink">
+                    <p className="font-semibold text-[#4E536B]">
                       {reply.message.title} · {reply.status}
                     </p>
-                    <p className="mt-1 text-slate-600">{formatDateTime(reply.createdAt)}</p>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-800">{reply.contentPreview}</p>
+                    <p className="mt-1 text-[#A2A6BF]">{formatDateTime(reply.createdAt)}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[#4E536B]">{reply.contentPreview}</p>
                   </div>
                   {reply.status === "VISIBLE" ? (
                     <button
                       type="button"
                       onClick={() => void hideReply(reply.id)}
-                      className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+                      className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
                     >
                       숨김
                     </button>
@@ -345,16 +345,16 @@ export default function AdminPage() {
           </LogSection>
           <LogSection title="Reports">
             {reports.map((report) => (
-              <div key={report.id} className="rounded-md bg-slate-50 p-3 text-sm">
+              <div key={report.id} className="rounded-lg bg-brand-gray p-3 text-sm">
                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="font-semibold text-ink">
+                    <p className="font-semibold text-[#4E536B]">
                       {report.message.title} · {report.reason} · {report.status}
                     </p>
-                    <p className="mt-1 text-slate-600">
+                    <p className="mt-1 text-[#A2A6BF]">
                       신고자: {report.reporterName} · 발신자: {report.message.senderName} · {formatDateTime(report.createdAt)}
                     </p>
-                    {report.details ? <p className="mt-2 whitespace-pre-wrap text-slate-800">{report.details}</p> : null}
+                    {report.details ? <p className="mt-2 whitespace-pre-wrap text-[#4E536B]">{report.details}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {report.status === "PENDING" ? (
@@ -362,14 +362,14 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={() => void reviewReport(report.id, "REVIEWED")}
-                          className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+                          className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
                         >
                           검토 완료
                         </button>
                         <button
                           type="button"
                           onClick={() => void reviewReport(report.id, "DISMISSED")}
-                          className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+                          className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
                         >
                           기각
                         </button>
@@ -378,7 +378,7 @@ export default function AdminPage() {
                     <button
                       type="button"
                       onClick={() => void toggleSuspend(report)}
-                      className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold"
+                      className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
                     >
                       {report.message.senderSuspendedAt ? "정지 해제" : "발신자 정지"}
                     </button>
@@ -395,10 +395,10 @@ export default function AdminPage() {
 
 function LogSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-5">
+    <section className="rounded-lg border figma-panel p-5">
       <div className="mb-3 flex items-center gap-2">
-        <ShieldCheck size={18} className="text-moss" />
-        <h2 className="font-semibold text-ink">{title}</h2>
+        <ShieldCheck size={18} className="text-brand-sub" />
+        <h2 className="font-semibold text-[#4E536B]">{title}</h2>
       </div>
       <div className="grid gap-2">{children}</div>
     </section>
@@ -407,9 +407,9 @@ function LogSection({ title, children }: { title: string; children: ReactNode })
 
 function MetricPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md bg-slate-50 px-3 py-2">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-ink">{value}</p>
+    <div className="rounded-lg bg-brand-gray px-3 py-2">
+      <p className="text-xs font-semibold text-[#A2A6BF]">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-[#4E536B]">{value}</p>
     </div>
   );
 }
@@ -425,17 +425,17 @@ function GroupedRows({
 }) {
   return (
     <div className="mt-3">
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      <h3 className="text-sm font-semibold text-[#4E536B]">{title}</h3>
       <div className="mt-2 grid gap-2">
         {rows.length > 0 ? (
           rows.map((row) => (
-            <div key={`${title}:${row.label}`} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm">
-              <span className="text-slate-700">{row.label}</span>
-              <span className="font-semibold text-ink">{row.count}</span>
+            <div key={`${title}:${row.label}`} className="flex items-center justify-between rounded-lg bg-brand-gray px-3 py-2 text-sm">
+              <span className="text-[#6E738A]">{row.label}</span>
+              <span className="font-semibold text-[#4E536B]">{row.count}</span>
             </div>
           ))
         ) : (
-          <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">{emptyText}</p>
+          <p className="rounded-lg bg-brand-gray px-3 py-2 text-sm text-[#A2A6BF]">{emptyText}</p>
         )}
       </div>
     </div>

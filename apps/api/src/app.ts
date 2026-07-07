@@ -7,6 +7,7 @@ import { config } from "./config/env.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
+import { collectionRoutes } from "./modules/collections/collection.routes.js";
 import { contactRoutes } from "./modules/contacts/contact.routes.js";
 import { friendRoutes } from "./modules/friends/friend.routes.js";
 import { messageRoutes } from "./modules/messages/message.routes.js";
@@ -43,6 +44,7 @@ export function createApp() {
 
   app.use("/api", authRoutes);
   app.use("/api", adminRoutes);
+  app.use("/api", collectionRoutes);
   app.use("/api", contactRoutes);
   app.use("/api", friendRoutes);
   app.use("/api", messageRoutes);

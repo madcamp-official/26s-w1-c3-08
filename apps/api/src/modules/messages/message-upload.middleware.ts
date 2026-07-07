@@ -3,7 +3,8 @@ import multer from "multer";
 import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
 
-const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const allowedImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -12,10 +13,12 @@ const upload = multer({
     fileSize: config.maxAttachmentBytes,
     fieldSize: 256 * 1024,
     fields: 1,
-    parts: config.maxAttachmentCount + 1,
+    // Busboy can count the multipart closing boundary while enforcing parts.
+    // Keep file/field limits strict, but leave one spare part so 1 payload + 3 files is accepted.
+    parts: config.maxAttachmentCount + 2,
   },
   fileFilter(_request, file, callback) {
-    if (!allowedImageTypes.has(file.mimetype)) {
+    if (!allowedImageTypes.has(file.mimetype) || !hasAllowedImageExtension(file.originalname)) {
       callback(new AppError("ATTACHMENT_TYPE_UNSUPPORTED", "지원하지 않는 이미지 형식이에요.", 400));
       return;
     }
@@ -76,4 +79,9 @@ export function parseCreateMessageRequest(request: Request, response: Response, 
 
     next();
   });
+}
+
+function hasAllowedImageExtension(fileName: string) {
+  const normalized = fileName.trim().toLowerCase();
+  return [...allowedImageExtensions].some((extension) => normalized.endsWith(extension));
 }

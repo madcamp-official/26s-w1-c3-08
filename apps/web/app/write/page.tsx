@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
+import { QrShare } from "@/components/QrShare";
 import { ApiError, apiFetch } from "@/lib/api";
 
 type CreateMessageResponse = {
@@ -71,7 +73,7 @@ type RecipientDraft = {
 type AttachmentDraft = {
   id: string;
   fileName: string;
-  mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  mimeType: "image/jpeg" | "image/png" | "image/webp";
   sizeBytes: number;
   file: File;
   previewUrl: string;
@@ -85,6 +87,12 @@ type CompletedMessage = {
   publicUrl: string | null;
 };
 
+type WriteNotice = {
+  title: string;
+  body?: string;
+  tone?: "danger" | "success" | "default";
+};
+
 const emotionOptions = [
   ["THANKS", "고마움"],
   ["CHEER", "응원"],
@@ -93,7 +101,7 @@ const emotionOptions = [
   ["LONGING", "그리움"],
   ["LOVE", "사랑"],
   ["CUSTOM", "직접 입력"],
-];
+] as const;
 
 const presetOptions = [
   ["todayNight", "오늘 밤 9시"],
@@ -107,6 +115,8 @@ const quarterMinuteOptions = ["00", "15", "30", "45"];
 const maxAttachmentCount = 3;
 const maxAttachmentBytes = 2 * 1024 * 1024;
 const maxAttachmentTotalBytes = maxAttachmentCount * maxAttachmentBytes;
+const allowedAttachmentMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
 const themeOptions: Array<[MessageTheme, string]> = [
   ["LAVENDER", "보라빛 봉투"],
@@ -150,7 +160,7 @@ export default function WritePage() {
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const attachmentsRef = useRef<AttachmentDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
+  const [notice, setNotice] = useState<WriteNotice | null>(null);
   const [completedMessage, setCompletedMessage] = useState<CompletedMessage | null>(null);
   const [kstNow, setKstNow] = useState("KST 시간 확인 중");
 
@@ -599,545 +609,495 @@ export default function WritePage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink">마음 쓰기</h1>
-          <p className="mt-2 text-sm text-slate-600">지금의 마음을 미래의 순간에 남겨요.</p>
+      <div className="relative max-w-[1190px]">
+        <div className="pointer-events-none absolute left-[434px] top-[-86px] hidden h-[263px] w-[395px] overflow-hidden lg:block">
+          <Image src="/images/maeari-cloud-envelope.png" alt="" fill sizes="395px" className="object-cover" />
         </div>
-        <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 shadow-soft">
-          <CalendarClock className="text-moss" size={22} />
-          <div>
-            <p className="text-xs font-semibold text-slate-500">현재 KST</p>
-            <p className="font-mono text-sm font-semibold tabular-nums text-ink">{kstNow}</p>
-          </div>
-        </div>
-      </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-5">
-        {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
-        {serverTimeError ? (
-          <section className="rounded-md border border-rose-200 bg-rose-50 p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <Notice title="서버 시간을 불러오지 못했어요." body={serverTimeError} tone="danger" />
-              <button
-                type="button"
-                onClick={() => void loadServerDefaultSchedule()}
-                className="focus-ring rounded-md border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700"
-              >
-                다시 시도
-              </button>
-            </div>
-          </section>
+        <div className="mb-[14px] pl-[5px]">
+          <h1 className="text-[34px] font-bold leading-tight text-[#3A3D8D]">새로운 마음 보내기</h1>
+          <p className="mt-2 text-sm text-[#A2A6BF]">당신의 마음이 가장 필요한 순간에 도착해요.</p>
+        </div>
+
+        {notice ? (
+          <WriteNoticeDialog
+            notice={notice}
+            completedMessage={notice.tone === "success" ? completedMessage : null}
+            onClose={() => setNotice(null)}
+            onViewDetail={(messageId) => router.push(`/messages/${messageId}`)}
+            onViewSent={() => router.push("/sent")}
+            onReset={resetForm}
+            onHome={() => router.push("/")}
+          />
         ) : null}
-        {completedMessage ? (
-          <section className="rounded-md border border-emerald-200 bg-emerald-50 p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-emerald-950">
-                  <CheckCircle2 size={20} />
-                  <h2 className="text-base font-semibold">예약이 저장됐어요</h2>
-                </div>
-                <div className="mt-3 grid gap-1 text-sm text-emerald-950">
-                  <p>제목: {completedMessage.title}</p>
-                  <p>수신자: {completedMessage.receiverLabel}</p>
-                  <p>도착 예정: {formatKstArrival(completedMessage.scheduledAt)}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => router.push(`/messages/${completedMessage.id}`)}
-                  className="focus-ring rounded-md bg-moss px-3 py-2 text-sm font-semibold text-white"
-                >
-                  예약 상세 보기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push("/sent")}
-                  className="focus-ring rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
-                >
-                  보낸 마음 보기
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="focus-ring inline-flex items-center gap-2 rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
-                >
-                  <RotateCcw size={15} />
-                  새 마음 쓰기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push("/")}
-                  className="focus-ring inline-flex items-center gap-2 rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
-                >
-                  <Home size={15} />
-                  메인
-                </button>
-              </div>
+
+        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[746px_312px] xl:items-start">
+          <section className="figma-panel min-h-[578px] px-[21px] py-[24px]">
+            <div className="px-[1px]">
+              <p className="text-sm font-medium text-[#7B7FAA]">현재 시각 (KST)</p>
+              <p className="mt-[13px] border-b border-[#F1EEF8] pb-[13px] font-mono text-[24px] font-medium text-[#4E5391] tabular-nums">
+                {kstNow}
+              </p>
             </div>
 
-            {completedMessage.publicUrl ? (
-              <div className="mt-4 rounded-md border border-emerald-200 bg-white p-4">
-                <p className="text-sm font-semibold text-emerald-950">공개 도착 링크</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-900">
-                  이 링크는 수신자가 로그인하지 않아도 도착 시간 이후 마음을 열어볼 수 있는 주소예요.
-                  문자/이메일 발송이 아직 연결되지 않았거나 직접 전달해야 할 때만 필요한 사람에게 공유해 주세요.
-                </p>
-                <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <code className="break-all text-sm text-emerald-950">{completedMessage.publicUrl}</code>
+            <div className="mt-[13px]">
+              <p className="mb-[10px] text-sm font-bold text-[#868CB2]">받는 사람</p>
+              <div className="grid h-[32px] overflow-hidden border border-[#D7CCF8] bg-white md:grid-cols-3">
+                {[
+                  ["SELF", "미래의 나"],
+                  ["FRIEND", "친구선택"],
+                  ["OTHER", "연락처"],
+                ].map(([value, label]) => (
+                  <label
+                    key={value}
+                    className={`focus-ring flex cursor-pointer items-center justify-center border-[#E3E5EF] text-[13px] ${
+                      value !== "SELF" ? "border-l" : ""
+                    } ${receiverType === value ? "bg-[#F2EDFD] font-medium text-[#9B84F8]" : "bg-white text-[#999EB9]"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="receiverType"
+                      checked={receiverType === value}
+                      onChange={() => setReceiverType(value as ReceiverType)}
+                      className="sr-only"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-[18px]">
+                {receiverType === "FRIEND" ? (
+                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                    <select
+                      value={selectedFriendshipId}
+                      onChange={(event) => setSelectedFriendshipId(event.target.value)}
+                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs text-[#8E93AC]"
+                    >
+                      <option value="">친구 이름을 검색하거나 선택하세요</option>
+                      {friends.map((friend) => (
+                        <option key={friend.friendshipId} value={friend.friendshipId}>
+                          {friend.nickname}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/friends")}
+                      className="focus-ring h-[31px] rounded-[4px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]"
+                    >
+                      친구 관리
+                    </button>
+                  </div>
+                ) : null}
+
+                {receiverType === "OTHER" ? (
+                  <div className="grid gap-2 md:grid-cols-4">
+                    <input
+                      value={receiverName}
+                      onChange={(event) => setReceiverName(event.target.value)}
+                      placeholder="수신자 이름"
+                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                    />
+                    <input
+                      value={receiverEmail}
+                      onChange={(event) => setReceiverEmail(event.target.value)}
+                      placeholder="메일 주소"
+                      type="email"
+                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                    />
+                    <input
+                      value={receiverPhone}
+                      onChange={(event) => setReceiverPhone(formatPhoneInput(event.target.value))}
+                      placeholder="전화번호"
+                      inputMode="tel"
+                      maxLength={13}
+                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                    />
+                    <select
+                      value={preferredChannel}
+                      onChange={(event) => setPreferredChannel(event.target.value as PreferredChannel)}
+                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                    >
+                      <option value="AUTO">자동 선택</option>
+                      <option value="EMAIL">이메일</option>
+                      <option value="SMS">문자</option>
+                    </select>
+                  </div>
+                ) : null}
+
+                {receiverType === "SELF" ? (
+                  <div className="h-[31px] rounded-[4px] border border-[#E3E5EF] bg-[#FEFDFD] px-3 py-2 text-xs text-[#B4B9CC]">
+                    미래의 나에게 마음을 예약해요.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={addRecipientDraft}
+                  className="focus-ring inline-flex h-8 items-center gap-2 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]"
+                >
+                  <Plus size={14} />
+                  수신자 추가
+                </button>
+                {recipientDrafts.length > 0 ? (
                   <button
                     type="button"
-                    onClick={() => completedMessage.publicUrl && void navigator.clipboard.writeText(completedMessage.publicUrl)}
-                    className="focus-ring rounded-md bg-moss px-3 py-2 text-sm font-semibold text-white"
+                    onClick={() => setRecipientDrafts([])}
+                    className="focus-ring h-8 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#8588A1]"
                   >
-                    링크 복사
+                    목록 비우기
                   </button>
+                ) : null}
+              </div>
+
+              {recipientDrafts.length > 0 ? (
+                <div className="mt-3 grid gap-2 rounded-[8px] bg-[#F8F5FD] p-2">
+                  {recipientDrafts.map((draft) => (
+                    <div key={draft.id} className="flex items-center justify-between gap-3 rounded-[6px] bg-white px-3 py-2 text-xs text-[#6E738A]">
+                      <span className="min-w-0 truncate">
+                        {draft.label} · {receiverTypeLabel(draft.payload.type)}
+                      </span>
+                      <button type="button" onClick={() => removeRecipientDraft(draft.id)} aria-label="수신자 제거" className="focus-ring text-[#9A85E1]">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {contactsLoading ? (
-          <Notice title="전화번호 인증 상태를 확인하고 있어요." tone="default" />
-        ) : contactsError ? (
-          <Notice title={contactsError} tone="danger" />
-        ) : !hasVerifiedStrictPhone ? (
-          <section className="rounded-md border border-amber-200 bg-amber-50 p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-amber-950">
-                  <ShieldCheck size={18} />
-                  <h2 className="text-base font-semibold">전화번호 인증이 필요해요</h2>
-                </div>
-                <p className="mt-2 text-sm text-amber-900">
-                  마음을 예약하려면 먼저 전화번호 인증을 완료해 주세요.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push("/phone-verification?next=/write")}
-                className="focus-ring rounded-md bg-amber-700 px-4 py-2 text-sm font-semibold text-white"
-              >
-                전화번호 인증하기
-              </button>
+              ) : null}
             </div>
-          </section>
-        ) : null}
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-base font-semibold text-ink">수신 대상</h2>
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="rounded-md border border-slate-200 p-3">
+            <div className="mt-[19px]">
+              <label className="text-[13px] font-bold text-[#7E83AC]">제목</label>
               <input
-                type="radio"
-                name="receiverType"
-                checked={receiverType === "SELF"}
-                onChange={() => setReceiverType("SELF")}
-                className="mr-2"
+                required
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                maxLength={120}
+                placeholder="제목을 입력해주세요 (최대 50자)"
+                className="focus-ring maeari-input mt-[8px] h-[35px] w-full rounded-[4px] px-3 text-xs"
               />
-              미래의 나
-            </label>
-            <label className="rounded-md border border-slate-200 p-3">
-              <input
-                type="radio"
-                name="receiverType"
-                checked={receiverType === "FRIEND"}
-                onChange={() => setReceiverType("FRIEND")}
-                className="mr-2"
-              />
-              친구
-            </label>
-            <label className="rounded-md border border-slate-200 p-3">
-              <input
-                type="radio"
-                name="receiverType"
-                checked={receiverType === "OTHER"}
-                onChange={() => setReceiverType("OTHER")}
-                className="mr-2"
-              />
-              연락처로 보내기
-            </label>
-          </div>
-
-	          {receiverType === "FRIEND" ? (
-	            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-	              <select
-	                value={selectedFriendshipId}
-                onChange={(event) => setSelectedFriendshipId(event.target.value)}
-                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-              >
-                <option value="">친구 선택</option>
-                {friends.map((friend) => (
-                  <option key={friend.friendshipId} value={friend.friendshipId}>
-                    {friend.nickname}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => router.push("/friends")}
-                className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                친구 관리
-              </button>
             </div>
-          ) : null}
 
-          {receiverType === "OTHER" ? (
-            <>
-	              <div className="mt-4 grid gap-3 md:grid-cols-4">
-	                <input
-	                  value={receiverName}
-                  onChange={(event) => setReceiverName(event.target.value)}
-                  placeholder="수신자 이름"
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-                />
-                <input
-                  value={receiverEmail}
-                  onChange={(event) => setReceiverEmail(event.target.value)}
-                  placeholder="수신자 이메일"
-                  type="email"
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-                />
-                <input
-                  value={receiverPhone}
-                  onChange={(event) => setReceiverPhone(formatPhoneInput(event.target.value))}
-                  placeholder="수신자 전화번호"
-                  inputMode="tel"
-                  maxLength={13}
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-                />
-                <select
-                  value={preferredChannel}
-                  onChange={(event) => setPreferredChannel(event.target.value as PreferredChannel)}
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="AUTO">자동 선택</option>
-                  <option value="EMAIL">이메일 우선</option>
-                  <option value="SMS">문자 우선</option>
-                </select>
+            <div className="mt-[14px]">
+              <div className="flex items-center justify-between">
+                <label className="text-[13px] font-bold text-[#8186B1]">본문</label>
+                <span className="text-xs text-[#BCC0D3]">{content.length}/5000</span>
               </div>
-              <p className="mt-2 text-sm text-slate-500">
-                자동 선택은 이메일이 있으면 이메일을 먼저 사용하고, 이메일이 없으면 문자로 도착 알림을 보내요.
-	              </p>
-	            </>
-	          ) : null}
-	          <div className="mt-4 flex flex-wrap gap-2">
-	            <button
-	              type="button"
-	              onClick={addRecipientDraft}
-	              className="focus-ring inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-	            >
-	              <Plus size={16} />
-	              수신자 목록에 추가
-	            </button>
-	            {recipientDrafts.length > 0 ? (
-	              <button
-	                type="button"
-	                onClick={() => setRecipientDrafts([])}
-	                className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-	              >
-	                목록 비우기
-	              </button>
-	            ) : null}
-	          </div>
-	          {recipientDrafts.length > 0 ? (
-	            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-	              <p className="text-sm font-semibold text-ink">전송할 수신자 {recipientDrafts.length}명</p>
-	              <div className="mt-3 grid gap-2">
-	                {recipientDrafts.map((draft) => (
-	                  <div
-	                    key={draft.id}
-	                    className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-	                  >
-	                    <span className="min-w-0 truncate">
-	                      {draft.label} · {receiverTypeLabel(draft.payload.type)}
-	                    </span>
-	                    <button
-	                      type="button"
-	                      onClick={() => removeRecipientDraft(draft.id)}
-	                      className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 text-slate-600"
-	                      aria-label="수신자 제거"
-	                    >
-	                      <Trash2 size={15} />
-	                    </button>
-	                  </div>
-	                ))}
-	              </div>
-	            </div>
-	          ) : (
-	            <p className="mt-3 text-sm text-slate-500">
-	              여러 명에게 보내려면 수신자를 하나씩 추가하세요. 목록이 비어 있으면 현재 선택한 한 명에게 전송돼요.
-	            </p>
-	          )}
-	        </section>
+              <textarea
+                required
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                maxLength={5000}
+                rows={4}
+                placeholder={"당신의 마음을 자유롭게 적어주세요.\n따뜻한 한 마디가 누군가의 하루를 비출 수 있어요."}
+                className="focus-ring maeari-input mt-[8px] min-h-[89px] w-full resize-y rounded-[4px] px-4 py-3 text-xs leading-5"
+              />
+            </div>
 
-        <section className="rounded-md border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-base font-semibold text-ink">내용</h2>
-          <div className="grid gap-3">
-            <input
-              required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={120}
-              placeholder="제목"
-              className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-            />
-            <textarea
-              required
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              maxLength={5000}
-              rows={10}
-              placeholder="본문"
-              className="focus-ring resize-y rounded-md border border-slate-300 px-3 py-2"
-            />
-	            <div className="grid gap-3 md:grid-cols-2">
-	              <select
-	                value={emotionTag}
-                onChange={(event) => setEmotionTag(event.target.value)}
-                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-              >
+            <div className="mt-[18px]">
+              <p className="text-[15px] font-medium text-[#797EA8]">감정태그</p>
+              <p className="mt-1 text-[11px] text-[#BBBFD2]">
+                <span className="mr-1 text-[#F18E90]">•</span>마음에 담긴 가장 가까운 태그를 선택해주세요.
+              </p>
+              <div className="mt-[9px] grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {emotionOptions.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setEmotionTag(value)}
+                    className={`focus-ring h-[41px] rounded-[12px] text-xs font-medium ${
+                      emotionTag === value ? "bg-[#F2EDFD] text-[#9B84F8] ring-1 ring-[#CBBBFA]" : "bg-[#F6F4F9] text-[#9EA2BB]"
+                    }`}
+                  >
+                    {emotionIcon(value)} {label}
+                  </button>
                 ))}
-              </select>
+              </div>
               {emotionTag === "CUSTOM" ? (
                 <input
                   value={customEmotionTag}
                   onChange={(event) => setCustomEmotionTag(event.target.value)}
                   placeholder="감정 태그"
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	                />
-	              ) : null}
-	            </div>
-	            <div className="grid gap-3 md:grid-cols-2">
-	              <select
-	                value={theme}
-	                onChange={(event) => setTheme(event.target.value as MessageTheme)}
-	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	              >
-	                {themeOptions.map(([value, label]) => (
-	                  <option key={value} value={value}>
-	                    {label}
-	                  </option>
-	                ))}
-	              </select>
-	              <label className="focus-ring inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700">
-	                <input
-	                  type="checkbox"
-	                  checked={isReplyEnabled}
-	                  onChange={(event) => setIsReplyEnabled(event.target.checked)}
-	                  className="mr-2"
-	                />
-	                공개 링크에서 익명 답장 허용
-	              </label>
-	            </div>
-	            <div className="rounded-md border border-slate-200 p-3">
-	              <label className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">
-	                <ImagePlus size={16} />
-	                이미지 첨부
-	                <input
-	                  type="file"
-		                  accept="image/png,image/jpeg,image/webp,image/gif"
-		                  multiple
-		                  className="sr-only"
-		                  onChange={(event) => {
-		                    void handleAttachmentChange(event.target.files);
-		                    event.currentTarget.value = "";
-		                  }}
-		                />
-		              </label>
-	              {attachments.length > 0 ? (
-	                <div className="mt-3 grid gap-2 md:grid-cols-3">
-		                  {attachments.map((attachment) => (
-		                    <div key={attachment.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
-		                      <img src={attachment.previewUrl} alt="" className="aspect-video w-full rounded-md object-cover" />
-		                      <div className="mt-2 flex items-center justify-between gap-2">
-		                        <p className="min-w-0 truncate text-xs text-slate-600">{attachment.fileName}</p>
-		                        <button
-		                          type="button"
-		                          onClick={() => removeAttachment(attachment.id)}
-		                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300"
-	                          aria-label="첨부 이미지 제거"
-	                        >
-	                          <Trash2 size={14} />
-	                        </button>
-	                      </div>
-	                    </div>
-	                  ))}
-	                </div>
-	              ) : null}
-	            </div>
-	          </div>
-	        </section>
+                  className="focus-ring maeari-input mt-2 h-9 w-full rounded-[4px] px-3 text-xs"
+                />
+              ) : null}
+            </div>
 
-	        <section className="rounded-md border border-slate-200 bg-white p-5">
-	          <h2 className="mb-4 text-base font-semibold text-ink">도착 설정</h2>
-	          <div className="grid gap-4">
-	            <div className="grid gap-3 md:grid-cols-2">
-	              <label className="rounded-md border border-slate-200 p-3">
-	                <input
-	                  type="radio"
-	                  name="arrivalMode"
-	                  checked={arrivalMode === "FIXED"}
-	                  onChange={() => setArrivalMode("FIXED")}
-	                  className="mr-2"
-	                />
-	                정해진 시간에 도착
-	              </label>
-	              <label className="rounded-md border border-slate-200 p-3">
-	                <input
-	                  type="radio"
-	                  name="arrivalMode"
-	                  checked={arrivalMode === "RANDOM_WINDOW"}
-	                  onChange={() => setArrivalMode("RANDOM_WINDOW")}
-	                  className="mr-2"
-	                />
-	                기간 안에서 랜덤 도착
-	              </label>
-	            </div>
-	            <div className="flex flex-wrap gap-2">
-              {presetOptions.map(([key, label]) => (
+            <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto]">
+              <select
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as MessageTheme)}
+                className="focus-ring maeari-input h-9 rounded-[4px] px-3 text-xs"
+              >
+                {themeOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <label className="focus-ring inline-flex h-9 items-center rounded-[8px] border border-[#E3E5EF] bg-white px-3 text-xs text-[#7A80B1]">
+                <input
+                  type="checkbox"
+                  checked={isReplyEnabled}
+                  onChange={(event) => setIsReplyEnabled(event.target.checked)}
+                  className="mr-2 accent-[#6D48DB]"
+                />
+                답장 허용
+              </label>
+            </div>
+
+            <div className="mt-4 rounded-[8px] border border-[#E3E5EF] bg-[#FEFDFD] p-3">
+              <label className="focus-ring inline-flex h-8 cursor-pointer items-center gap-2 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]">
+                <ImagePlus size={15} />
+                이미지 첨부
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    void handleAttachmentChange(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {attachments.length > 0 ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {attachments.map((attachment) => (
+                    <div key={attachment.id} className="rounded-[8px] bg-[#F3EFF7] p-2">
+                      <img src={attachment.previewUrl} alt="" className="aspect-video w-full rounded-[6px] object-cover" />
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-[11px] text-[#8588A1]">{attachment.fileName}</p>
+                        <button type="button" onClick={() => removeAttachment(attachment.id)} className="focus-ring text-[#9A85E1]" aria-label="첨부 이미지 제거">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-4">
+              {serverTimeError ? (
+                <div className="rounded-[8px] border border-rose-200 bg-rose-50 p-3">
+                  <Notice title="서버 시간을 불러오지 못했어요." body={serverTimeError} tone="danger" />
+                  <button type="button" onClick={() => void loadServerDefaultSchedule()} className="focus-ring mt-2 h-8 rounded-[7px] bg-white px-3 text-xs font-semibold text-rose-700">
+                    다시 시도
+                  </button>
+                </div>
+              ) : contactsLoading ? (
+                <Notice title="전화번호 인증 상태를 확인하고 있어요." tone="default" />
+              ) : contactsError ? (
+                <Notice title={contactsError} tone="danger" />
+              ) : !hasVerifiedStrictPhone ? (
+                <div className="rounded-[8px] border border-[#D9C8FF] bg-[#F3EEFD] p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 text-[#6D48DB]">
+                      <ShieldCheck size={17} />
+                      <p className="text-sm font-semibold">전화번호 인증이 필요해요</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/phone-verification?next=/write")}
+                      className="focus-ring h-8 rounded-[7px] bg-[#6D48DB] px-3 text-xs font-semibold text-white"
+                    >
+                      인증하기
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <aside className="figma-panel min-h-[521px] px-[26px] py-[29px] xl:sticky xl:top-[96px]">
+            <h2 className="text-[21px] font-medium text-[#6D71AF]">전달설정</h2>
+            <div className="mt-[24px]">
+              <label className="text-[13px] font-medium text-[#7D81B1]">전달 예정일</label>
+              <input
+                required
+                type="date"
+                value={arrivalDate}
+                min={minArrivalDate}
+                onChange={(event) => {
+                  setArrivalTouched(true);
+                  setArrivalDate(event.target.value);
+                }}
+                className="focus-ring maeari-input mt-[8px] h-[44px] w-full rounded-[10px] px-3 text-sm text-[#7377AB]"
+              />
+            </div>
+
+            <div className="mt-[20px]">
+              <label className="text-[13px] font-medium text-[#7B80B3]">전달 예정 시간</label>
+              <div className="mt-[8px] grid grid-cols-[93px_1fr_1fr] gap-1.5">
+                <select
+                  value={Number(arrivalTime.split(":")[0] || "0") < 12 ? "AM" : "PM"}
+                  onChange={(event) => {
+                    const [rawHour = "09", minute = "00"] = arrivalTime.split(":");
+                    const hour = Number(rawHour);
+                    const normalized = event.target.value === "AM" ? hour % 12 : (hour % 12) + 12;
+                    setArrivalTouched(true);
+                    setArrivalTime(`${String(normalized).padStart(2, "0")}:${minute}`);
+                  }}
+                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#8489B8]"
+                >
+                  <option value="AM">오전</option>
+                  <option value="PM">오후</option>
+                </select>
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={arrivalTime.split(":")[0] || ""}
+                  onChange={(event) => {
+                    const minute = arrivalTime.split(":")[1] || "00";
+                    setArrivalTouched(true);
+                    setArrivalTime(`${event.target.value.padStart(2, "0").slice(-2)}:${minute}`);
+                  }}
+                  aria-label="도착 시"
+                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#6E72AC]"
+                />
+                <input
+                  required
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={arrivalTime.split(":")[1] || ""}
+                  onChange={(event) => {
+                    const hour = arrivalTime.split(":")[0] || "09";
+                    setArrivalTouched(true);
+                    setArrivalTime(`${hour}:${event.target.value.padStart(2, "0").slice(-2)}`);
+                  }}
+                  aria-label="도착 분"
+                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#7478AD]"
+                />
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                {quarterMinuteOptions.map((minute) => (
+                  <button
+                    key={minute}
+                    type="button"
+                    onClick={() => applyQuarterMinute(minute)}
+                    className="focus-ring h-7 flex-1 rounded-[7px] bg-[#F6F4F9] text-[11px] font-semibold text-[#9A85E1]"
+                  >
+                    {minute}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {presetOptions.slice(0, 4).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => applyPreset(key)}
-                  className="focus-ring rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="focus-ring rounded-[7px] border border-[#E3E5EF] bg-white px-2 py-2 text-[11px] text-[#8588A1]"
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {quarterMinuteOptions.map((minute) => (
-                <button
-                  key={minute}
-                  type="button"
-                  onClick={() => applyQuarterMinute(minute)}
-                  className="focus-ring rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
-                >
-                  {minute}분
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                required
-                type="date"
-	                value={arrivalDate}
-	                min={minArrivalDate}
-	                onChange={(event) => {
-                    setArrivalTouched(true);
-                    setArrivalDate(event.target.value);
-                  }}
-	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	              />
-              <input
-                required
-                type="time"
-                step={60}
-                value={arrivalTime}
-                onChange={(event) => {
-                  setArrivalTouched(true);
-                  setArrivalTime(event.target.value);
-                }}
-                aria-label="도착 시간"
-	                className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	              />
-	            </div>
-	            {arrivalMode === "RANDOM_WINDOW" ? (
-	              <div className="grid gap-3 md:grid-cols-2">
-	                <input
-	                  required
-	                  type="date"
-	                  value={randomEndDate}
-	                  min={arrivalDate || minArrivalDate}
-	                  onChange={(event) => setRandomEndDate(event.target.value)}
-	                  aria-label="랜덤 도착 종료 날짜"
-	                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	                />
-	                <input
-	                  required
-	                  type="time"
-	                  step={60}
-	                  value={randomEndTime}
-	                  onChange={(event) => setRandomEndTime(event.target.value)}
-	                  aria-label="랜덤 도착 종료 시간"
-	                  className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	                />
-	              </div>
-	            ) : null}
-	            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-	              {arrivalMode === "RANDOM_WINDOW"
-	                ? `랜덤 도착 구간: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "시작 미정"} ~ ${
-	                    toDateFromKstInput(randomEndDate, randomEndTime)
-	                      ? formatKstArrival(toDateFromKstInput(randomEndDate, randomEndTime) as Date)
-	                      : "종료 미정"
-	                  }`
-	                : `도착 예정: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "날짜와 시간을 선택해 주세요."}`}
-	            </div>
-	            <select
-	              value={hintPreset}
-	              onChange={(event) => setHintPreset(event.target.value as HintPreset)}
-	              className="focus-ring rounded-md border border-slate-300 px-3 py-2"
-	            >
-	              <option value="NONE">도착 전 힌트 알림 없음</option>
-	              <option value="ONE_HOUR">도착 1시간 전 힌트 알림</option>
-	              <option value="ONE_DAY">도착 하루 전 힌트 알림</option>
-	            </select>
-	            <div className="grid gap-3 md:grid-cols-2">
-              <label className="rounded-md border border-slate-200 p-3">
-                <input
-                  type="checkbox"
-                  checked={isSenderHidden}
-                  onChange={(event) => setIsSenderHidden(event.target.checked)}
-                  className="mr-2"
-                />
-                발신인 숨기기
-              </label>
-              <label className="rounded-md border border-slate-200 p-3">
-                <input
-                  type="checkbox"
-                  checked={isDateHidden}
-                  onChange={(event) => setIsDateHidden(event.target.checked)}
-                  className="mr-2"
-                />
-                도착일 숨기기
-              </label>
-            </div>
-          </div>
-        </section>
 
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/sent")}
-            className="focus-ring rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-          >
-            발신함
-          </button>
-          <button
-            type="submit"
-            disabled={
-              submitting ||
-              contactsLoading ||
-              Boolean(contactsError) ||
-              !hasVerifiedStrictPhone ||
-              serverTimeLoading ||
-              Boolean(serverTimeError)
-            }
-            className="focus-ring inline-flex items-center gap-2 rounded-md bg-petal px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            <Send size={17} />
-            {submitting ? "검사 중" : "예약하기"}
-          </button>
-        </div>
-      </form>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[7px] border text-xs ${arrivalMode === "FIXED" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+                <input type="radio" name="arrivalMode" checked={arrivalMode === "FIXED"} onChange={() => setArrivalMode("FIXED")} className="sr-only" />
+                고정 도착
+              </label>
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[7px] border text-xs ${arrivalMode === "RANDOM_WINDOW" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+                <input type="radio" name="arrivalMode" checked={arrivalMode === "RANDOM_WINDOW"} onChange={() => setArrivalMode("RANDOM_WINDOW")} className="sr-only" />
+                랜덤 도착
+              </label>
+            </div>
+
+            {arrivalMode === "RANDOM_WINDOW" ? (
+              <div className="mt-3 grid gap-2">
+                <input
+                  required
+                  type="date"
+                  value={randomEndDate}
+                  min={arrivalDate || minArrivalDate}
+                  onChange={(event) => setRandomEndDate(event.target.value)}
+                  aria-label="랜덤 도착 종료 날짜"
+                  className="focus-ring maeari-input h-10 rounded-[7px] px-3 text-xs"
+                />
+                <input
+                  required
+                  type="time"
+                  step={60}
+                  value={randomEndTime}
+                  onChange={(event) => setRandomEndTime(event.target.value)}
+                  aria-label="랜덤 도착 종료 시간"
+                  className="focus-ring maeari-input h-10 rounded-[7px] px-3 text-xs"
+                />
+              </div>
+            ) : null}
+
+            <select
+              value={hintPreset}
+              onChange={(event) => setHintPreset(event.target.value as HintPreset)}
+              className="focus-ring maeari-input mt-3 h-10 w-full rounded-[7px] px-3 text-xs"
+            >
+              <option value="NONE">도착 전 힌트 알림 없음</option>
+              <option value="ONE_HOUR">도착 1시간 전 힌트 알림</option>
+              <option value="ONE_DAY">도착 하루 전 힌트 알림</option>
+            </select>
+
+            <div className="mt-4 space-y-3 border-t border-[#F3EFF7] pt-4">
+              <ToggleRow
+                title="익명으로 보내기"
+                description="받는 사람에게 내 이름을 숨겨요."
+                checked={isSenderHidden}
+                onChange={setIsSenderHidden}
+              />
+              <ToggleRow
+                title="도착 예정일 숨기기"
+                description="받는 사람에게 도착 예정일을 알려주지 않아요."
+                checked={isDateHidden}
+                onChange={setIsDateHidden}
+              />
+            </div>
+
+            <div className="mt-4 rounded-[8px] bg-[#F6F4F9] px-3 py-2 text-[12px] leading-5 text-[#7A80B1]">
+              {arrivalMode === "RANDOM_WINDOW"
+                ? `랜덤 도착: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "시작 미정"} ~ ${
+                    toDateFromKstInput(randomEndDate, randomEndTime)
+                      ? formatKstArrival(toDateFromKstInput(randomEndDate, randomEndTime) as Date)
+                      : "종료 미정"
+                  }`
+                : `도착 예정: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "날짜와 시간을 선택해 주세요."}`}
+            </div>
+
+            <button
+              type="submit"
+              disabled={
+                submitting ||
+                contactsLoading ||
+                Boolean(contactsError) ||
+                !hasVerifiedStrictPhone ||
+                serverTimeLoading ||
+                Boolean(serverTimeError)
+              }
+              className="focus-ring mt-5 inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-[9px] bg-[#6D48DB] text-sm font-semibold text-white shadow-[0_4px_6px_rgba(64,39,135,0.28)] disabled:opacity-50"
+            >
+              <Send size={17} />
+              {submitting ? "검사 중" : "마음 보내기"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/sent")}
+              className="focus-ring mt-2 h-9 w-full rounded-[8px] border border-[#DAD4E8] bg-white text-xs font-semibold text-[#8588A1]"
+            >
+              보낸 마음 보기
+            </button>
+          </aside>
+        </form>
+      </div>
     </AppShell>
   );
 }
@@ -1194,9 +1154,175 @@ function receiverTypeLabel(type: ReceiverType) {
   return "미래의 나";
 }
 
+function emotionIcon(value: string) {
+  switch (value) {
+    case "THANKS":
+      return "🍀";
+    case "CHEER":
+      return "⭐";
+    case "CELEBRATION":
+      return "🎉";
+    case "COMFORT":
+      return "🌙";
+    case "LOVE":
+      return "💗";
+    case "CUSTOM":
+      return "•••";
+    default:
+      return "✦";
+  }
+}
+
+function ToggleRow({
+  title,
+  description,
+  checked,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4">
+      <span>
+        <span className="block text-[13px] font-medium text-[#777CB1]">{title}</span>
+        <span className="mt-1 block text-[12px] text-[#B8BCCF]">{description}</span>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="sr-only" />
+      <span
+        className={`relative h-[30px] w-[51px] shrink-0 rounded-full transition ${checked ? "bg-[#6D48DB]" : "bg-[#D8D8E4]"}`}
+      >
+        <span
+          className={`absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition ${
+            checked ? "left-[24px]" : "left-[3px]"
+          }`}
+        />
+      </span>
+    </label>
+  );
+}
+
+function WriteNoticeDialog({
+  notice,
+  completedMessage,
+  onClose,
+  onViewDetail,
+  onViewSent,
+  onReset,
+  onHome,
+}: {
+  notice: WriteNotice;
+  completedMessage: CompletedMessage | null;
+  onClose: () => void;
+  onViewDetail: (messageId: string) => void;
+  onViewSent: () => void;
+  onReset: () => void;
+  onHome: () => void;
+}) {
+  const tone = notice.tone ?? "default";
+  const isSuccess = tone === "success" && completedMessage;
+  const accentClass =
+    tone === "danger"
+      ? "border-rose-200 bg-rose-50 text-rose-950"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+        : "border-brand-line bg-white text-[#4E536B]";
+  const primaryButtonClass =
+    tone === "danger"
+      ? "bg-rose-700 text-white"
+      : tone === "success"
+        ? "bg-brand-sub text-white"
+        : "bg-[#6D48DB] text-white";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6D48DB]/35 px-4 py-6" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="write-notice-title"
+        className={`w-full max-w-lg rounded-lg border p-5 shadow-2xl ${accentClass}`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            {tone === "success" ? <CheckCircle2 className="mt-0.5 shrink-0" size={22} /> : null}
+            <div>
+              <h2 id="write-notice-title" className="text-base font-semibold">
+                {notice.title}
+              </h2>
+              {notice.body ? <p className="mt-2 text-sm leading-6 opacity-85">{notice.body}</p> : null}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-white/70"
+            aria-label="팝업 닫기"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {isSuccess ? (
+          <div className="mt-4 grid gap-3 rounded-lg border border-emerald-200 bg-white p-4 text-sm text-emerald-950">
+            <p>제목: {completedMessage.title}</p>
+            <p>수신자: {completedMessage.receiverLabel}</p>
+            <p>도착 예정: {formatKstArrival(completedMessage.scheduledAt)}</p>
+            {completedMessage.publicUrl ? (
+              <QrShare value={completedMessage.publicUrl} title="공개 도착 QR" fileName={`maeari-message-${completedMessage.id}.png`} />
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          {isSuccess ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onViewDetail(completedMessage.id)}
+                className={`focus-ring rounded-lg px-3 py-2 text-sm font-semibold ${primaryButtonClass}`}
+              >
+                예약 상세 보기
+              </button>
+              <button
+                type="button"
+                onClick={onViewSent}
+                className="focus-ring rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+              >
+                보낸 마음 보기
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                className="focus-ring inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+              >
+                <RotateCcw size={15} />
+                새 마음 쓰기
+              </button>
+              <button
+                type="button"
+                onClick={onHome}
+                className="focus-ring inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+              >
+                <Home size={15} />
+                메인
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={onClose} className={`focus-ring rounded-lg px-4 py-2 text-sm font-semibold ${primaryButtonClass}`}>
+              확인
+            </button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function createAttachmentDraft(file: File): AttachmentDraft {
-  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-    throw new Error("지원하지 않는 이미지 형식이에요.");
+  if (!allowedAttachmentMimeTypes.includes(file.type) || !hasAllowedAttachmentExtension(file.name)) {
+    throw new Error("이미지는 jpg, jpeg, png, webp 형식만 첨부할 수 있어요.");
   }
 
   if (file.size > maxAttachmentBytes) {
@@ -1211,6 +1337,11 @@ function createAttachmentDraft(file: File): AttachmentDraft {
     file,
     previewUrl: URL.createObjectURL(file),
   };
+}
+
+function hasAllowedAttachmentExtension(fileName: string) {
+  const normalized = fileName.trim().toLowerCase();
+  return allowedAttachmentExtensions.some((extension) => normalized.endsWith(extension));
 }
 
 async function fetchServerTimeWithRetry(): Promise<ServerTimeResponse> {

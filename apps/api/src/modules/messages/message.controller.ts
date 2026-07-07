@@ -8,10 +8,13 @@ import {
   createMessagePublicLink,
   createMessage,
   deleteMessageFromMailbox,
+  deleteSentReply,
   getMessageDetail,
   listArchivedMessages,
   listReceivedMessages,
+  listSentMessageReplies,
   listSentMessages,
+  markSentReplyRead,
   reportMessage,
   unarchiveReceivedMessage,
 } from "./message.service.js";
@@ -31,6 +34,42 @@ export const listSentMessagesController = asyncHandler(async (request: Request, 
   }
 
   response.json({ messages: await listSentMessages(request.user.id) });
+});
+
+export const listSentMessageRepliesController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.json({ replies: await listSentMessageReplies(request.user.id) });
+});
+
+export const markSentReplyReadController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const replyId = request.params.id;
+
+  if (!replyId) {
+    throw new AppError("MESSAGE_REPLY_ID_REQUIRED", "답장 정보를 찾을 수 없어요.", 400);
+  }
+
+  response.json(await markSentReplyRead(request.user.id, replyId));
+});
+
+export const deleteSentReplyController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const replyId = request.params.id;
+
+  if (!replyId) {
+    throw new AppError("MESSAGE_REPLY_ID_REQUIRED", "답장 정보를 찾을 수 없어요.", 400);
+  }
+
+  response.json(await deleteSentReply(request.user.id, replyId));
 });
 
 export const listReceivedMessagesController = asyncHandler(async (request: Request, response: Response) => {

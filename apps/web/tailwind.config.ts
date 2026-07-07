@@ -5,14 +5,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1f2933",
-        paper: "#fffaf0",
-        petal: "#d9467a",
-        moss: "#567568",
-        amberline: "#d69e2e",
-      },
-      boxShadow: {
-        soft: "0 18px 50px rgba(31, 41, 51, 0.12)",
+        brand: {
+          accent: "#6D48DB",
+          main: "#F3EEFD",
+          sub: "#9A85E1",
+          bg: "#FBF9FC",
+          gray: "#F3EFF7",
+          ink: "#3A3D8D",
+          muted: "#8588A1",
+          line: "#E6E0F1",
+        },
       },
     },
   },

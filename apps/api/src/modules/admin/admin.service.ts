@@ -221,15 +221,17 @@ export async function listAdminNotificationLogs() {
     attemptedAt: log.attemptedAt,
     sentAt: log.sentAt,
     createdAt: log.createdAt,
-    recipient: {
-      id: log.recipient.id,
-      type: log.recipient.receiverType,
-      name: log.recipient.receiverName,
-      contactMasked: maskContact(log.recipient.receiverEmail ?? log.recipient.receiverPhone),
-      messageId: log.recipient.message.id,
-      messageTitle: log.recipient.message.title,
-      messageStatus: log.recipient.message.status,
-    },
+    recipient: log.recipient
+      ? {
+          id: log.recipient.id,
+          type: log.recipient.receiverType,
+          name: log.recipient.receiverName,
+          contactMasked: maskContact(log.recipient.receiverEmail ?? log.recipient.receiverPhone),
+          messageId: log.recipient.message.id,
+          messageTitle: log.recipient.message.title,
+          messageStatus: log.recipient.message.status,
+        }
+      : null,
   }));
 }
 

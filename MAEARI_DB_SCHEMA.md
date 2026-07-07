@@ -29,7 +29,8 @@
 - 새 DB 이름은 `maeari`로 사용합니다.
 - 기존 DB `maeum_arrival`과 임시 `maeari_dryrun` DB는 final dump 검증 후 제거했습니다.
 - final dump 백업은 `backups/maeum_arrival_final_20260706_090800.dump`로 보존합니다.
-- 기존 bootstrap role `maeum`은 Postgres system-required 객체 때문에 삭제할 수 없어 `NOLOGIN`으로 잠근 상태로 남깁니다.
+- 2026-07-07 기준 앱 환경변수와 PM2 프로세스는 `maeari` DB만 사용합니다.
+- 기존 bootstrap role `maeum`은 Postgres system-required role이라 삭제할 수 없지만 `NOLOGIN` 상태이며, template DB owner는 `maeari`로 정리했습니다.
 - `PUBLIC_TOKEN_PEPPER`는 반드시 기존 값 그대로 유지합니다. 공개 링크 token hash, 수신거부 contact hash, OTP hash 정책이 이 값에 의존합니다.
 
 ---
@@ -210,7 +211,7 @@ FriendInviteLink
 주요 필드:
 
 - `senderId`: 발신자
-- `senderContactId`: 발송 당시 선택한 verified `UserContact`
+- `senderContactId`: 메시지 생성 시 서버가 직접 선택한 active verified strict PHONE `UserContact`
 - `senderContactSnapshot`: `{ type, maskedValue, contactHash, label }`
 - `title`, `content`: 제목과 본문
 - `emotionTag`, `customEmotionTag`: 감정 태그
@@ -261,6 +262,22 @@ FriendInviteLink
 
 첨부 이미지 metadata를 저장합니다. 파일 자체는 `UPLOAD_DIR` 아래에 저장하고, API가 `UPLOAD_PUBLIC_PATH`로 정적 제공하는 public URL을 DB에 저장합니다.
 
+허용되는 첨부 형식은 `.jpg`, `.jpeg`, `.png`, `.webp`입니다. DB에는 브라우저 확장자 자체를 별도 enum으로 저장하지 않고, 검증을 통과한 MIME type을 `mimeType`에 저장합니다.
+
+```txt
+허용 MIME:
+- image/jpeg
+- image/png
+- image/webp
+```
+
+서버 저장 전 검증 계층:
+
+- multer `fileFilter`: MIME type과 original file name 확장자 검사
+- validation schema: JSON data URL payload의 `fileName` 확장자 검사
+- service 저장 직전: 파일 buffer magic bytes 검사
+- OCR service: OCR 가능한 MIME type인지 재확인
+
 주요 필드:
 
 - `messageId`
@@ -269,6 +286,11 @@ FriendInviteLink
 - `originalName`
 - `mimeType`
 - `sizeBytes`
+- `ocrStatus`: `SKIPPED`, `EXTRACTED`, `FAILED`
+- `ocrText`: OCR로 추출한 텍스트
+- `ocrConfidence`: Tesseract confidence
+- `ocrError`: OCR 실패/timeout/미지원 형식 사유
+- `ocrCheckedAt`: OCR 확인 시각
 
 ## 3.7 MessageReply
 
@@ -338,7 +360,7 @@ OpenAI moderation 검사 이력을 저장합니다.
 - `provider`: `in_app`, `gmail_smtp`, `solapi`, `contact_suppression` 등
 - `idempotencyKey`: 같은 수신자/이벤트/channel 중복 발송 방지
 - `attemptCount`
-- `providerMessageId`
+- `providerMessageId`: Gmail SMTP message id, Solapi message id 또는 group id
 - `payload`
 - `errorCode`, `errorMessage`
 - `scheduledAt`, `nextRetryAt`, `attemptedAt`, `sentAt`
@@ -366,6 +388,7 @@ OpenAI moderation 검사 이력을 저장합니다.
 - `POST /api/public/notification-suppressions`: row upsert, 수신거부.
 - `DELETE /api/public/notification-suppressions`: row delete, 재구독.
 - 이메일 수신거부는 EMAIL만 막고, 문자 수신거부는 SMS만 막습니다.
+- EMAIL은 trim + lowercase, SMS는 숫자만 남긴 국내 번호를 정규화한 뒤 `PUBLIC_TOKEN_PEPPER` HMAC hash로 저장합니다.
 
 ## 3.12 MessageReport
 
@@ -713,7 +736,7 @@ AI 재검사 scheduler
 - `maeari` role 생성 및 Docker Postgres healthcheck 기준 user로 전환 완료
 - `maeum_arrival` DB 삭제 완료
 - `maeari_dryrun` DB 삭제 완료
-- `maeum` bootstrap role은 system-required 객체 때문에 삭제 불가하여 `NOLOGIN`으로 잠금
+- `maeum` bootstrap role은 system-required role이라 삭제 불가하지만 `NOLOGIN` 상태이며, template DB owner는 `maeari`로 정리 완료
 - final dump: `backups/maeum_arrival_final_20260706_090800.dump`
 - `backups/`는 `.gitignore`에 포함
 
@@ -921,3 +944,109 @@ phone -> digits only -> HMAC-SHA256 -> ContactSuppression.contactHash
 - 수신거부 관리자 해제, abuse 대응, 연락처 기반 차단 정책을 추가할 수 있습니다.
 - 친구 차단, 친구 초대 링크, 연락처 기반 추천을 추가할 수 있습니다.
 - 대량 데이터 이전이 필요해지면 maintenance window 대신 read-only mode, dual-write, CDC 기반 이전을 검토합니다.
+
+---
+
+## 11. 2026-07-06 신규 스키마 반영
+
+적용 migration:
+
+- `20260706150000_ocr_replies_qr_collections`
+- 2026-07-07 운영 `maeari` DB 기준 `prisma migrate status` 결과: `Database schema is up to date!`
+
+### 11.1 이미지 OCR
+
+- `AttachmentOcrStatus`
+  - `SKIPPED`
+  - `EXTRACTED`
+  - `FAILED`
+- `MessageAttachment` 추가 필드
+  - `ocrStatus`
+  - `ocrText`
+  - `ocrConfidence`
+  - `ocrError`
+  - `ocrCheckedAt`
+
+용도:
+
+- 이미지 안의 글자를 `tesseract.js`로 OCR 추출해 기존 메시지 유해성 검사 입력에 포함합니다.
+- API 구현은 `Tesseract.recognize(buffer, IMAGE_OCR_LANGUAGES, ...)`를 사용합니다.
+- 기본 언어는 `kor+eng`이며, 운영 env로 timeout과 최대 OCR 텍스트 길이를 조절합니다.
+- OCR 실패 시 메시지는 `MODERATION_FAILED`로 대기하고 retry job이 저장된 첨부 파일을 다시 OCR 검사합니다.
+- OCR은 이미지 장면 자체가 아니라 이미지 내부 텍스트만 검사합니다.
+
+OCR 관련 env:
+
+```env
+IMAGE_OCR_MODERATION_ENABLED=true
+IMAGE_OCR_LANGUAGES=kor+eng
+IMAGE_OCR_TIMEOUT_MS=8000
+IMAGE_OCR_MAX_TEXT_CHARS=4000
+```
+
+첨부 형식 정책:
+
+- 허용 확장자: `.jpg`, `.jpeg`, `.png`, `.webp`
+- 허용 MIME: `image/jpeg`, `image/png`, `image/webp`
+- GIF/HEIC/PDF/텍스트 파일은 업로드 단계에서 차단합니다.
+- 확장자와 MIME type뿐 아니라 파일 header magic bytes까지 검사해 저장 전 최종 차단합니다.
+
+### 11.2 답장 알림
+
+- `NotificationEventType`
+  - `REPLY_RECEIVED`
+  - `COLLECTION_DELIVERED`
+- `MessageReply` 추가 필드
+  - `senderReadAt`
+  - `senderDeletedAt`
+  - `notifiedAt`
+- `NotificationLog` 확장
+  - `messageRecipientId`는 기존 메시지 도착 알림에서는 계속 사용하지만, 답장/마음나무 알림을 위해 optional로 변경되었습니다.
+  - `targetUserId`, `messageReplyId`, `messageCollectionId`가 추가되어 수신자 row가 없는 앱/이메일 알림도 기록할 수 있습니다.
+
+### 11.3 마음나무
+
+- `MessageCollectionStatus`
+  - `ACTIVE`
+  - `DELIVERED`
+  - `CANCELED`
+- `MessageCollectionSubmissionStatus`
+  - `VISIBLE`
+  - `BLOCKED`
+  - `HIDDEN`
+  - `DELETED`
+- `MessageCollection`
+  - owner가 만든 공개 수집 링크입니다.
+  - `tokenHash`만 저장하며 raw token은 응답 시점에만 제공합니다.
+  - `scheduledAt`이 지나면 scheduler가 `DELIVERED`로 전환합니다.
+- `MessageCollectionSubmission`
+  - 비회원이 공개 링크에서 남긴 텍스트 편지입니다.
+  - 원본 IP는 저장하지 않고 `PUBLIC_TOKEN_PEPPER` 기반 `ipHash`만 저장합니다.
+  - 도착 전 owner 화면에는 개수만 보이고, 도착 후 내용이 공개됩니다.
+
+### 11.4 연락처 인증 후 수신 연결
+
+- 별도 테이블 추가 없이 `UserContact` 인증 성공 시 `MessageRecipient.receiverEmail` 또는 `receiverPhone`과 매칭합니다.
+- 미연결 OTHER 수신자만 현재 user의 `receiverUserId`로 연결합니다.
+- 활성 `MessageAccessToken.linkedUserId`도 함께 채워 받은 마음 보관함과 공개 링크 보관 흐름을 일관되게 유지합니다.
+
+---
+
+## 12. 현재 schema 운영 기준선
+
+- DB 이름/사용자: `maeari`
+- 최신 적용 migration: `20260706150000_ocr_replies_qr_collections`
+- 앱 환경변수: `DATABASE_URL`은 `maeari` DB, `POSTGRES_DB=maeari`, `POSTGRES_USER=maeari` 기준입니다.
+- 기존 DB: `maeum_arrival`, `maeari_dryrun`은 제거되었습니다.
+- 기존 role: `maeum`은 Postgres bootstrap role이라 삭제할 수 없지만 `NOLOGIN` 상태이며, 앱 client connection은 0개입니다.
+- template DB: `template0`, `template1` owner는 `maeari`로 정리했습니다.
+- 주요 신규 테이블:
+  - `MessageCollection`
+  - `MessageCollectionSubmission`
+- 주요 확장 테이블:
+  - `MessageAttachment`: OCR 결과 필드
+  - `MessageReply`: 발신자 읽음/삭제/알림 필드
+  - `NotificationLog`: `targetUserId`, `messageReplyId`, `messageCollectionId`
+- 기존 token/hash 정책:
+  - 공개 링크 token은 raw token을 저장하지 않고 `tokenHash`만 저장합니다.
+  - IP/연락처/수신거부/OTP 관련 hash는 `PUBLIC_TOKEN_PEPPER` 유지가 필수입니다.

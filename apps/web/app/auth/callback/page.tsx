@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -78,30 +79,44 @@ export default function AuthCallbackPage() {
   }, [finishAuth]);
 
   return (
-    <main className="grid min-h-screen place-items-center px-4">
-      <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 text-center shadow-soft">
+    <main className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
+      <header className="h-[74px] border-b border-[#F1EEF8] bg-white px-5">
+        <div className="flex h-full items-center">
+          <Image
+            src="/images/maeari-app-icon.png"
+            alt="매아리"
+            width={42}
+            height={42}
+            className="h-[42px] w-[42px] rounded-[10px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
+            priority
+          />
+          <span className="ml-3 text-[25px] font-medium tracking-[0.02em] text-[#9A85E1]">매아리</span>
+        </div>
+      </header>
+
+      <section className="figma-panel mx-auto mt-[31px] w-[calc(100%-32px)] max-w-md p-6 text-center">
         {error ? (
           <div className="space-y-4">
             <Notice title={error} tone="danger" />
             <button
               type="button"
               onClick={() => void finishAuth()}
-              className="focus-ring rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
+              className="focus-ring rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold"
             >
               다시 시도
             </button>
             <button
               type="button"
               onClick={() => router.replace(errorFallbackHref)}
-              className="focus-ring rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white"
+              className="focus-ring rounded-lg bg-[#6D48DB] px-4 py-2 text-sm font-semibold text-white"
             >
               확인
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="animate-spin text-petal" />
-            <p className="text-sm font-medium text-slate-700">{statusText}</p>
+            <Loader2 className="animate-spin text-brand-accent" />
+            <p className="text-sm font-medium text-[#6E738A]">{statusText}</p>
           </div>
         )}
       </section>

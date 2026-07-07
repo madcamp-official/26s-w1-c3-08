@@ -11,11 +11,30 @@ const receiverInfoSchema = z.object({
   preferredChannel: z.enum(["AUTO", "SMS", "EMAIL"]).default("AUTO").optional(),
 });
 
-const attachmentSchema = z.object({
-  fileName: z.string().trim().max(255).optional(),
-  mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
-  dataBase64: z.string().min(1),
-});
+const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
+const attachmentSchema = z
+  .object({
+    fileName: z.string().trim().max(255).optional(),
+    mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    dataBase64: z.string().min(1),
+  })
+  .superRefine((value, context) => {
+    if (!value.fileName) {
+      return;
+    }
+
+    const normalized = value.fileName.toLowerCase();
+    const isAllowed = allowedAttachmentExtensions.some((extension) => normalized.endsWith(extension));
+
+    if (!isAllowed) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["fileName"],
+        message: "이미지는 jpg, jpeg, png, webp 형식만 첨부할 수 있어요.",
+      });
+    }
+  });
 
 export const createMessageSchema = z
   .object({

@@ -5,12 +5,13 @@ import {
   NotificationStatus,
   RecipientType,
   RecipientDeliveryStatus,
+  UserContactType,
   type NotificationLog,
   type MessageRecipient,
   type Prisma,
 } from "@maeari/database";
 import { config } from "../config/env.js";
-import type { MessageSentEventPayload } from "../events/domain-events.js";
+import type { MessageReplyCreatedEventPayload, MessageSentEventPayload } from "../events/domain-events.js";
 import { normalizeEmailContact, normalizePhoneContact } from "../lib/contact-normalization.js";
 import { prisma } from "../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashContact, hashPublicToken } from "../lib/tokens.js";
@@ -131,6 +132,164 @@ export class NotificationProcessor {
     }
   }
 
+  async handleReplyCreated(payload: MessageReplyCreatedEventPayload) {
+    const reply = await prisma.messageReply.findUnique({
+      where: { id: payload.replyId },
+      include: {
+        message: {
+          select: {
+            id: true,
+            title: true,
+            senderId: true,
+            sender: {
+              select: {
+                nickname: true,
+              },
+            },
+          },
+        },
+        recipient: {
+          select: {
+            receiverName: true,
+          },
+        },
+      },
+    });
+
+    if (!reply || reply.status !== "VISIBLE") {
+      return;
+    }
+
+    const now = new Date();
+    const messageUrl = `${config.serviceUrl}/messages/${reply.message.id}`;
+    const appIdempotencyKey = createIdempotencyKey(
+      `reply:${reply.id}`,
+      NotificationEventType.REPLY_RECEIVED,
+      NotificationChannel.IN_APP,
+    );
+
+    await prisma.notificationLog.upsert({
+      where: { idempotencyKey: appIdempotencyKey },
+      update: {},
+      create: {
+        messageRecipientId: reply.messageRecipientId,
+        targetUserId: reply.message.senderId,
+        messageReplyId: reply.id,
+        eventType: NotificationEventType.REPLY_RECEIVED,
+        channel: NotificationChannel.IN_APP,
+        status: NotificationStatus.SENT,
+        provider: "in_app",
+        idempotencyKey: appIdempotencyKey,
+        attemptCount: 1,
+        attemptedAt: now,
+        sentAt: now,
+        scheduledAt: now,
+        payload: {
+          messageId: reply.message.id,
+          replyId: reply.id,
+          messageUrl,
+          text: "답장이 도착했어요.",
+        },
+      },
+    });
+
+    const emailContact = await prisma.userContact.findFirst({
+      where: {
+        userId: reply.message.senderId,
+        type: UserContactType.EMAIL,
+        verifiedAt: { not: null },
+        deletedAt: null,
+      },
+      orderBy: [{ isPrimary: "desc" }, { verifiedAt: "desc" }, { createdAt: "asc" }],
+    });
+
+    if (emailContact) {
+      const emailIdempotencyKey = createIdempotencyKey(
+        `reply:${reply.id}`,
+        NotificationEventType.REPLY_RECEIVED,
+        NotificationChannel.EMAIL,
+      );
+      const content = createReplyNotificationContent(reply.message.sender.nickname, reply.message.title, messageUrl);
+      const skippedBySuppression = await isContactSuppressed(NotificationChannel.EMAIL, emailContact.value);
+      const log = await prisma.notificationLog.upsert({
+        where: { idempotencyKey: emailIdempotencyKey },
+        update: {
+          attemptedAt: now,
+          attemptCount: { increment: 1 },
+          payload: {
+            messageId: reply.message.id,
+            replyId: reply.id,
+            messageUrl,
+            subject: content.subject,
+            text: content.text,
+          },
+        },
+        create: {
+          messageRecipientId: reply.messageRecipientId,
+          targetUserId: reply.message.senderId,
+          messageReplyId: reply.id,
+          eventType: NotificationEventType.REPLY_RECEIVED,
+          channel: NotificationChannel.EMAIL,
+          status: skippedBySuppression ? NotificationStatus.SKIPPED : NotificationStatus.PENDING,
+          provider: skippedBySuppression ? "contact_suppression" : "gmail_smtp",
+          idempotencyKey: emailIdempotencyKey,
+          attemptCount: 1,
+          scheduledAt: now,
+          attemptedAt: now,
+          payload: {
+            messageId: reply.message.id,
+            replyId: reply.id,
+            messageUrl,
+            subject: content.subject,
+            text: content.text,
+          },
+          errorCode: skippedBySuppression ? "CONTACT_SUPPRESSED" : null,
+          errorMessage: skippedBySuppression ? "발신자가 이메일 알림 수신을 거부했어요." : null,
+        },
+      });
+
+      if (!skippedBySuppression && log.status !== NotificationStatus.SENT) {
+        const result = await externalNotificationProvider.send({
+          channel: "EMAIL",
+          to: emailContact.value,
+          receiverName: reply.message.sender.nickname,
+          publicUrl: messageUrl,
+          subject: content.subject,
+          text: content.text,
+          html: content.html,
+          idempotencyKey: emailIdempotencyKey,
+        });
+
+        await prisma.notificationLog.update({
+          where: { id: log.id },
+          data:
+            result.status === "SENT"
+              ? {
+                  status: NotificationStatus.SENT,
+                  provider: result.provider,
+                  providerMessageId: result.providerMessageId,
+                  errorCode: null,
+                  errorMessage: null,
+                  nextRetryAt: null,
+                  sentAt: now,
+                }
+              : {
+                  status: result.status === "RETRYABLE_FAILED" ? NotificationStatus.FAILED : NotificationStatus.FAILED,
+                  provider: result.provider,
+                  errorCode: result.errorCode,
+                  errorMessage: result.errorMessage,
+                  nextRetryAt: null,
+                },
+        });
+      }
+    }
+
+    await prisma.messageReply.update({
+      where: { id: reply.id },
+      data: { notifiedAt: now },
+    });
+  }
+
   async retryPendingNotifications() {
     const logs = await prisma.notificationLog.findMany({
       where: {
@@ -164,6 +323,10 @@ export class NotificationProcessor {
     });
 
     for (const log of logs) {
+      if (!log.recipient) {
+        continue;
+      }
+
       await this.deliverExternalRecipient(log.recipient, log.scheduledAt ?? new Date(), log);
     }
 
@@ -717,6 +880,32 @@ function createHintNotificationContent(
     "<br />도착 시간이 지나면 아래 링크에서 열어볼 수 있어요.</p>",
     `<p><a href="${escapeHtml(publicUrl)}">${escapeHtml(publicUrl)}</a></p>`,
     "<p>편지 내용은 이메일에 포함하지 않았어요.</p>",
+  ].join("");
+
+  return { subject, text, html };
+}
+
+function createReplyNotificationContent(senderName: string, messageTitle: string, messageUrl: string): Required<NotificationContent> {
+  const subject = "매아리에 답장이 도착했어요";
+  const text = [
+    `${senderName}님,`,
+    "",
+    `보낸 마음 "${messageTitle}"에 답장이 도착했어요.`,
+    "아래 링크에서 로그인 후 확인할 수 있어요.",
+    "",
+    messageUrl,
+    "",
+    "알림 이메일에는 편지 원문과 답장 내용을 포함하지 않았어요.",
+  ].join("\n");
+  const html = [
+    "<p>",
+    escapeHtml(`${senderName}님,`),
+    "</p>",
+    "<p>",
+    escapeHtml(`보낸 마음 "${messageTitle}"에 답장이 도착했어요.`),
+    "<br />아래 링크에서 로그인 후 확인할 수 있어요.</p>",
+    `<p><a href="${escapeHtml(messageUrl)}">${escapeHtml(messageUrl)}</a></p>`,
+    "<p>알림 이메일에는 편지 원문과 답장 내용을 포함하지 않았어요.</p>",
   ].join("");
 
   return { subject, text, html };

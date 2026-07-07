@@ -563,9 +563,12 @@ Mobile Bottom Navigation
 │       ├── 사랑
 │       └── 직접 입력
 │   └── 이미지 첨부
-│       ├── JPEG/PNG/WebP/GIF
+│       ├── JPG/JPEG/PNG/WebP
+│       ├── GIF/HEIC/PDF 차단
 │       ├── 최대 3개
 │       ├── 파일당 MAX_ATTACHMENT_BYTES 이하
+│       ├── 전체 MAX_ATTACHMENT_TOTAL_BYTES 이하
+│       ├── payload + 이미지 3개 multipart 요청 허용
 │       └── 미리보기와 삭제
 │
 ├── Section 3. 도착 설정
@@ -624,6 +627,7 @@ Mobile Bottom Navigation
 │   └── POST /api/messages
 │       ├── 첨부 없음: JSON body
 │       ├── 첨부 있음: multipart payload + attachments
+│       ├── multipart parts limit은 payload + 이미지 3개를 허용
 │       ├── auth middleware
 │       ├── request validation
 │       ├── senderContactId payload 무시
@@ -635,23 +639,26 @@ Mobile Bottom Navigation
 │       └── 2회 검사 실패 시 MODERATION_FAILED 저장
 │
 ├── 성공 상태
+│   ├── WriteNoticeDialog 중앙 팝업
 │   ├── 예약 완료 메시지
+│   ├── 제목/수신자/도착 예정 시각 표시
 │   ├── publicUrl 용도 안내
 │   ├── 첫 번째 publicUrl 복사
-│   ├── 수신자별 publicUrls 확인
 │   ├── 메인으로 이동
 │   ├── 발신함으로 이동
 │   ├── 예약 상세 보기
 │   └── 새 마음 쓰기
 │
 ├── 검사 실패 보관 상태
+│   ├── WriteNoticeDialog 중앙 팝업
 │   ├── 안전 검사를 잠시 완료하지 못했어요
 │   ├── 작성한 마음은 임시 보관됨
 │   ├── publicUrl 미발급
 │   ├── 하루 한 번 자동 재검사 안내
-│   └── 발신함으로 이동
+│   └── 확인 버튼으로 닫기
 │
 └── 실패 상태
+    ├── 화면 상단 인라인 notice가 아니라 중앙 팝업으로 표시
     ├── AI 차단
     │   ├── hate/harassment feedback
     │   ├── self-harm/violence feedback
@@ -1186,6 +1193,7 @@ Message Create
 │   ├── hintAt 유효성
 │   ├── attachments 개수/용량/MIME type
 │   ├── multipart payload JSON 파싱
+│   ├── payload + 이미지 3개 multipart 허용, 이미지 4개 이상 차단
 │   ├── receiverInfo schema
 │   ├── 친구 수신자는 활성 Friendship 필요
 │   ├── 외부 수신자는 email 또는 phone 중 하나 필요
@@ -1229,6 +1237,20 @@ Message Create
     ├── message
     ├── publicUrl
     └── 검사 실패 notice
+
+Frontend result rendering
+├── /write의 setNotice 결과는 WriteNoticeDialog로 표시
+├── role="dialog", aria-modal=true
+├── success tone
+│   ├── completedMessage summary
+│   ├── publicUrl 복사
+│   ├── 예약 상세 보기
+│   ├── 보낸 마음 보기
+│   ├── 새 마음 쓰기
+│   └── 메인 이동
+├── danger/default tone
+│   └── 확인 버튼으로 닫기
+└── 화면이 하단에 있어도 결과 인지가 가능하도록 fixed overlay 사용
 ```
 
 ## 5.3 메시지 수신
@@ -1275,10 +1297,13 @@ Scheduled Delivery
     └── NotificationProcessor
         ├── 가입자 알림 생성
         ├── 외부 수신자 channel 결정
+        ├── AUTO: 이메일 있으면 EMAIL, 이메일 없고 전화번호만 있으면 SMS
+        ├── EMAIL/SMS 명시 선택 시 다른 채널 fallback 없음
         ├── EMAIL: Gmail SMTP provider
         ├── SMS: Solapi provider
         ├── ContactSuppression 조회
         ├── NotificationLog 저장
+        ├── providerMessageId 저장
         ├── provider 미설정 또는 수신거부 시 실패/생략 상태 기록
         ├── retryable 실패는 nextRetryAt 기록
         └── 실패 로그 기록
@@ -1901,4 +1926,120 @@ Development Order
     ├── Solapi SMS provider
     ├── notification retry scheduler
     └── failure logging
+```
+
+---
+
+## 2026-07-06 IA 추가: 답장함, QR, 마음나무
+
+```txt
+MaeAri
+├── Sent
+│   ├── /sent
+│   │   ├── 보낸 마음 탭
+│   │   ├── 답장함 탭
+│   │   ├── 답장 읽음/삭제
+│   │   └── 공개 도착 QR 보기
+│   └── /messages/[id]
+│       ├── 답장 목록
+│       ├── 상세 진입 시 답장 읽음 처리
+│       └── 공개 도착 QR 보기
+│
+├── Tree
+│   ├── /tree
+│   │   ├── 마음나무 생성
+│   │   ├── 도착 시점 설정
+│   │   ├── QR/링크 공유
+│   │   ├── 마음나무 목록
+│   │   └── 도착 후 제출물 열람
+│   └── /tree/[token]
+│       ├── 공개 마음나무 안내
+│       ├── 비회원 텍스트 제출
+│       └── 도착 후 제출 차단
+│
+├── Write
+│   ├── 이미지 첨부 .jpg/.jpeg/.png/.webp
+│   ├── 이미지 OCR 안전 검사
+│   └── 완료 모달 QR 우선 표시
+│
+└── System
+    ├── image OCR moderation
+    ├── message.reply.created event
+    ├── REPLY_RECEIVED notification
+    ├── MessageCollection scheduler
+    └── contact verification claim/backfill
+```
+
+### 2026-07-07 운영 반영 상태
+
+- IA에 추가된 `/sent` 답장함, `/tree`, `/tree/[token]`, QR 공유, 이미지 OCR 검사 흐름은 코드와 DB migration에 반영되었습니다.
+- 운영 `maeari` DB는 `20260706150000_ocr_replies_qr_collections`까지 적용되어 schema drift가 없는 상태입니다.
+- 이후 남은 IA 작업은 신규 route 추가가 아니라 각 화면의 수동 QA, 모바일 반응형 점검, Figma 리디자인 적용 시 현재 기능 보존 확인입니다.
+
+### 2026-07-07 첨부 이미지/OCR IA 상세
+
+```txt
+/write
+├── 이미지 첨부 버튼
+│   ├── accept: .jpg, .jpeg, .png, .webp
+│   ├── multiple
+│   ├── 최대 3개
+│   ├── 개별 최대 2MB
+│   └── 전체 최대 MAX_ATTACHMENT_TOTAL_BYTES
+│
+├── 클라이언트 1차 검증
+│   ├── file.type: image/jpeg, image/png, image/webp
+│   ├── file.name 확장자: .jpg, .jpeg, .png, .webp
+│   ├── 미지원 형식 오류: "이미지는 jpg, jpeg, png, webp 형식만 첨부할 수 있어요."
+│   └── 통과 시 previewUrl 생성
+│
+├── 제출 payload
+│   ├── 첨부 없음: JSON body
+│   └── 첨부 있음: multipart/form-data
+│       ├── payload: JSON.stringify(messagePayload)
+│       └── attachments: File[]
+│
+├── API 업로드 검증
+│   ├── multer memory storage
+│   ├── MIME type allowlist
+│   ├── originalname 확장자 allowlist
+│   ├── 파일 개수/용량/총량 제한
+│   ├── service 저장 전 magic bytes 검사
+│   └── 실패 시 ATTACHMENT_TYPE_UNSUPPORTED / TOO_MANY_ATTACHMENTS / ATTACHMENT_TOO_LARGE
+│
+├── OCR 안전 검사
+│   ├── tesseract.js
+│   ├── IMAGE_OCR_LANGUAGES=kor+eng
+│   ├── IMAGE_OCR_TIMEOUT_MS=8000
+│   ├── MessageAttachment.ocrStatus 기록
+│   ├── 추출 텍스트를 메시지 본문과 병합
+│   └── OpenAI moderation/guardrail 검사 입력에 포함
+│
+└── 결과
+    ├── 안전: Message + MessageAttachment 저장, 예약 완료 모달 표시
+    ├── 유해: MESSAGE_BLOCKED_BY_MODERATION
+    └── OCR 실패/timeout: MODERATION_FAILED, retry job 대상
+```
+
+### 2026-07-07 운영/DB IA 상세
+
+```txt
+Operations
+├── Database
+│   ├── active DB: maeari
+│   ├── removed DB: maeum_arrival
+│   ├── removed dry-run DB: maeari_dryrun
+│   ├── app client connections to old DB: 0
+│   └── bootstrap role maeum: NOLOGIN, system-required
+│
+├── PM2
+│   ├── maeari-api
+│   ├── maeari-scheduler
+│   └── maeari-web
+│
+└── Health Check
+    ├── http://127.0.0.1:4000/api/health
+    ├── http://127.0.0.1:3000/
+    ├── https://maeari.madcamp-kaist.org/api/health
+    └── https://maeari.madcamp-kaist.org/
 ```

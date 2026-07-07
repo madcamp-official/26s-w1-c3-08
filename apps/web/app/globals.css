@@ -4,8 +4,13 @@
 
 :root {
   color-scheme: light;
-  --background: #f7f9f7;
-  --foreground: #1f2933;
+  --background: #fbf9fc;
+  --foreground: #4e536b;
+  --brand-accent: #6d48db;
+  --brand-main: #f3eefd;
+  --brand-sub: #9a85e1;
+  --brand-gray: #f3eff7;
+  --brand-line: #e6e0f1;
 }
 
 * {
@@ -19,11 +24,13 @@ body {
 
 body {
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 247, 0.98)),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family:
+    "Pretendard",
+    "Noto Sans KR",
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -44,11 +51,53 @@ a {
   text-decoration: none;
 }
 
+::selection {
+  background: rgba(109, 72, 219, 0.18);
+}
+
 .focus-ring {
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
 
 .focus-ring:focus-visible {
-  outline-color: #d9467a;
+  outline-color: var(--brand-accent);
+}
+
+.figma-panel {
+  border: 1px solid #f6f2fb;
+  border-radius: 10px;
+  background: #fdfdfd;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.08);
+}
+
+.maeari-input {
+  border: 1px solid #e3e5ef;
+  background: #fefefe;
+  color: #4e536b;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.maeari-input:focus {
+  border-color: var(--brand-sub);
+  box-shadow: 0 0 0 3px rgba(154, 133, 225, 0.16);
+  outline: none;
+}
+
+.maeari-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d8cdf4 transparent;
+}
+
+.maeari-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.maeari-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8cdf4;
 }

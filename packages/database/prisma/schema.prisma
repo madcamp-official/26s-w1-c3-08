@@ -59,6 +59,12 @@ enum ModerationAttemptStatus {
   FAILED
 }
 
+enum AttachmentOcrStatus {
+  SKIPPED
+  EXTRACTED
+  FAILED
+}
+
 enum NotificationChannel {
   IN_APP
   KAKAO_ALIMTALK
@@ -69,6 +75,8 @@ enum NotificationChannel {
 enum NotificationEventType {
   MESSAGE_SENT
   ARRIVAL_HINT
+  REPLY_RECEIVED
+  COLLECTION_DELIVERED
   SYSTEM
 }
 
@@ -122,6 +130,19 @@ enum PhoneVerificationLockScope {
   CONTACT
 }
 
+enum MessageCollectionStatus {
+  ACTIVE
+  DELIVERED
+  CANCELED
+}
+
+enum MessageCollectionSubmissionStatus {
+  VISIBLE
+  BLOCKED
+  HIDDEN
+  DELETED
+}
+
 model User {
   id              String    @id @default(uuid()) @db.Uuid
   kakaoId         String    @unique @db.VarChar(64)
@@ -148,6 +169,8 @@ model User {
   friendInviteLinks   FriendInviteLink[]   @relation("FriendInviteInviter")
   submittedReports    MessageReport[]      @relation("ReportReporter")
   contacts            UserContact[]
+  messageCollections  MessageCollection[]     @relation("MessageCollectionOwner")
+  targetNotifications NotificationLog[]        @relation("NotificationTargetUser")
 
   @@index([email])
   @@index([createdAt])
@@ -351,6 +374,11 @@ model MessageAttachment {
   originalName String?  @db.VarChar(255)
   mimeType     String   @db.VarChar(80)
   sizeBytes    Int
+  ocrStatus    AttachmentOcrStatus @default(SKIPPED)
+  ocrText      String?  @db.Text
+  ocrConfidence Float?
+  ocrError     String?  @db.Text
+  ocrCheckedAt DateTime? @db.Timestamptz(3)
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -369,6 +397,9 @@ model MessageReply {
   status             MessageReplyStatus @default(VISIBLE)
   moderationInputHash String?           @db.Char(64)
   moderationCategories Json?
+  senderReadAt       DateTime?          @db.Timestamptz(3)
+  senderDeletedAt    DateTime?          @db.Timestamptz(3)
+  notifiedAt         DateTime?          @db.Timestamptz(3)
   hiddenAt           DateTime?          @db.Timestamptz(3)
   hiddenReason       String?            @db.Text
   createdAt          DateTime           @default(now()) @db.Timestamptz(3)
@@ -376,9 +407,12 @@ model MessageReply {
 
   message   Message          @relation(fields: [messageId], references: [id], onDelete: Cascade)
   recipient MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+  notifications NotificationLog[] @relation("ReplyNotifications")
 
   @@index([messageId, createdAt])
   @@index([messageRecipientId, createdAt])
+  @@index([senderDeletedAt, createdAt])
+  @@index([senderReadAt, createdAt])
   @@index([status, createdAt])
 }
 
@@ -430,7 +464,10 @@ model ModerationLog {
 
 model NotificationLog {
   id                 String                @id @default(uuid()) @db.Uuid
-  messageRecipientId String                @db.Uuid
+  messageRecipientId String?               @db.Uuid
+  targetUserId       String?               @db.Uuid
+  messageReplyId     String?               @db.Uuid
+  messageCollectionId String?              @db.Uuid
   eventType          NotificationEventType @default(MESSAGE_SENT)
   channel            NotificationChannel
   status             NotificationStatus    @default(PENDING)
@@ -448,9 +485,15 @@ model NotificationLog {
   createdAt          DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
 
-  recipient MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+  recipient MessageRecipient? @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+  targetUser User?            @relation("NotificationTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  reply      MessageReply?    @relation("ReplyNotifications", fields: [messageReplyId], references: [id], onDelete: Cascade)
+  collection MessageCollection? @relation("CollectionNotifications", fields: [messageCollectionId], references: [id], onDelete: Cascade)
 
   @@index([messageRecipientId, channel])
+  @@index([targetUserId, eventType, createdAt])
+  @@index([messageReplyId])
+  @@index([messageCollectionId])
   @@index([status, scheduledAt])
   @@index([status, nextRetryAt])
   @@index([eventType, createdAt])
@@ -504,6 +547,54 @@ model FriendInviteLink {
   @@index([inviterId, createdAt])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+model MessageCollection {
+  id           String                  @id @default(uuid()) @db.Uuid
+  ownerId      String                  @db.Uuid
+  tokenHash    String                  @unique @db.Char(64)
+  tokenPreview String?                 @db.VarChar(12)
+  title        String                  @db.VarChar(120)
+  description  String?                 @db.Text
+  scheduledAt  DateTime                @db.Timestamptz(3)
+  status       MessageCollectionStatus @default(ACTIVE)
+  deliveredAt  DateTime?               @db.Timestamptz(3)
+  canceledAt   DateTime?               @db.Timestamptz(3)
+  createdAt    DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime                @updatedAt @db.Timestamptz(3)
+
+  owner         User                          @relation("MessageCollectionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  submissions   MessageCollectionSubmission[]
+  notifications NotificationLog[]             @relation("CollectionNotifications")
+
+  @@index([ownerId, status, scheduledAt])
+  @@index([status, scheduledAt])
+  @@index([scheduledAt])
+}
+
+model MessageCollectionSubmission {
+  id                  String                            @id @default(uuid()) @db.Uuid
+  collectionId        String                            @db.Uuid
+  senderDisplayName   String?                           @db.VarChar(80)
+  content             String                            @db.Text
+  status              MessageCollectionSubmissionStatus @default(VISIBLE)
+  moderationInputHash String?                           @db.Char(64)
+  moderationCategories Json?
+  moderationFeedback  String?                           @db.Text
+  ipHash              String                            @db.Char(64)
+  deliveredAt         DateTime?                         @db.Timestamptz(3)
+  ownerReadAt         DateTime?                         @db.Timestamptz(3)
+  hiddenAt            DateTime?                         @db.Timestamptz(3)
+  hiddenReason        String?                           @db.Text
+  createdAt           DateTime                          @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                          @updatedAt @db.Timestamptz(3)
+
+  collection MessageCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId, status, createdAt])
+  @@index([collectionId, ipHash, createdAt])
+  @@index([status, createdAt])
+  @@index([ownerReadAt, createdAt])
 }
 
 model Friendship {

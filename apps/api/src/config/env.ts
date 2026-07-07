@@ -34,6 +34,7 @@ const twilioAuthToken = phoneLookupEnabled ? requireEnv("TWILIO_AUTH_TOKEN") : o
 const maxAttachmentCount = optionalNumberEnv("MAX_ATTACHMENT_COUNT", 3);
 const maxAttachmentBytes = optionalNumberEnv("MAX_ATTACHMENT_BYTES", 2 * 1024 * 1024);
 const maxAttachmentTotalBytes = optionalNumberEnv("MAX_ATTACHMENT_TOTAL_BYTES", maxAttachmentCount * maxAttachmentBytes);
+const imageOcrModerationEnabled = optionalBooleanEnv("IMAGE_OCR_MODERATION_ENABLED") ?? true;
 
 export const config = {
   nodeEnv: requireEnv("NODE_ENV"),
@@ -59,6 +60,10 @@ export const config = {
   maxAttachmentCount,
   maxAttachmentBytes,
   maxAttachmentTotalBytes,
+  imageOcrModerationEnabled,
+  imageOcrLanguages: optionalEnv("IMAGE_OCR_LANGUAGES") ?? "kor+eng",
+  imageOcrTimeoutMs: optionalNumberEnv("IMAGE_OCR_TIMEOUT_MS", 8000),
+  imageOcrMaxTextChars: optionalNumberEnv("IMAGE_OCR_MAX_TEXT_CHARS", 4000),
   adminKakaoIds: parseCsvEnv("ADMIN_KAKAO_IDS"),
   deliveryCron: requireEnv("DELIVERY_CRON"),
   moderationRetryCron: requireEnv("MODERATION_RETRY_CRON"),

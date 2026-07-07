@@ -1,5 +1,7 @@
 import {
+  AttachmentOcrStatus,
   MessageArrivalMode,
+  MessageReplyStatus,
   ModerationAttemptStatus,
   MessageStatus,
   MessageTheme,
@@ -20,6 +22,13 @@ import {
   moderateMessageWithRetry,
   type ModerationResult,
 } from "../moderation/moderation.service.js";
+import {
+  analyzeDraftAttachmentsForOcr,
+  buildAttachmentOcrText,
+  hasFailedOcr,
+  mergeContentWithOcrText,
+  type AttachmentOcrResult,
+} from "../moderation/image-ocr.service.js";
 import { assertActiveFriendship } from "../friends/friend.service.js";
 import { assertVerifiedSenderPhoneContact } from "../contacts/contact.service.js";
 import type { CreateMessageInput } from "./message.validation.js";
@@ -31,17 +40,20 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
   const senderContact = await assertVerifiedSenderPhoneContact(userId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
-  const attachments = await persistAttachments(messageId, input.attachments ?? []);
+  const attachmentOcrResults = await analyzeDraftAttachmentsForOcr(input.attachments ?? []);
+  const attachmentOcrText = buildAttachmentOcrText(attachmentOcrResults);
   const moderationInput = {
     title: input.title,
-    content: input.content,
+    content: mergeContentWithOcrText(input.content, attachmentOcrText),
     emotionTag: input.customEmotionTag ?? input.emotionTag,
   };
-  const moderation = await moderateMessageWithRetry({
-    title: moderationInput.title,
-    content: moderationInput.content,
-    emotionTag: moderationInput.emotionTag,
-  });
+  const moderation = hasFailedOcr(attachmentOcrResults)
+    ? createOcrUnavailableResult(attachmentOcrResults)
+    : await moderateMessageWithRetry({
+        title: moderationInput.title,
+        content: moderationInput.content,
+        emotionTag: moderationInput.emotionTag,
+      });
   const inputHash = getModerationInputHash(moderationInput);
 
   if (moderation.allowed === false) {
@@ -49,6 +61,8 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
       blockedCategories: moderation.blockedCategories,
     });
   }
+
+  const attachments = await persistAttachments(messageId, input.attachments ?? [], attachmentOcrResults);
 
   if (moderation.allowed === "unavailable") {
     const message = await prisma.message.create({
@@ -163,6 +177,74 @@ export async function listSentMessages(userId: string) {
   });
 
   return messages.map(mapMessageListItem);
+}
+
+export async function listSentMessageReplies(userId: string) {
+  const replies = await prisma.messageReply.findMany({
+    where: {
+      status: MessageReplyStatus.VISIBLE,
+      senderDeletedAt: null,
+      message: {
+        senderId: userId,
+        senderDeletedAt: null,
+      },
+    },
+    include: {
+      message: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      recipient: {
+        select: {
+          receiverName: true,
+          receiverType: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  return replies.map((reply) => ({
+    replyId: reply.id,
+    messageId: reply.messageId,
+    messageTitle: reply.message.title,
+    senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
+    isAnonymous: reply.isAnonymous,
+    preview: reply.content.slice(0, 140),
+    createdAt: reply.createdAt,
+    senderReadAt: reply.senderReadAt,
+    receiverName: reply.recipient.receiverName,
+    receiverType: reply.recipient.receiverType,
+  }));
+}
+
+export async function markSentReplyRead(userId: string, replyId: string) {
+  const reply = await findOwnedSentReply(userId, replyId);
+
+  if (!reply.senderReadAt) {
+    await prisma.messageReply.update({
+      where: { id: reply.id },
+      data: { senderReadAt: new Date() },
+    });
+  }
+
+  return { read: true };
+}
+
+export async function deleteSentReply(userId: string, replyId: string) {
+  const reply = await findOwnedSentReply(userId, replyId);
+
+  if (!reply.senderDeletedAt) {
+    await prisma.messageReply.update({
+      where: { id: reply.id },
+      data: { senderDeletedAt: new Date() },
+    });
+  }
+
+  return { deleted: true };
 }
 
 export async function createMessagePublicLink(userId: string, messageId: string) {
@@ -342,6 +424,18 @@ export async function getMessageDetail(userId: string, messageId: string) {
     });
   }
 
+  if (isSender) {
+    await prisma.messageReply.updateMany({
+      where: {
+        messageId: message.id,
+        status: MessageReplyStatus.VISIBLE,
+        senderDeletedAt: null,
+        senderReadAt: null,
+      },
+      data: { senderReadAt: new Date() },
+    });
+  }
+
   return {
     id: message.id,
     title: message.title,
@@ -373,15 +467,17 @@ export async function getMessageDetail(userId: string, messageId: string) {
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
     })),
-    replies: (isSender ? message.replies : message.replies.filter((reply) => reply.messageRecipientId === recipient?.id)).map(
-      (reply) => ({
+    replies: (isSender
+      ? message.replies.filter((reply) => !reply.senderDeletedAt)
+      : message.replies.filter((reply) => reply.messageRecipientId === recipient?.id)
+    ).map((reply) => ({
         id: reply.id,
         content: reply.content,
         senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
         isAnonymous: reply.isAnonymous,
+        senderReadAt: reply.senderReadAt,
         createdAt: reply.createdAt,
-      }),
-    ),
+      })),
     recipients: isSender
       ? message.recipients.map((item) => ({
           id: item.id,
@@ -407,6 +503,30 @@ export async function getMessageDetail(userId: string, messageId: string) {
       : [],
     moderationNextRetryAt: message.moderationNextRetryAt,
   };
+}
+
+async function findOwnedSentReply(userId: string, replyId: string) {
+  const reply = await prisma.messageReply.findFirst({
+    where: {
+      id: replyId,
+      status: MessageReplyStatus.VISIBLE,
+      senderDeletedAt: null,
+      message: {
+        senderId: userId,
+      },
+    },
+    select: {
+      id: true,
+      senderReadAt: true,
+      senderDeletedAt: true,
+    },
+  });
+
+  if (!reply) {
+    throw new AppError("MESSAGE_REPLY_NOT_FOUND", "답장을 찾을 수 없어요.", 404);
+  }
+
+  return reply;
 }
 
 export async function cancelMessage(userId: string, messageId: string) {
@@ -792,7 +912,25 @@ function resolveSchedule(input: CreateMessageInput) {
   };
 }
 
-async function persistAttachments(messageId: string, attachments: NonNullable<CreateMessageInput["attachments"]>) {
+function createOcrUnavailableResult(results: AttachmentOcrResult[]): ModerationResult {
+  const reason = results
+    .filter((result) => result.ocrStatus === AttachmentOcrStatus.FAILED)
+    .map((result) => result.ocrError)
+    .filter(Boolean)
+    .join("; ");
+
+  return {
+    allowed: "unavailable",
+    retryAfter: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    reason: reason || "IMAGE_OCR_FAILED",
+  };
+}
+
+async function persistAttachments(
+  messageId: string,
+  attachments: NonNullable<CreateMessageInput["attachments"]>,
+  ocrResults: AttachmentOcrResult[] = [],
+) {
   if (attachments.length > config.maxAttachmentCount) {
     throw new AppError("TOO_MANY_ATTACHMENTS", `이미지는 최대 ${config.maxAttachmentCount}개까지 첨부할 수 있어요.`, 400);
   }
@@ -808,6 +946,12 @@ async function persistAttachments(messageId: string, attachments: NonNullable<Cr
   }
 
   for (const item of decodedAttachments) {
+    const detectedMimeType = detectSupportedImageMimeType(item.buffer);
+
+    if (detectedMimeType !== item.attachment.mimeType) {
+      throw new AppError("ATTACHMENT_TYPE_UNSUPPORTED", "이미지는 jpg, jpeg, png, webp 형식만 첨부할 수 있어요.", 400);
+    }
+
     if (item.buffer.byteLength > config.maxAttachmentBytes) {
       throw new AppError("ATTACHMENT_TOO_LARGE", "첨부 이미지는 허용된 용량보다 작아야 해요.", 413);
     }
@@ -822,6 +966,7 @@ async function persistAttachments(messageId: string, attachments: NonNullable<Cr
       const fileName = `${String(index + 1).padStart(2, "0")}-${crypto.randomUUID()}${extension}`;
       const storageKey = `messages/${messageId}/${fileName}`;
       await writeFile(path.join(uploadDir, fileName), buffer);
+      const ocr = ocrResults[index];
 
       return {
         storageKey,
@@ -829,6 +974,11 @@ async function persistAttachments(messageId: string, attachments: NonNullable<Cr
         originalName: attachment.fileName,
         mimeType: attachment.mimeType,
         sizeBytes: buffer.byteLength,
+        ocrStatus: ocr?.ocrStatus ?? AttachmentOcrStatus.SKIPPED,
+        ocrText: ocr?.ocrText ?? null,
+        ocrConfidence: ocr?.ocrConfidence ?? null,
+        ocrError: ocr?.ocrError ?? null,
+        ocrCheckedAt: ocr?.ocrCheckedAt ?? null,
       };
     }),
   );
@@ -847,9 +997,37 @@ function extensionForMimeType(mimeType: string) {
       return ".png";
     case "image/webp":
       return ".webp";
-    case "image/gif":
-      return ".gif";
     default:
       return ".bin";
   }
+}
+
+function detectSupportedImageMimeType(buffer: Buffer) {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+
+  return null;
 }

@@ -1,6 +1,7 @@
 import { MessageStatus, NotificationChannel, RecipientDeliveryStatus } from "@maeari/database";
 import { AppError } from "../../lib/app-error.js";
 import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
+import { MESSAGE_REPLY_CREATED_EVENT, domainEvents } from "../../events/domain-events.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashContact, hashPublicToken } from "../../lib/tokens.js";
 import { getModerationInputHash, moderateMessageWithRetry } from "../moderation/moderation.service.js";
@@ -190,6 +191,13 @@ export async function createPublicMessageReply(
       moderationInputHash: getModerationInputHash(moderationInput),
       moderationCategories: moderation.categories,
     },
+  });
+
+  domainEvents.emit(MESSAGE_REPLY_CREATED_EVENT, {
+    replyId: reply.id,
+    messageId: message.id,
+    messageRecipientId: accessToken.recipient.id,
+    createdAt: reply.createdAt,
   });
 
   return {

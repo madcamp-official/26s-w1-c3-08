@@ -7,11 +7,14 @@ import {
   cancelMessageController,
   createMessagePublicLinkController,
   createMessageController,
+  deleteSentReplyController,
   deleteMessageFromMailboxController,
   getMessageDetailController,
   listArchivedMessagesController,
   listReceivedMessagesController,
+  listSentMessageRepliesController,
   listSentMessagesController,
+  markSentReplyReadController,
   reportMessageController,
   unarchiveReceivedMessageController,
 } from "./message.controller.js";
@@ -28,9 +31,12 @@ messageRoutes.post(
   createMessageController,
 );
 messageRoutes.get("/messages/sent", authMiddleware, listSentMessagesController);
+messageRoutes.get("/messages/sent/replies", authMiddleware, listSentMessageRepliesController);
 messageRoutes.get("/messages/received", authMiddleware, listReceivedMessagesController);
 messageRoutes.get("/messages/archived", authMiddleware, listArchivedMessagesController);
 messageRoutes.post("/messages/bulk-delete", authMiddleware, bulkDeleteMessagesFromMailboxController);
+messageRoutes.patch("/messages/replies/:id/read", authMiddleware, markSentReplyReadController);
+messageRoutes.delete("/messages/replies/:id", authMiddleware, deleteSentReplyController);
 messageRoutes.get("/messages/:id", authMiddleware, getMessageDetailController);
 messageRoutes.post("/messages/:id/public-link", authMiddleware, createMessagePublicLinkController);
 messageRoutes.patch("/messages/:id/cancel", authMiddleware, cancelMessageController);

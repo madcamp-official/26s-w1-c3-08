@@ -1,5 +1,10 @@
 import crypto from "node:crypto";
 import {
+  MessageStatus,
+  NotificationChannel,
+  NotificationEventType,
+  NotificationStatus,
+  RecipientDeliveryStatus,
   UserContactType,
   UserContactVerificationStatus,
   type UserContact,
@@ -248,8 +253,11 @@ export async function verifyUserContact(userId: string, contactId: string, input
     });
   });
 
+  const claimResult = await claimRecipientsForVerifiedContact(userId, updated);
+
   return {
     contact: mapContact(updated),
+    ...claimResult,
   };
 }
 
@@ -396,10 +404,11 @@ export async function ensureKakaoEmailContact(userId: string) {
 
   if (existing) {
     if (existing.verifiedAt && !existing.deletedAt) {
+      await claimRecipientsForVerifiedContact(userId, existing);
       return existing;
     }
 
-    return prisma.userContact.update({
+    const updated = await prisma.userContact.update({
       where: { id: existing.id },
       data: {
         value: normalizedEmail,
@@ -409,9 +418,12 @@ export async function ensureKakaoEmailContact(userId: string) {
         isPrimary: existing.isPrimary || !hasPrimary,
       },
     });
+
+    await claimRecipientsForVerifiedContact(userId, updated);
+    return updated;
   }
 
-  return prisma.userContact.create({
+  const created = await prisma.userContact.create({
     data: {
       userId,
       type: UserContactType.EMAIL,
@@ -423,6 +435,137 @@ export async function ensureKakaoEmailContact(userId: string) {
       verificationSource: "KAKAO",
     },
   });
+
+  await claimRecipientsForVerifiedContact(userId, created);
+  return created;
+}
+
+async function claimRecipientsForVerifiedContact(userId: string, contact: UserContact) {
+  if (!contact.verifiedAt || contact.deletedAt) {
+    return {
+      claimedRecipientCount: 0,
+      recoveredMessageCount: 0,
+    };
+  }
+
+  const where =
+    contact.type === UserContactType.EMAIL
+      ? { receiverEmail: contact.value }
+      : { receiverPhone: contact.value };
+
+  const recipients = await prisma.messageRecipient.findMany({
+    where: {
+      ...where,
+      receiverUserId: null,
+      message: {
+        status: {
+          notIn: [MessageStatus.CANCELED, MessageStatus.BLOCKED],
+        },
+      },
+    },
+    include: {
+      accessTokens: {
+        where: { revokedAt: null },
+        select: { id: true },
+      },
+      message: {
+        include: {
+          recipients: {
+            select: {
+              id: true,
+              deliveryStatus: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  let recoveredMessageCount = 0;
+
+  for (const recipient of recipients) {
+    const now = new Date();
+    const shouldRecoverDeliveredRecipient =
+      recipient.message.status === MessageStatus.SENT ||
+      (recipient.message.status === MessageStatus.FAILED && recipient.message.recipients.length === 1);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.messageRecipient.update({
+        where: { id: recipient.id },
+        data: {
+          receiverUserId: userId,
+          ...(shouldRecoverDeliveredRecipient
+            ? {
+                deliveryStatus: RecipientDeliveryStatus.SENT,
+                deliveredAt: recipient.deliveredAt ?? recipient.message.sentAt ?? now,
+              }
+            : {}),
+        },
+      });
+
+      if (recipient.accessTokens.length > 0) {
+        await tx.messageAccessToken.updateMany({
+          where: {
+            id: {
+              in: recipient.accessTokens.map((token) => token.id),
+            },
+          },
+          data: {
+            linkedUserId: userId,
+            linkedAt: now,
+          },
+        });
+      }
+
+      if (recipient.message.status === MessageStatus.FAILED && recipient.message.recipients.length === 1) {
+        recoveredMessageCount += 1;
+        await tx.message.update({
+          where: { id: recipient.messageId },
+          data: {
+            status: MessageStatus.SENT,
+            sentAt: recipient.message.sentAt ?? now,
+            failedAt: null,
+            failureReason: null,
+          },
+        });
+      }
+
+      if (shouldRecoverDeliveredRecipient) {
+        await tx.notificationLog.upsert({
+          where: {
+            idempotencyKey: `${recipient.id}:${NotificationEventType.MESSAGE_SENT}:${NotificationChannel.IN_APP}`,
+          },
+          update: {
+            status: NotificationStatus.SENT,
+            targetUserId: userId,
+            sentAt: recipient.deliveredAt ?? recipient.message.sentAt ?? now,
+          },
+          create: {
+            messageRecipientId: recipient.id,
+            targetUserId: userId,
+            eventType: NotificationEventType.MESSAGE_SENT,
+            channel: NotificationChannel.IN_APP,
+            status: NotificationStatus.SENT,
+            provider: "in_app",
+            idempotencyKey: `${recipient.id}:${NotificationEventType.MESSAGE_SENT}:${NotificationChannel.IN_APP}`,
+            attemptCount: 1,
+            attemptedAt: now,
+            sentAt: recipient.deliveredAt ?? recipient.message.sentAt ?? now,
+            scheduledAt: recipient.deliveredAt ?? recipient.message.sentAt ?? now,
+            payload: {
+              messageId: recipient.messageId,
+              claimedByVerifiedContact: true,
+            },
+          },
+        });
+      }
+    });
+  }
+
+  return {
+    claimedRecipientCount: recipients.length,
+    recoveredMessageCount,
+  };
 }
 
 function normalizeContactInput(type: "EMAIL" | "PHONE", value: string) {
