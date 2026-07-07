@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArchiveRestore, Inbox, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
+import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -144,13 +145,13 @@ export default function ArchivePage() {
     <AppShell>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">아카이브</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">받은 마음 중 따로 보관한 것들을 모아두었어요.</p>
+          <h1 className="maeari-page-title">아카이브</h1>
+          <p className="maeari-page-copy mt-2">받은 마음 중 따로 보관한 것들을 모아두었어요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/inbox"
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action"
           >
             <Inbox size={16} />
             받은 마음
@@ -158,7 +159,7 @@ export default function ArchivePage() {
           <button
             type="button"
             onClick={() => void load()}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action"
           >
             <RefreshCw size={16} />
             새로고침
@@ -167,7 +168,7 @@ export default function ArchivePage() {
             type="button"
             onClick={() => void bulkDelete()}
             disabled={bulkDeleting || filteredMessages.length === 0}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            className="focus-ring maeari-action disabled:opacity-50"
           >
             <Trash2 size={16} />
             일괄 삭제
@@ -179,13 +180,11 @@ export default function ArchivePage() {
       {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
       {!loading && messages.length === 0 ? <Notice title="아카이브한 마음이 없어요." /> : null}
       {emotionFilters.length > 0 ? (
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="maeari-filterbar mb-5">
           <button
             type="button"
             onClick={() => setEmotionFilter("ALL")}
-            className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-              emotionFilter === "ALL" ? "border-brand-accent bg-[#6D48DB] text-white" : "border-[#DAD4E8] bg-white text-[#6E738A]"
-            }`}
+            className={`focus-ring maeari-chip ${emotionFilter === "ALL" ? "maeari-chip-active" : ""}`}
           >
             모든 감정
           </button>
@@ -194,11 +193,7 @@ export default function ArchivePage() {
               key={filter.value}
               type="button"
               onClick={() => setEmotionFilter(filter.value)}
-              className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-                emotionFilter === filter.value
-                  ? "border-brand-accent bg-[#6D48DB] text-white"
-                  : "border-[#DAD4E8] bg-white text-[#6E738A]"
-              }`}
+              className={`focus-ring maeari-chip ${emotionFilter === filter.value ? "maeari-chip-active" : ""}`}
             >
               {filter.label}
             </button>
@@ -208,26 +203,29 @@ export default function ArchivePage() {
       {!loading && messages.length > 0 && filteredMessages.length === 0 ? <Notice title="이 감정의 마음이 없어요." /> : null}
       <div className="grid gap-3">
         {filteredMessages.map((message) => (
-          <article key={message.recipientId} className="rounded-lg border figma-panel p-4">
+          <article key={message.recipientId} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <Link href={`/messages/${message.id}`} className="focus-ring block min-w-0 rounded-lg hover:text-brand-accent">
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
-                    {emotionLabel(message.emotionTag, message.customEmotionTag)}
-                  </span>
-                  <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
-                    {message.senderName ?? "누군가의 마음"}
-                  </span>
+              <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
+                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
+                      {emotionLabel(message.emotionTag, message.customEmotionTag)}
+                    </span>
+                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
+                      {message.senderName ?? "누군가의 마음"}
+                    </span>
+                  </div>
+                  <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
+                  <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
+                  <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
                 </div>
-                <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
-                <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
-                <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
               </Link>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => void unarchive(message.id)}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+                  className="focus-ring maeari-action"
                 >
                   <ArchiveRestore size={16} />
                   복구
@@ -235,7 +233,7 @@ export default function ArchivePage() {
                 <button
                   type="button"
                   onClick={() => void deleteMessage(message.id)}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+                  className="focus-ring maeari-action"
                 >
                   <Trash2 size={16} />
                   삭제

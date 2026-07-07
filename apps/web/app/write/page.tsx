@@ -615,8 +615,8 @@ export default function WritePage() {
         </div>
 
         <div className="mb-[14px] pl-[5px]">
-          <h1 className="text-[34px] font-bold leading-tight text-[#3A3D8D]">새로운 마음 보내기</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">당신의 마음이 가장 필요한 순간에 도착해요.</p>
+          <h1 className="maeari-page-title">새로운 마음 보내기</h1>
+          <p className="maeari-page-copy mt-2">당신의 마음이 가장 필요한 순간에 도착해요.</p>
         </div>
 
         {notice ? (
@@ -631,7 +631,7 @@ export default function WritePage() {
           />
         ) : null}
 
-        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[746px_312px] xl:items-start">
+        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(292px,312px)] xl:items-start">
           <section className="figma-panel min-h-[578px] px-[21px] py-[24px]">
             <div className="px-[1px]">
               <p className="text-sm font-medium text-[#7B7FAA]">현재 시각 (KST)</p>
@@ -642,7 +642,7 @@ export default function WritePage() {
 
             <div className="mt-[13px]">
               <p className="mb-[10px] text-sm font-bold text-[#868CB2]">받는 사람</p>
-              <div className="grid h-[32px] overflow-hidden border border-[#D7CCF8] bg-white md:grid-cols-3">
+              <div className="grid min-h-[36px] grid-cols-3 overflow-hidden rounded-[8px] border border-[#D7CCF8] bg-white">
                 {[
                   ["SELF", "미래의 나"],
                   ["FRIEND", "친구선택"],
@@ -650,7 +650,7 @@ export default function WritePage() {
                 ].map(([value, label]) => (
                   <label
                     key={value}
-                    className={`focus-ring flex cursor-pointer items-center justify-center border-[#E3E5EF] text-[13px] ${
+                    className={`focus-ring flex cursor-pointer items-center justify-center border-[#E3E5EF] text-[13px] transition ${
                       value !== "SELF" ? "border-l" : ""
                     } ${receiverType === value ? "bg-[#F2EDFD] font-medium text-[#9B84F8]" : "bg-white text-[#999EB9]"}`}
                   >
@@ -672,7 +672,7 @@ export default function WritePage() {
                     <select
                       value={selectedFriendshipId}
                       onChange={(event) => setSelectedFriendshipId(event.target.value)}
-                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs text-[#8E93AC]"
+                      className="focus-ring maeari-input h-[36px] px-3 text-xs text-[#8E93AC]"
                     >
                       <option value="">친구 이름을 검색하거나 선택하세요</option>
                       {friends.map((friend) => (
@@ -684,7 +684,7 @@ export default function WritePage() {
                     <button
                       type="button"
                       onClick={() => router.push("/friends")}
-                      className="focus-ring h-[31px] rounded-[4px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]"
+                      className="focus-ring maeari-action h-[36px] px-3 text-xs"
                     >
                       친구 관리
                     </button>
@@ -697,14 +697,14 @@ export default function WritePage() {
                       value={receiverName}
                       onChange={(event) => setReceiverName(event.target.value)}
                       placeholder="수신자 이름"
-                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
                     />
                     <input
                       value={receiverEmail}
                       onChange={(event) => setReceiverEmail(event.target.value)}
                       placeholder="메일 주소"
                       type="email"
-                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
                     />
                     <input
                       value={receiverPhone}
@@ -712,12 +712,12 @@ export default function WritePage() {
                       placeholder="전화번호"
                       inputMode="tel"
                       maxLength={13}
-                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
                     />
                     <select
                       value={preferredChannel}
                       onChange={(event) => setPreferredChannel(event.target.value as PreferredChannel)}
-                      className="focus-ring maeari-input h-[31px] rounded-[4px] px-3 text-xs"
+                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
                     >
                       <option value="AUTO">자동 선택</option>
                       <option value="EMAIL">이메일</option>
@@ -727,7 +727,7 @@ export default function WritePage() {
                 ) : null}
 
                 {receiverType === "SELF" ? (
-                  <div className="h-[31px] rounded-[4px] border border-[#E3E5EF] bg-[#FEFDFD] px-3 py-2 text-xs text-[#B4B9CC]">
+                  <div className="h-[36px] rounded-[8px] border border-[#E3E5EF] bg-[#FEFDFD] px-3 py-2 text-xs text-[#B4B9CC]">
                     미래의 나에게 마음을 예약해요.
                   </div>
                 ) : null}
@@ -737,7 +737,7 @@ export default function WritePage() {
                 <button
                   type="button"
                   onClick={addRecipientDraft}
-                  className="focus-ring inline-flex h-8 items-center gap-2 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]"
+                  className="focus-ring maeari-action h-8 px-3 text-xs"
                 >
                   <Plus size={14} />
                   수신자 추가
@@ -746,7 +746,7 @@ export default function WritePage() {
                   <button
                     type="button"
                     onClick={() => setRecipientDrafts([])}
-                    className="focus-ring h-8 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#8588A1]"
+                    className="focus-ring maeari-action h-8 px-3 text-xs"
                   >
                     목록 비우기
                   </button>
@@ -756,7 +756,7 @@ export default function WritePage() {
               {recipientDrafts.length > 0 ? (
                 <div className="mt-3 grid gap-2 rounded-[8px] bg-[#F8F5FD] p-2">
                   {recipientDrafts.map((draft) => (
-                    <div key={draft.id} className="flex items-center justify-between gap-3 rounded-[6px] bg-white px-3 py-2 text-xs text-[#6E738A]">
+                    <div key={draft.id} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E7E0F2] bg-white px-3 py-2 text-xs text-[#6E738A]">
                       <span className="min-w-0 truncate">
                         {draft.label} · {receiverTypeLabel(draft.payload.type)}
                       </span>
@@ -777,7 +777,7 @@ export default function WritePage() {
                 onChange={(event) => setTitle(event.target.value)}
                 maxLength={120}
                 placeholder="제목을 입력해주세요 (최대 50자)"
-                className="focus-ring maeari-input mt-[8px] h-[35px] w-full rounded-[4px] px-3 text-xs"
+                className="focus-ring maeari-input mt-[8px] h-[38px] w-full px-3 text-xs"
               />
             </div>
 
@@ -793,7 +793,7 @@ export default function WritePage() {
                 maxLength={5000}
                 rows={4}
                 placeholder={"당신의 마음을 자유롭게 적어주세요.\n따뜻한 한 마디가 누군가의 하루를 비출 수 있어요."}
-                className="focus-ring maeari-input mt-[8px] min-h-[89px] w-full resize-y rounded-[4px] px-4 py-3 text-xs leading-5"
+                className="focus-ring maeari-input mt-[8px] min-h-[112px] w-full resize-y px-4 py-3 text-xs leading-5"
               />
             </div>
 
@@ -808,8 +808,8 @@ export default function WritePage() {
                     key={value}
                     type="button"
                     onClick={() => setEmotionTag(value)}
-                    className={`focus-ring h-[41px] rounded-[12px] text-xs font-medium ${
-                      emotionTag === value ? "bg-[#F2EDFD] text-[#9B84F8] ring-1 ring-[#CBBBFA]" : "bg-[#F6F4F9] text-[#9EA2BB]"
+                    className={`focus-ring h-[41px] rounded-[8px] border text-xs font-medium transition ${
+                      emotionTag === value ? "border-[#CBBBFA] bg-[#F2EDFD] text-[#9B84F8]" : "border-transparent bg-[#F6F4F9] text-[#9EA2BB] hover:border-[#E0D8F0]"
                     }`}
                   >
                     {emotionIcon(value)} {label}
@@ -821,7 +821,7 @@ export default function WritePage() {
                   value={customEmotionTag}
                   onChange={(event) => setCustomEmotionTag(event.target.value)}
                   placeholder="감정 태그"
-                  className="focus-ring maeari-input mt-2 h-9 w-full rounded-[4px] px-3 text-xs"
+                  className="focus-ring maeari-input mt-2 h-9 w-full px-3 text-xs"
                 />
               ) : null}
             </div>
@@ -830,7 +830,7 @@ export default function WritePage() {
               <select
                 value={theme}
                 onChange={(event) => setTheme(event.target.value as MessageTheme)}
-                className="focus-ring maeari-input h-9 rounded-[4px] px-3 text-xs"
+                className="focus-ring maeari-input h-9 px-3 text-xs"
               >
                 {themeOptions.map(([value, label]) => (
                   <option key={value} value={value}>
@@ -838,7 +838,7 @@ export default function WritePage() {
                   </option>
                 ))}
               </select>
-              <label className="focus-ring inline-flex h-9 items-center rounded-[8px] border border-[#E3E5EF] bg-white px-3 text-xs text-[#7A80B1]">
+              <label className="focus-ring maeari-action h-9 text-xs">
                 <input
                   type="checkbox"
                   checked={isReplyEnabled}
@@ -850,7 +850,7 @@ export default function WritePage() {
             </div>
 
             <div className="mt-4 rounded-[8px] border border-[#E3E5EF] bg-[#FEFDFD] p-3">
-              <label className="focus-ring inline-flex h-8 cursor-pointer items-center gap-2 rounded-[7px] border border-[#DAD4E8] bg-white px-3 text-xs font-semibold text-[#9B84F8]">
+              <label className="focus-ring maeari-action h-8 cursor-pointer px-3 text-xs">
                 <ImagePlus size={15} />
                 이미지 첨부
                 <input
@@ -885,7 +885,7 @@ export default function WritePage() {
               {serverTimeError ? (
                 <div className="rounded-[8px] border border-rose-200 bg-rose-50 p-3">
                   <Notice title="서버 시간을 불러오지 못했어요." body={serverTimeError} tone="danger" />
-                  <button type="button" onClick={() => void loadServerDefaultSchedule()} className="focus-ring mt-2 h-8 rounded-[7px] bg-white px-3 text-xs font-semibold text-rose-700">
+                  <button type="button" onClick={() => void loadServerDefaultSchedule()} className="focus-ring maeari-action maeari-action-danger mt-2 h-8 px-3 text-xs">
                     다시 시도
                   </button>
                 </div>
@@ -903,7 +903,7 @@ export default function WritePage() {
                     <button
                       type="button"
                       onClick={() => router.push("/phone-verification?next=/write")}
-                      className="focus-ring h-8 rounded-[7px] bg-[#6D48DB] px-3 text-xs font-semibold text-white"
+                      className="focus-ring maeari-action maeari-action-primary h-8 px-3 text-xs"
                     >
                       인증하기
                     </button>
@@ -926,7 +926,7 @@ export default function WritePage() {
                   setArrivalTouched(true);
                   setArrivalDate(event.target.value);
                 }}
-                className="focus-ring maeari-input mt-[8px] h-[44px] w-full rounded-[10px] px-3 text-sm text-[#7377AB]"
+                className="focus-ring maeari-input mt-[8px] h-[44px] w-full px-3 text-sm text-[#7377AB]"
               />
             </div>
 
@@ -942,7 +942,7 @@ export default function WritePage() {
                     setArrivalTouched(true);
                     setArrivalTime(`${String(normalized).padStart(2, "0")}:${minute}`);
                   }}
-                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#8489B8]"
+                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#8489B8]"
                 >
                   <option value="AM">오전</option>
                   <option value="PM">오후</option>
@@ -959,7 +959,7 @@ export default function WritePage() {
                     setArrivalTime(`${event.target.value.padStart(2, "0").slice(-2)}:${minute}`);
                   }}
                   aria-label="도착 시"
-                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#6E72AC]"
+                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#6E72AC]"
                 />
                 <input
                   required
@@ -973,7 +973,7 @@ export default function WritePage() {
                     setArrivalTime(`${hour}:${event.target.value.padStart(2, "0").slice(-2)}`);
                   }}
                   aria-label="도착 분"
-                  className="focus-ring maeari-input h-[43px] rounded-[7px] px-3 text-sm text-[#7478AD]"
+                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#7478AD]"
                 />
               </div>
               <div className="mt-2 flex gap-1.5">
@@ -982,7 +982,7 @@ export default function WritePage() {
                     key={minute}
                     type="button"
                     onClick={() => applyQuarterMinute(minute)}
-                    className="focus-ring h-7 flex-1 rounded-[7px] bg-[#F6F4F9] text-[11px] font-semibold text-[#9A85E1]"
+                    className="focus-ring maeari-chip h-7 flex-1 px-1 text-[11px]"
                   >
                     {minute}
                   </button>
@@ -996,7 +996,7 @@ export default function WritePage() {
                   key={key}
                   type="button"
                   onClick={() => applyPreset(key)}
-                  className="focus-ring rounded-[7px] border border-[#E3E5EF] bg-white px-2 py-2 text-[11px] text-[#8588A1]"
+                  className="focus-ring maeari-chip px-2 py-2 text-[11px]"
                 >
                   {label}
                 </button>
@@ -1004,11 +1004,11 @@ export default function WritePage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[7px] border text-xs ${arrivalMode === "FIXED" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs ${arrivalMode === "FIXED" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
                 <input type="radio" name="arrivalMode" checked={arrivalMode === "FIXED"} onChange={() => setArrivalMode("FIXED")} className="sr-only" />
                 고정 도착
               </label>
-              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[7px] border text-xs ${arrivalMode === "RANDOM_WINDOW" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs ${arrivalMode === "RANDOM_WINDOW" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
                 <input type="radio" name="arrivalMode" checked={arrivalMode === "RANDOM_WINDOW"} onChange={() => setArrivalMode("RANDOM_WINDOW")} className="sr-only" />
                 랜덤 도착
               </label>
@@ -1023,7 +1023,7 @@ export default function WritePage() {
                   min={arrivalDate || minArrivalDate}
                   onChange={(event) => setRandomEndDate(event.target.value)}
                   aria-label="랜덤 도착 종료 날짜"
-                  className="focus-ring maeari-input h-10 rounded-[7px] px-3 text-xs"
+                  className="focus-ring maeari-input h-10 px-3 text-xs"
                 />
                 <input
                   required
@@ -1032,7 +1032,7 @@ export default function WritePage() {
                   value={randomEndTime}
                   onChange={(event) => setRandomEndTime(event.target.value)}
                   aria-label="랜덤 도착 종료 시간"
-                  className="focus-ring maeari-input h-10 rounded-[7px] px-3 text-xs"
+                  className="focus-ring maeari-input h-10 px-3 text-xs"
                 />
               </div>
             ) : null}
@@ -1040,7 +1040,7 @@ export default function WritePage() {
             <select
               value={hintPreset}
               onChange={(event) => setHintPreset(event.target.value as HintPreset)}
-              className="focus-ring maeari-input mt-3 h-10 w-full rounded-[7px] px-3 text-xs"
+              className="focus-ring maeari-input mt-3 h-10 w-full px-3 text-xs"
             >
               <option value="NONE">도착 전 힌트 알림 없음</option>
               <option value="ONE_HOUR">도착 1시간 전 힌트 알림</option>
@@ -1082,7 +1082,7 @@ export default function WritePage() {
                 serverTimeLoading ||
                 Boolean(serverTimeError)
               }
-              className="focus-ring mt-5 inline-flex h-[42px] w-full items-center justify-center gap-2 rounded-[9px] bg-[#6D48DB] text-sm font-semibold text-white shadow-[0_4px_6px_rgba(64,39,135,0.28)] disabled:opacity-50"
+              className="focus-ring maeari-action maeari-action-primary mt-5 h-[42px] w-full disabled:opacity-50"
             >
               <Send size={17} />
               {submitting ? "검사 중" : "마음 보내기"}
@@ -1091,7 +1091,7 @@ export default function WritePage() {
             <button
               type="button"
               onClick={() => router.push("/sent")}
-              className="focus-ring mt-2 h-9 w-full rounded-[8px] border border-[#DAD4E8] bg-white text-xs font-semibold text-[#8588A1]"
+              className="focus-ring maeari-action mt-2 h-9 w-full text-xs"
             >
               보낸 마음 보기
             </button>
@@ -1227,8 +1227,8 @@ function WriteNoticeDialog({
     tone === "danger"
       ? "border-rose-200 bg-rose-50 text-rose-950"
       : tone === "success"
-        ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-        : "border-brand-line bg-white text-[#4E536B]";
+        ? "border-[#D9C8FF] bg-[#F3EEFD] text-[#4E3B91]"
+        : "border-[#E4DBF4] bg-white text-[#4E536B]";
   const primaryButtonClass =
     tone === "danger"
       ? "bg-rose-700 text-white"
@@ -1237,12 +1237,12 @@ function WriteNoticeDialog({
         : "bg-[#6D48DB] text-white";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6D48DB]/35 px-4 py-6" role="presentation">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6D48DB]/28 px-4 py-6 backdrop-blur-sm" role="presentation">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="write-notice-title"
-        className={`w-full max-w-lg rounded-lg border p-5 shadow-2xl ${accentClass}`}
+        className={`w-full max-w-lg rounded-[8px] border p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)] ${accentClass}`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -1257,7 +1257,7 @@ function WriteNoticeDialog({
           <button
             type="button"
             onClick={onClose}
-            className="focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-white/70"
+            className="focus-ring inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-current/20 bg-white/70"
             aria-label="팝업 닫기"
           >
             <X size={16} />
@@ -1265,7 +1265,7 @@ function WriteNoticeDialog({
         </div>
 
         {isSuccess ? (
-          <div className="mt-4 grid gap-3 rounded-lg border border-emerald-200 bg-white p-4 text-sm text-emerald-950">
+          <div className="mt-4 grid gap-3 rounded-[8px] border border-[#D9C8FF] bg-white p-4 text-sm text-[#4E3B91]">
             <p>제목: {completedMessage.title}</p>
             <p>수신자: {completedMessage.receiverLabel}</p>
             <p>도착 예정: {formatKstArrival(completedMessage.scheduledAt)}</p>
@@ -1281,21 +1281,21 @@ function WriteNoticeDialog({
               <button
                 type="button"
                 onClick={() => onViewDetail(completedMessage.id)}
-                className={`focus-ring rounded-lg px-3 py-2 text-sm font-semibold ${primaryButtonClass}`}
+                className={`focus-ring rounded-[8px] px-3 py-2 text-sm font-semibold ${primaryButtonClass}`}
               >
                 예약 상세 보기
               </button>
               <button
                 type="button"
                 onClick={onViewSent}
-                className="focus-ring rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+                className="focus-ring rounded-[8px] border border-[#D9C8FF] bg-white px-3 py-2 text-sm font-semibold text-[#6D48DB]"
               >
                 보낸 마음 보기
               </button>
               <button
                 type="button"
                 onClick={onReset}
-                className="focus-ring inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+                className="focus-ring inline-flex items-center gap-2 rounded-[8px] border border-[#D9C8FF] bg-white px-3 py-2 text-sm font-semibold text-[#6D48DB]"
               >
                 <RotateCcw size={15} />
                 새 마음 쓰기
@@ -1303,14 +1303,14 @@ function WriteNoticeDialog({
               <button
                 type="button"
                 onClick={onHome}
-                className="focus-ring inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-950"
+                className="focus-ring inline-flex items-center gap-2 rounded-[8px] border border-[#D9C8FF] bg-white px-3 py-2 text-sm font-semibold text-[#6D48DB]"
               >
                 <Home size={15} />
                 메인
               </button>
             </>
           ) : (
-            <button type="button" onClick={onClose} className={`focus-ring rounded-lg px-4 py-2 text-sm font-semibold ${primaryButtonClass}`}>
+            <button type="button" onClick={onClose} className={`focus-ring rounded-[8px] px-4 py-2 text-sm font-semibold ${primaryButtonClass}`}>
               확인
             </button>
           )}

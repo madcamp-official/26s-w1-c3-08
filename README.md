@@ -35,6 +35,7 @@
   - 메시지 작성 화면의 KST 기준 현재 시각 확인
   - 빠른 프리셋, 날짜 입력, 1분 단위 시간 입력, 15분 단위 quick minute 선택
   - OpenAI Moderation, 서비스 정책 guardrail prompt, 한국어 욕설/비하 표현 보강 검사
+  - Tesseract OCR 기반 이미지 텍스트 추출 후 기존 유해성 검사에 병합
   - 예약 시간 도래 시 메시지 도착 처리
   - 친구/자기 자신 수신자는 서비스 내 수신함 도착 처리
   - 외부 수신자는 Gmail SMTP 이메일 또는 Solapi 문자로 공개 링크 발송
@@ -43,6 +44,9 @@
   - Twilio Lookup v2 기반 휴대전화 회선 검사, IP/전화번호 rate limit, OTP 인증
   - 비회원 공개 링크 열람
   - 공개 링크 익명 답장과 메시지 신고
+  - 익명 답장 수신 시 발신자 앱 내 알림/이메일 알림 및 `/sent` 답장함
+  - 공개 링크/마음쓰기 완료 링크 QR 표시, 링크 복사, QR 이미지 저장
+  - 마음나무: 회원이 공개 수집 링크/QR을 만들고 비회원이 도착 시점 전까지 편지를 남기는 기능
   - 공개 링크 열람 후 가입 시 수신함 자동 귀속
   - 발신함, 수신함, 아카이브, 미래의 나, 감정 리포트, 메시지 상세 화면
 - **예상 사용자:**
@@ -51,7 +55,7 @@
   - 이미 친구로 연결된 회원에게 조용히 마음을 예약하고 싶은 사용자
   - 가입 없이 공개 링크로 메시지를 먼저 확인하는 수신자
 
-상세 기획은 `MAEARI_PLAN.md`에 정리되어 있습니다. 이 README는 2026-07-07 기준 코드에 반영된 이름 변경, 신규 `maeari` DB 전환, Gmail SMTP, Solapi SMS, Twilio Lookup 기반 휴대전화 인증, 수신거부, 친구 검색/초대 링크, 보관함 삭제, multipart 이미지 첨부, Tesseract OCR 기반 이미지 텍스트 안전 검사, 이미지 형식 allowlist, 이미지/그룹/답장/신고/관리자 기능을 함께 반영합니다.
+상세 기획은 `MAEARI_PLAN.md`에 정리되어 있습니다. 이 README는 2026-07-07 기준 코드에 반영된 이름 변경, 신규 `maeari` DB 전환, Gmail SMTP, Solapi SMS, Twilio Lookup 기반 휴대전화 인증, 수신거부, 친구 검색/초대 링크, 보관함 삭제, multipart 이미지 첨부, Tesseract OCR 기반 이미지 텍스트 안전 검사, 이미지 형식 allowlist, 이미지/그룹/답장/신고/관리자 기능, Figma 팔레트 기반 UI shell 개편 상태를 함께 반영합니다.
 
 ---
 
@@ -95,6 +99,10 @@
 - [x] 외부 알림 provider 미설정 시 수신자 발송 실패 및 `NotificationLog.SKIPPED` 기록
 - [x] 비회원 공개 링크 열람
 - [x] 공개 링크 열람 후 가입 시 수신함 자동 귀속
+- [x] 연락처 인증 후 과거 OTHER 이메일/전화번호 수신 메시지 자동 연결
+- [x] 익명 답장 발신자 알림 및 보낸 마음 답장함
+- [x] 공개 URL QR 표시, 링크 복사, QR PNG 저장
+- [x] 마음나무 공개 수집 링크, 비회원 제출, 도착 시점 일괄 공개
 - [x] 보낸 마음 목록
 - [x] 받은 마음 목록
 - [x] 메시지 상세 조회
@@ -103,6 +111,7 @@
 - [x] 받은 마음 보관함 삭제
 - [x] 온보딩 답변 저장 및 건너뛰기 처리
 - [x] 서비스 favicon/app icon 및 주요 화면 브랜드 이미지 적용
+- [x] Figma 팔레트 기반 `AppShell`, 좌측 sidebar, 상단 bar, 모바일 하단 nav, 공통 panel/chip/input 스타일 적용
 - [x] EC2 Nginx reverse proxy, Certbot HTTPS, PM2 운영 프로세스 구성
 
 ### 선택 기능
@@ -135,7 +144,7 @@
 
 ### 주요 페이지
 
-- `/`: 메인 대시보드, KST 현재 시각, 주요 기능 진입
+- `/`: Figma 톤의 메인 대시보드, 브랜드 히어로, 곧 찾아갈 마음 timeline, 최근 보관한 마음, 주요 기능 quick card
 - `/login`: 카카오 로그인 진입
 - `/auth/callback`: 로그인 완료 후 공개 링크 메시지 귀속 및 친구 초대 링크 claim 처리
 - `/onboarding`: 첫 메시지 작성 유도
@@ -145,6 +154,8 @@
 - `/archive`: 받은 마음 아카이브
 - `/future`: 미래의 나에게 쓴 편지 모음
 - `/reports`: 감정 리포트
+- `/tree`: 마음나무 생성, 목록, QR/링크 공유, 도착 후 제출물 열람
+- `/tree/[token]`: 비회원 마음나무 제출
 - `/admin`: 관리자 검수 및 운영 로그
 - `/friends`: 친구 코드, 친구 요청, 친구 초대 링크, 친구 목록 관리
 - `/friends/invite/[token]`: 친구 초대 링크 미리보기 및 로그인 후 친구 연결
@@ -200,6 +211,8 @@
 | `ModerationLog` | OpenAI Moderation 검사 이력 |
 | `NotificationLog` | 메시지 도착 이후 알림 처리, provider, idempotency, retry 이력 |
 | `ContactSuppression` | 이메일/SMS 수신거부 연락처 hash, 채널별 중복 방지 |
+| `MessageCollection` | 마음나무 공개 수집 링크, owner, 도착 시각, 공개 상태 |
+| `MessageCollectionSubmission` | 비회원 마음나무 제출 편지, moderation 결과, IP hash, owner 열람 상태 |
 
 ### 상태 값
 
@@ -249,9 +262,12 @@
 | DELETE | `/api/friends/:friendshipId` | 친구 관계 삭제 | 세션 쿠키, friendship id | `{ deleted: true }` |
 | POST | `/api/messages` | 메시지 작성 및 예약 | JSON 또는 multipart `payload` + `attachments`; 서버가 인증 PHONE을 선택하고 `senderContactId`는 무시 | `{ message, publicUrl, publicUrls?, notice? }` |
 | GET | `/api/messages/sent` | 보낸 마음 목록 | 세션 쿠키 | `{ messages }` |
+| GET | `/api/messages/sent/replies` | 보낸 마음 답장함 조회 | 세션 쿠키 | `{ replies }` |
 | GET | `/api/messages/received` | 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/archived` | 아카이브한 받은 마음 목록 | 세션 쿠키 | `{ messages }` |
 | POST | `/api/messages/bulk-delete` | 여러 보낸/받은 마음을 내 보관함에서 제거 | `{ messageIds }` | `{ deletedCount, failedCount, results }` |
+| PATCH | `/api/messages/replies/:id/read` | 보낸 마음 답장 읽음 처리 | 세션 쿠키, reply id | `{ read: true }` |
+| DELETE | `/api/messages/replies/:id` | 보낸 마음 답장을 발신자 화면에서 삭제 | 세션 쿠키, reply id | `{ deleted: true }` |
 | GET | `/api/messages/:id` | 메시지 상세 조회 | 세션 쿠키, message id | `{ message }` |
 | POST | `/api/messages/:id/public-link` | 공개 링크 새로 생성 | 세션 쿠키, message id | `{ publicUrl }` |
 | PATCH | `/api/messages/:id/cancel` | 예약 메시지 취소 | 세션 쿠키, message id | `{ canceled: true }` |
@@ -268,11 +284,17 @@
 | PATCH | `/api/admin/reports/:id/review` | 신고 검토 완료/기각 | 관리자 세션 | `{ reviewed: true }` |
 | PATCH | `/api/admin/users/:id/suspend` | 사용자 계정 정지 | 관리자 세션 | `{ suspended: true }` |
 | PATCH | `/api/admin/users/:id/unsuspend` | 사용자 계정 정지 해제 | 관리자 세션 | `{ suspended: false }` |
+| POST | `/api/message-collections` | 마음나무 생성 | 세션 쿠키, `{ title, description?, scheduledAt }` | `{ collection }` |
+| GET | `/api/message-collections` | 내 마음나무 목록 | 세션 쿠키 | `{ collections }` |
+| GET | `/api/message-collections/:id` | 내 마음나무 상세와 도착 후 제출물 조회 | 세션 쿠키, collection id | `{ collection }` |
+| DELETE | `/api/message-collections/:id` | 마음나무 취소 | 세션 쿠키, collection id | `{ canceled: true }` |
 | GET | `/api/public/messages/:token` | 비회원 공개 링크 메시지 조회 | 공개 token | `{ message }` |
 | POST | `/api/public/messages/:token/replies` | 공개 링크 익명 답장 작성 | 공개 token, `{ content }` | `{ reply }` |
 | POST | `/api/public/messages/:token/reports` | 공개 링크 메시지 신고 | 공개 token, `{ reason, details? }` | `{ report }` |
 | POST | `/api/public/notification-suppressions` | 공개 링크 기반 이메일/문자 알림 수신거부 | `{ token, channel }` | `{ suppressed: true }` |
 | DELETE | `/api/public/notification-suppressions` | 공개 링크 기반 이메일/문자 알림 다시 받기 | `{ token, channel }` | `{ suppressed: false }` |
+| GET | `/api/public/message-collections/:token` | 공개 마음나무 조회 | 공개 token | `{ collection }` |
+| POST | `/api/public/message-collections/:token/submissions` | 비회원 마음나무 편지 제출 | 공개 token, `{ senderDisplayName?, content }` | `{ submission }` |
 
 ---
 
@@ -328,6 +350,10 @@ UPLOAD_PUBLIC_PATH=/api/uploads
 MAX_ATTACHMENT_COUNT=3
 MAX_ATTACHMENT_BYTES=2097152
 MAX_ATTACHMENT_TOTAL_BYTES=6291456
+IMAGE_OCR_MODERATION_ENABLED=true
+IMAGE_OCR_LANGUAGES=kor+eng
+IMAGE_OCR_TIMEOUT_MS=8000
+IMAGE_OCR_MAX_TEXT_CHARS=4000
 ADMIN_KAKAO_IDS=
 
 GMAIL_SMTP_ENABLED=true
@@ -423,9 +449,75 @@ guardrail 응답은 `allowed`, `categories`, `severity`, `feedback`, `rationale`
 - `apps/web/app/icon.png`: 브라우저 탭 favicon/app icon
 - `apps/web/app/apple-icon.png`: Apple touch icon
 - `apps/web/public/images/maeari-mark.png`: 헤더/공개 열람 브랜드 아이콘
-- `apps/web/public/images/maeari-main-envelope.webp`: 메인 페이지 히어로 이미지
-- `apps/web/public/images/maeari-login-envelope.webp`: 로그인 화면 이미지
-- `apps/web/public/images/maeari-public-envelope.webp`: 공개 도착 링크 이미지
+- `apps/web/public/images/maeari-hero-floral.png`: 현재 메인 대시보드와 로그인 화면의 밝은 라벤더 히어로 이미지
+- `apps/web/public/images/maeari-hero-night.png`: 어두운 야간 봉투 히어로. 필요 시 시즌/이벤트 화면에 재사용 가능
+- `apps/web/public/images/maeari-sidebar-sky.png`: 로그인 사용자 AppShell 좌측 하단 감성 패널 이미지
+- `apps/web/public/images/maeari-card-letter.png`: 최근 마음 card thumbnail
+- `apps/web/public/images/maeari-cloud-envelope.png`, `maeari-heart-letter.png`, `maeari-moon-letter.png`, `maeari-star-letter.png`: 보조 일러스트 asset
+- `apps/web/public/images/maeari-main-envelope.webp`, `maeari-login-envelope.webp`, `maeari-public-envelope.webp`: 이전 변환 asset. 현재 주요 화면은 새 PNG asset을 우선 사용
+
+### Figma 기반 UI 리디자인 적용 상태
+
+웹 UI는 기존 텍스트 중심 화면에서 Figma 시안의 좌측 sidebar, 상단 bar, 밝은 라벤더 배경, 봉투 일러스트 중심 화면으로 교체했습니다. 기능 API 계약은 유지하고, `apps/web`의 shell, 공통 스타일, 주요 화면 표현만 바꾸는 방식입니다. 즉, 로그인, 메시지 작성, 수신/발신함, 친구, 연락처 인증, 공개 열람, 마음나무, 관리자 화면의 route와 API는 유지하면서 presentation layer를 Figma 톤으로 재구성합니다.
+
+기준 시안: [madcamp W1 매아리](https://www.figma.com/design/DhS0vdHr6io4aHqAhneMj7/madcamp_W1_%EB%A7%A4%EC%95%84%EB%A6%AC?node-id=0-1&t=NU2i19vEz2cMT2cd-0)
+
+현재 반영된 기준:
+
+- 색상 팔레트
+  - 강조색: `#6D48DB`
+  - 메인색: `#F3EEFD`
+  - 보조 강조색: `#9A85E1`
+  - 배경색: `#FBF9FC`
+  - 보조 회색: `#F3EFF7`
+- `apps/web/components/AppShell.tsx`
+  - 데스크톱: 74px 고정 상단 bar, 221px 좌측 sidebar
+  - 데스크톱 nav 순서: 홈, 마음 보내기, 받은 마음, 보낸 마음, 마음나무, 친구, 리포트, 내 정보
+  - 모바일: 하단 5-tab nav로 축약
+  - 모바일 nav 순서: 쓰기, 받은 마음, 보낸 마음, 친구, 내 정보
+  - sidebar 하단에는 `maeari-sidebar-sky.png` 기반 오늘의 한 줄 패널을 표시
+- `apps/web/app/globals.css`
+  - `.maeari-stage`: 라벤더 radial background와 subtle grid 배경
+  - `.figma-panel`: 8px radius, 연한 보라 border, translucent white panel, soft shadow
+  - `.maeari-input`: 새 border/radius/focus 색상
+  - `.maeari-action`, `.maeari-action-primary`, `.maeari-action-danger`: 주요/보조/위험 액션 버튼 공통 스타일
+  - `.maeari-badge`: 메시지 상태, 감정 태그, 연락처 인증 상태를 표시하는 작은 badge
+  - `.maeari-chip`, `.maeari-chip-active`: 필터, 보조 액션, 작은 CTA 공통 스타일
+  - `.maeari-page-title`, `.maeari-page-copy`: 페이지 제목/보조 설명 typography
+- `apps/web/components/ui.tsx`
+  - `Button`, `LinkButton`, `TextInput`, `TextArea`, `SelectInput`, `PageHeader`, `SectionPanel`, `StatusPill`, `EmotionPill`, `EmptyState`, `LetterThumb`를 공통 primitive로 제공합니다.
+  - route별 화면은 이 primitive와 `figma-panel` class를 조합해 같은 radius, focus, shadow, label 위계를 유지합니다.
+- `apps/web/app/page.tsx`
+  - `maeari-hero-floral.png` hero, 곧 찾아갈 마음 timeline, 최근 보관한 마음 card, 마음 쓰기/받은 마음/친구/마음나무 quick card를 Figma 톤으로 재구성했습니다.
+  - `/messages/sent`와 `/messages/received`를 함께 조회해 홈 대시보드에 실제 예약 대기 메시지와 최근 받은 마음을 표시합니다.
+  - 로그인 세션이 없으면 `/login`으로 이동하고, 데이터가 없거나 일시적으로 불러오지 못하면 감성 fallback card를 보여줍니다.
+- `apps/web/components/Notice.tsx`
+  - success/warning/danger/default notice를 새 panel shadow/radius 기준으로 정리
+- `apps/web/components/QrShare.tsx`
+  - QR 표시 영역을 `figma-panel`로 맞추고 링크 복사/QR 저장 버튼을 새 chip/button 톤으로 정리
+
+route별 반영 상태:
+
+- Public 화면
+  - `/login`: 브랜드 카드, 카카오 로그인 CTA, 봉투 일러스트를 라벤더 톤 hero로 재구성했습니다.
+  - `/auth/callback`: 로그인 완료/보관/친구 초대 claim 처리 상태를 새 public stage와 action button으로 정리했습니다.
+  - `/arrival/[token]`: 공개 열람 gate, 메시지 본문, 첨부, 답장, 신고, 이메일/SMS 수신거부 토글을 `figma-panel` 기반 독립 열람 화면으로 정리했습니다.
+  - `/arrival/link-failed`: 링크 보관 실패 안내와 재시도 액션을 public stage 기준으로 맞췄습니다.
+  - `/friends/invite/[token]`: 초대자 미리보기, 만료/폐기/claim 상태, 로그인 CTA를 새 public card로 정리했습니다.
+  - `/tree/[token]`: 비회원 마음나무 제출 화면을 public stage와 단일 제출 panel 중심으로 정리했습니다.
+- Authenticated 화면
+  - `/`: `maeari-hero-floral.png` hero, 곧 찾아갈 마음 timeline, 최근 보관한 마음, 마음 쓰기/받은 마음/친구/마음나무 quick card를 Figma 톤으로 재구성했습니다. 보낸 마음/받은 마음 API 데이터를 읽어 실제 사용자의 대시보드로 동작합니다.
+  - `/write`: 전화번호 인증 gate, 수신자 선택, 그룹 수신자, 첨부, OCR 대상 이미지, 도착 설정, 테마, 익명 답장, 제출/결과 dialog를 기존 기능 그대로 새 form/panel 스타일로 정리했습니다.
+  - `/sent`: 보낸 마음과 답장함 탭, 상태/감정 필터, 삭제/취소/QR/링크 복사 액션을 새 chip/action/button 체계로 정리했습니다.
+  - `/inbox`, `/archive`, `/future`: 받은 마음, 아카이브, 미래의 나 목록의 필터/일괄 삭제/복구/상세 액션을 같은 `MessageCard` 계열 시각 언어로 맞췄습니다.
+  - `/messages/[id]`: 메시지 상세, 수신자 상태, 첨부, 답장, 신고, QR 공유, 취소/삭제 버튼을 새 detail panel로 정리했습니다.
+  - `/friends`: 친구 코드, 친구 검색, 친구 요청, 초대 링크, 친구 목록을 Figma `Desktop_friends`의 panel 배치에 맞춰 재구성했습니다.
+  - `/phone-verification`: 전화번호 입력, OTP 발송/재발송, 6자리 검증, 완료 상태를 독립 인증 화면으로 분리했습니다.
+  - `/my`: 연락처 인증을 PHONE 우선으로 표시하고, 이메일 연결/로그아웃/관리자 진입을 새 정보 panel로 정리했습니다.
+  - `/tree`: 마음나무 생성, 목록, 상세, QR/링크 공유, 취소/도착 후 제출물 열람을 새 collection panel로 정리했습니다.
+  - `/reports`, `/admin`: 감정 리포트와 운영 로그/신고/알림 통계는 새 색상 토큰을 사용하되, 반복 확인이 쉬운 조밀한 panel/table 구조를 유지했습니다.
+
+UI 리디자인은 DB schema나 API response를 바꾸지 않습니다. `/write`, `/sent`, `/inbox`, `/arrival/[token]`, `/friends`, `/my`, `/tree` 등 기존 기능은 같은 route와 API를 사용하며, 디자인 shell과 공통 컴포넌트만 새 기준으로 정리합니다. 2026-07-07 기준 `rg`로 구 UI 토큰(`petal`, `moss`, `paper`, `amberline`, `border-brand-line` 등) 잔여 사용을 점검했고, Figma MCP Starter plan call limit 때문에 마지막 pixel-level screenshot 재대조만 남아 있습니다. 이후 `Desktop_main`, `Desktop_Writing`, `Desktop_friends`, `Desktop_my`를 다시 확인해 spacing과 button hierarchy를 추가 조정합니다.
 
 ### 전화번호 인증 및 마음쓰기 권한
 
@@ -697,3 +789,522 @@ curl -I https://maeari.madcamp-kaist.org/api/health
 - `template0`, `template1` owner는 `maeari`로 정리했습니다.
 - PM2에는 `maeari-api`, `maeari-scheduler`, `maeari-web`이 online 상태로 유지되어야 합니다.
 - 최근 OCR import 오류는 `tesseract.js` v7의 default export 방식에 맞춰 `import Tesseract from "tesseract.js"`로 수정했고, API/Web build 후 PM2 재시작과 health check를 완료했습니다.
+
+### 2026-07-07 UI 리디자인 진행 기록
+
+- Figma 시안 기준의 핵심 색상을 `globals.css` 공통 class에 반영했습니다.
+- 기존 둥근 card/텍스트 링크 중심 UI를 `figma-panel`, `maeari-chip`, `maeari-action`, `maeari-input`, `maeari-stage`, `maeari-public-stage` 중심으로 정리했습니다.
+- `AppShell`은 로그인 사용자 route를 감싸는 공통 구조로, 상단 bar와 sidebar/mobile bottom nav를 제공합니다.
+- public route는 sidebar 없이 `maeari-public-stage`를 사용해 로그인/공개 도착/친구 초대/공개 마음나무 화면이 같은 브랜드 톤을 유지합니다.
+- 모바일 하단 nav는 화면 폭을 고려해 5개 핵심 동선만 유지합니다. 리포트와 마음나무는 데스크톱 sidebar, 홈 quick card, 직접 route 접근으로 사용할 수 있습니다.
+- `/`, `/write`, `/sent`, `/inbox`, `/archive`, `/future`, `/messages/[id]`, `/arrival/[token]`, `/friends`, `/friends/invite/[token]`, `/phone-verification`, `/my`, `/tree`, `/tree/[token]`, `/reports`, `/admin`, `/login`, `/auth/callback`, `/arrival/link-failed`의 화면 스타일을 새 토큰 기준으로 정리했습니다.
+- 이 변경은 프론트엔드 presentation layer 변경이며, DB migration이나 API contract 변경은 없습니다.
+- 남은 QA는 Figma MCP call limit 해제 후 주요 frame screenshot과 실제 화면을 재대조하는 것입니다.
+
+### 2026-07-07 UI/운영 문서 동기화 상세
+
+이번 UI 작업은 “새 기능 추가”가 아니라 기존 기능을 새 시각 체계로 다시 싣는 작업입니다. 따라서 다음 원칙을 유지합니다.
+
+- route path는 유지합니다.
+- API request/response shape는 유지합니다.
+- Prisma schema와 migration은 변경하지 않습니다.
+- 전화번호 인증 gate, OCR moderation, Gmail SMTP, Solapi SMS, Twilio Lookup, ContactSuppression, 답장함, QR, 마음나무 동작은 그대로 유지합니다.
+- `/write`에는 발신 연락처 select나 masked contact value를 다시 노출하지 않습니다.
+- `senderContactId`는 프론트에서 보내지 않으며, 보내더라도 API가 무시하고 서버가 active verified strict PHONE을 직접 선택합니다.
+
+UI 구성 기준:
+
+| 영역 | 구현 파일 | 현재 역할 |
+| --- | --- | --- |
+| 공통 shell | `apps/web/components/AppShell.tsx` | 로그인 사용자 top bar, desktop sidebar, mobile bottom nav |
+| 공통 style token | `apps/web/app/globals.css` | `maeari-stage`, `figma-panel`, `maeari-input`, `maeari-action`, `maeari-chip`, `maeari-badge` |
+| 공통 UI primitive | `apps/web/components/ui.tsx` | Button, input, section panel, status/emotion pill, empty state, letter thumbnail |
+| QR 공유 | `apps/web/components/QrShare.tsx` | 공개 URL/마음나무 URL QR 렌더링, 링크 복사, PNG 저장 |
+| 알림/notice | `apps/web/components/Notice.tsx` | 성공/경고/오류/일반 notice tone 통일 |
+| 홈 | `apps/web/app/page.tsx` | Figma `Desktop_main` 방향의 hero, timeline, 최근 마음, quick card |
+| 작성 | `apps/web/app/write/page.tsx` | Figma `Desktop_Writing` 방향의 전화번호 gate, 본문/수신자/첨부/도착 설정 form |
+| 친구 | `apps/web/app/friends/page.tsx` | Figma `Desktop_friends` 방향의 친구 코드, 검색, 요청, 초대 링크 |
+| 내 정보 | `apps/web/app/my/page.tsx` | Figma `Desktop_my` 방향의 계정 정보와 연락처 인증 상태 |
+
+반응형 안정화 기준:
+
+- desktop content는 `AppShell` sidebar 221px과 top bar 74px을 기준으로 배치합니다.
+- `/` 홈의 hero/timeline grid는 `minmax(0, 1fr)` 기반으로 줄어들 수 있게 해 1280px 화면에서 오른쪽 timeline이 잘리지 않게 했습니다.
+- `/write`의 form grid도 `minmax(0, 1fr)` + `minmax(292px, 312px)`로 조정해 우측 전달 설정 panel이 화면 밖으로 밀리지 않게 했습니다.
+- mobile hero는 이미지와 H1/CTA가 겹치지 않도록 높이를 별도로 확보하고, 긴 한국어 문장은 `break-keep`으로 단어 단위 줄바꿈을 우선합니다.
+- 모바일 하단 nav는 5개 핵심 route만 고정합니다. `/tree`와 `/reports`는 홈 quick card, desktop sidebar, 직접 URL로 접근합니다.
+
+운영 web 정적 asset 주의사항:
+
+- 현재 web은 Next.js `output: "standalone"`으로 실행합니다.
+- `apps/web/package.json`의 `build`는 `next build` 뒤 `.next/static`과 `public`을 `.next/standalone/apps/web` 아래로 복사합니다.
+- 이 복사가 누락되거나 이전 standalone process가 계속 떠 있으면 HTML은 200이지만 CSS가 404가 되어 화면이 깨질 수 있습니다.
+- UI 수정 후 운영 반영 순서는 다음을 권장합니다.
+
+```bash
+pnpm --filter @maeari/web typecheck
+pnpm --filter @maeari/web build
+pm2 restart maeari-web --update-env
+pm2 save
+
+curl -I http://127.0.0.1:3000/
+curl -s http://127.0.0.1:3000/login \
+  | rg -o '/_next/static/css/[^" ]+\.css' \
+  | head -1 \
+  | xargs -r -I{} curl -I http://127.0.0.1:3000{}
+```
+
+CSS 확인 요청이 `200 OK`와 `Content-Type: text/css`를 반환해야 합니다.
+
+## 2026-07-07 최종 코드/문서 동기화
+
+이번 동기화는 현재 코드에 실제로 들어간 기능과 운영 상태를 README 기준으로 다시 맞춘 것입니다. 발표나 배포 점검 때는 아래 항목을 현재 서비스의 구현 완료 기준으로 보면 됩니다.
+
+### 서비스 이름과 브랜드
+
+- 서비스명은 **마음도착**이 아니라 **매아리**입니다.
+- 의미는 **매 순간 아껴둔 마음의 소리**입니다.
+- 앱 아이콘, favicon, 로그인/메인/사이드바/카드 일러스트는 `apps/web/app/icon.png`, `apps/web/app/apple-icon.png`, `apps/web/public/images/*` 기준으로 정리했습니다.
+- 기존 MVP 시절의 `maeum_arrival` DB 이름은 운영 기준에서 제거했고, 앱은 `maeari` DB와 `maeari` user를 사용합니다.
+
+### 현재 구현된 핵심 기능 묶음
+
+| 묶음 | 구현 상태 | 주요 파일 |
+| --- | --- | --- |
+| 예약 메시지 | SELF/FRIEND/OTHER, 그룹 수신자, 고정/랜덤 도착, 힌트, 테마, 익명 답장 옵션 | `apps/web/app/write/page.tsx`, `apps/api/src/modules/messages/*` |
+| 전화번호 인증 gate | 마음쓰기는 verified strict 010 PHONE이 있어야 가능. 프론트 `senderContactId`는 보내지 않고, 서버가 직접 선택 | `apps/web/app/phone-verification/page.tsx`, `apps/api/src/modules/contacts/*` |
+| Twilio Lookup 방어 | 010 정규화, IP/contact lock, Lookup cache, provider 장애 fail-closed | `apps/api/src/modules/contacts/phone-verification-guard.ts` |
+| 외부 알림 | Gmail SMTP 이메일, Solapi SMS, AUTO는 이메일 우선, 수신거부 pre-flight | `apps/api/src/processors/notification-provider.ts`, `notification.processor.ts` |
+| 이미지 첨부 | `.jpg`, `.jpeg`, `.png`, `.webp`만 허용, 최대 3개, multipart 전송 | `apps/web/app/write/page.tsx`, `message-upload.middleware.ts`, `message.service.ts` |
+| 이미지 OCR 검사 | `tesseract.js`로 이미지 속 텍스트 추출 후 기존 moderation/guardrail에 병합 | `apps/api/src/modules/moderation/image-ocr.service.ts` |
+| 답장함 | 공개 링크 익명 답장 생성 시 발신자 앱/이메일 알림, `/sent` 답장함에서 읽음/삭제 | `apps/api/src/processors/notification.processor.ts`, `apps/web/app/sent/page.tsx` |
+| QR 공유 | 공개 URL과 마음나무 URL을 QR로 표시, 링크 복사, QR PNG 저장 | `apps/web/components/QrShare.tsx` |
+| 마음나무 | 회원 공개 수집 링크 생성, 비회원 텍스트 제출, 도착 시점 일괄 공개 | `apps/api/src/modules/collections/*`, `apps/web/app/tree/*` |
+| Figma UI | 기존 UI 토큰을 새 라벤더 shell/panel/chip/action 체계로 교체 | `apps/web/components/AppShell.tsx`, `apps/web/app/globals.css`, `apps/web/components/ui.tsx` |
+
+### 첨부 이미지와 안전 검사 정책
+
+- 사용자가 업로드할 수 있는 파일 형식은 **JPEG/JPG, PNG, WEBP**입니다.
+- GIF, PDF, HEIC, SVG, 동영상, 일반 파일은 업로드 단계에서 차단합니다.
+- 프론트는 `accept`와 클라이언트 validation으로 1차 차단하고, API는 multer `fileFilter`에서 MIME/확장자를 다시 확인합니다.
+- service 저장 직전에는 magic bytes로 JPEG/PNG/WEBP 실제 파일인지 확인합니다.
+- OCR은 이미지 장면 자체를 판단하지 않습니다. 이미지 안에 적힌 텍스트만 추출하고, 그 텍스트를 메시지 제목/본문/감정 태그와 함께 기존 OpenAI Moderation + 매아리 guardrail에 넘깁니다.
+- OCR 실패 또는 timeout은 미검증 이미지를 발송하지 않기 위해 `MODERATION_FAILED`로 저장하고 retry job 대상이 됩니다.
+
+### UI 리디자인 운영 체크
+
+- Figma 기준 색상은 `#6D48DB`, `#F3EEFD`, `#9A85E1`, `#FBF9FC`, `#F3EFF7`입니다.
+- 로그인 사용자 화면은 `AppShell`의 top bar, desktop sidebar, mobile bottom nav를 사용합니다.
+- 공개 화면은 `maeari-public-stage`를 사용하며 sidebar를 노출하지 않습니다.
+- `/write`에는 발신 연락처 선택 UI가 없습니다. 사용자는 전화번호 인증 여부만 간접적으로 확인하고, 실제 발신 권한 검증은 서버가 수행합니다.
+- UI 수정 후에는 standalone 정적 파일 복사 상태까지 확인해야 합니다. CSS hash가 404이면 HTML은 열려도 화면이 깨질 수 있습니다.
+
+```bash
+pnpm --filter @maeari/web typecheck
+pnpm --filter @maeari/web build
+pm2 restart maeari-web --update-env
+pm2 save
+
+curl -I http://127.0.0.1:3000/
+curl -s http://127.0.0.1:3000/login \
+  | rg -o '/_next/static/css/[^" ]+\.css' \
+  | head -1 \
+  | xargs -r -I{} curl -I http://127.0.0.1:3000{}
+```
+
+마지막 CSS 요청은 `200 OK`와 `Content-Type: text/css`여야 합니다.
+
+## 2026-07-07 최신 구현 반영 상세
+
+이 섹션은 현재 작업 트리의 최신 코드 수정 사항을 README 기준으로 다시 묶은 최종 요약입니다. 발표, 인수인계, 운영 재시작, QA를 할 때는 아래 내용을 현재 서비스의 실제 구현 상태로 보면 됩니다.
+
+### 1. 서비스/브랜드/DB 이름 정리
+
+- 서비스명은 **매아리(Maeari)** 입니다.
+- 풀네임은 **매 순간 아껴둔 마음의 소리**입니다.
+- 이전 MVP 가명인 `마음도착`, DB 이름 `maeum_arrival`은 사용자 화면과 운영 연결 기준에서 제거했습니다.
+- 현재 운영 DB는 `maeari`, 운영 DB user도 `maeari`입니다.
+- 앱의 `DATABASE_URL`은 `postgresql://maeari:...@127.0.0.1:5432/maeari?schema=public` 형태를 기준으로 합니다.
+- 기존 데이터는 final dump 후 새 DB에 복원했고, 기존 MVP DB와 dry-run DB는 정리했습니다.
+- `PUBLIC_TOKEN_PEPPER`는 공개 링크, 연락처 hash, OTP hash, 수신거부 hash에 모두 연결되므로 새 DB에서도 기존 값을 유지해야 합니다.
+
+### 2. 현재 핵심 사용자 기능
+
+| 영역 | 현재 구현 상태 |
+| --- | --- |
+| 로그인 | 카카오 OAuth, HttpOnly cookie session, 로그인 후 pending 공개 링크/친구 초대 claim 처리 |
+| 메인 | Figma 톤의 dashboard, 최근 받은 마음, 곧 찾아갈 마음, quick card, KST 현재 시각 |
+| 마음쓰기 | SELF/FRIEND/OTHER, 그룹 수신자, 이메일/SMS/AUTO, 제목/본문/감정 태그, 이미지 첨부, 고정/랜덤 도착, 힌트, 테마, 익명 답장 허용 |
+| 마음쓰기 권한 | 이메일 인증이 아니라 verified strict `010` PHONE 보유 여부로 판단 |
+| 전화번호 인증 | `/phone-verification`, Solapi OTP, Twilio Lookup v2, IP/contact rate limit, lock, lookup cache |
+| 친구 | 친구 코드, 친구 검색, 요청/수락/거절/취소, 친구 초대 임시 링크, 로그인 후 즉시 claim |
+| 외부 알림 | Gmail SMTP 이메일, Solapi SMS, AUTO 이메일 우선, provider 미설정/수신거부 실패 상태 기록 |
+| 수신거부 | 공개 도착 링크에서 EMAIL/SMS 채널별 수신거부와 재구독 |
+| 공개 도착 | 도착 전 gate, 본문/첨부 열람, 익명 답장, 신고, 로그인 후 보관 |
+| 답장함 | `/sent` 안의 보낸 마음/답장함 탭, 읽음 처리, 발신자 화면 삭제 |
+| QR | 공개 URL과 마음나무 URL을 QR로 표시, 링크 복사, QR PNG 저장 |
+| 마음나무 | 회원이 공개 수집 링크/QR 생성, 비회원 제출, 예약 시각 이후 일괄 공개 |
+| 보관함 | 보낸 마음 취소/삭제/숨김, 받은 마음 삭제, 아카이브/복구, 미래의 나 모음 |
+| 리포트/관리 | 감정 리포트, moderation log, notification log, 신고/답장 검수, 계정 정지 |
+
+### 3. 이미지 첨부와 OCR 안전 검사
+
+사진 첨부 기능은 현재 **이미지 파일 3개까지** 지원합니다.
+
+허용 형식:
+
+- `.jpg`
+- `.jpeg`
+- `.png`
+- `.webp`
+
+허용 MIME:
+
+- `image/jpeg`
+- `image/png`
+- `image/webp`
+
+검증 계층:
+
+```txt
+Web input accept
+  -> .jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp
+
+Web createAttachmentDraft
+  -> file.type, file.name 확장자, 개별 2MB 용량, 전체 용량 검사
+
+API multer fileFilter
+  -> MIME type과 originalname 확장자 재검증
+
+Message service
+  -> 저장 직전 magic bytes 검사
+     JPEG: FF D8 FF
+     PNG: 89 50 4E 47 0D 0A 1A 0A
+     WEBP: RIFF....WEBP
+```
+
+안전 검사 정책:
+
+- 이미지 장면 자체의 폭력성/선정성은 v1 범위가 아닙니다.
+- 이미지 안에 적힌 텍스트는 `tesseract.js` OCR로 추출합니다.
+- OCR 결과 텍스트는 메시지 제목/본문/감정 태그와 합쳐 OpenAI Moderation + 매아리 guardrail에 전달합니다.
+- OCR 실패/timeout은 안전 검사를 통과한 것으로 보지 않고 `MODERATION_FAILED`로 저장해 retry job 대상이 됩니다.
+- GIF, HEIC, SVG, PDF, 동영상, 일반 파일은 업로드 단계에서 차단합니다.
+
+### 4. AI Guardrail과 운영 정책
+
+- 1차로 OpenAI Moderation API를 사용합니다.
+- 2차로 `apps/api/src/modules/moderation/moderation-policy.ts`의 매아리 서비스 정책 guardrail prompt를 사용합니다.
+- 한국어 욕설/비하 표현 일부는 로컬 규칙으로 보강 차단합니다.
+- guardrail 응답은 `allowed/categories/severity/feedback/rationale` 기준으로 해석합니다.
+- legacy 응답인 `is_harmful`, `violation_category`, `confidence_score`, `reason`도 normalize해 응답 schema mismatch로 인한 실패를 줄입니다.
+- OpenAI 또는 OCR 검사 자체가 실패하면 즉시 재시도하고, 최종 실패 시 메시지를 임시 보관한 뒤 scheduler가 재검사합니다.
+
+### 5. Figma 기반 UI 리디자인 적용 범위
+
+현재 web UI는 기존 텍스트 중심 UI를 버리고 Figma 시안의 라벤더 계열 shell/panel 체계로 재구성했습니다.
+
+기준 색상:
+
+- 강조색: `#6D48DB`
+- 메인색: `#F3EEFD`
+- 보조 강조색: `#9A85E1`
+- 배경색: `#FBF9FC`
+- 보조 회색: `#F3EFF7`
+
+주요 파일:
+
+| 파일 | 역할 |
+| --- | --- |
+| `apps/web/components/AppShell.tsx` | 로그인 사용자 top bar, desktop sidebar, mobile bottom nav |
+| `apps/web/app/globals.css` | `maeari-stage`, `maeari-public-stage`, `figma-panel`, `maeari-action`, `maeari-chip`, `maeari-input` |
+| `apps/web/components/ui.tsx` | Button, input, section panel, status pill, emotion pill, empty state, letter thumbnail |
+| `apps/web/components/QrShare.tsx` | 공개 URL/마음나무 URL QR, 링크 복사, PNG 저장 |
+| `apps/web/components/Notice.tsx` | 성공/경고/오류/일반 notice tone |
+
+화면 반영:
+
+- `/`: hero, timeline, recent card, quick card
+- `/write`: 전화번호 인증 gate, 수신자/본문/첨부/도착 설정 form, 성공 dialog
+- `/sent`: 보낸 마음/답장함 탭, QR, 삭제/취소 액션
+- `/inbox`, `/archive`, `/future`: 새 message card와 필터/삭제/복구 액션
+- `/messages/[id]`: 상세, 첨부, 수신자 상태, QR, 답장/신고/삭제
+- `/arrival/[token]`: public stage, 도착 gate, 본문/첨부, 답장, 수신거부
+- `/friends`: 친구 코드, 검색, 요청, 초대 링크
+- `/my`, `/phone-verification`: 전화번호 인증 상태와 변경 흐름
+- `/tree`, `/tree/[token]`: 마음나무 생성/공유/비회원 제출
+- `/reports`, `/admin`: 새 토큰을 쓰되 운영 정보는 scan 가능한 card/table 형태 유지
+
+Figma MCP 인증과 파일 접근은 확인됐지만, Starter plan call limit 때문에 최종 pixel-level 비교는 call limit 해제 후 다시 수행해야 합니다. UI 리디자인은 DB/API 계약을 바꾸지 않는 presentation layer 변경입니다.
+
+### 6. 운영 반영 순서
+
+UI 또는 문서 외 web 코드가 바뀐 뒤에는 다음 순서로 확인합니다.
+
+```bash
+pnpm --filter @maeari/web typecheck
+pnpm --filter @maeari/web build
+pm2 restart maeari-web --update-env
+pm2 save
+```
+
+API 또는 scheduler 코드가 바뀐 뒤에는 다음을 함께 확인합니다.
+
+```bash
+pnpm --filter @maeari/api typecheck
+pnpm --filter @maeari/api build
+pm2 restart maeari-api --update-env
+pm2 restart maeari-scheduler --update-env
+pm2 save
+```
+
+서비스 상태 확인:
+
+```bash
+pm2 status
+curl -I http://127.0.0.1:4000/api/health
+curl -I http://127.0.0.1:3000/
+curl -I https://maeari.madcamp-kaist.org/api/health
+curl -I https://maeari.madcamp-kaist.org/
+```
+
+Next.js standalone 정적 asset 확인:
+
+```bash
+curl -s http://127.0.0.1:3000/login \
+  | rg -o '/_next/static/css/[^" ]+\.css' \
+  | head -1 \
+  | xargs -r -I{} curl -I http://127.0.0.1:3000{}
+```
+
+CSS 요청이 `200 OK`, `Content-Type: text/css`여야 합니다.
+
+## 2026-07-07 최종 반영 로그
+
+이 섹션은 현재 코드에 실제로 들어간 변경을 운영자 관점에서 다시 묶은 최종 동기화 로그입니다. 이전 MVP 이름과 UI 흔적을 줄이고, 현재 서비스명 **매아리(매 순간 아껴둔 마음의 소리)** 기준으로 기능과 화면을 정리했습니다.
+
+### 1. 서비스 현재 상태
+
+매아리는 예약 메시지를 작성하고, 설정한 도착 시각이 되면 앱 내 보관함 또는 외부 이메일/SMS 알림으로 마음을 전달하는 서비스입니다. 현재 구현은 단순 예약 메시지를 넘어 다음 기능까지 포함합니다.
+
+| 영역 | 현재 구현 상태 |
+| --- | --- |
+| 인증 | Kakao OAuth 로그인, onboarding, 관리자 식별, pending public token/friend invite claim |
+| 마음쓰기 권한 | 엄격한 010 휴대전화 인증을 통과한 사용자만 작성 가능 |
+| 전화번호 인증 | 정규화, PostgreSQL rate limit/lock, Twilio Lookup v2, Solapi OTP |
+| 메시지 작성 | SELF/FRIEND/OTHER, 그룹 수신자, 고정/랜덤 도착, 힌트, 테마, 답장 허용, 발신인/도착일 숨김 |
+| 첨부 | `.jpg`, `.jpeg`, `.png`, `.webp` 이미지 최대 3개, 파일당 2MB, 총 6MB |
+| AI 안전 검사 | 텍스트 moderation + 로컬 guardrail + 이미지 OCR 텍스트 moderation |
+| 외부 알림 | Gmail SMTP 이메일, Solapi SMS, AUTO는 이메일 우선 |
+| 수신거부 | EMAIL/SMS 채널별 suppression 등록과 재구독 |
+| 답장 | 공개 링크에서 익명 답장 가능, 발신자의 `/sent` 답장함에 표시 |
+| QR 공유 | 공개 도착 링크와 마음나무 링크를 QR로 표시/저장 |
+| 친구 | 친구 코드 검색, 요청/수락/거절, 임시 초대 링크 생성/claim |
+| 마음나무 | 회원이 링크/QR을 만들고 비회원이 텍스트 마음을 제출, 예약 시각 이후 일괄 공개 |
+| 운영 | 관리자 로그/신고/답장 검수, PM2/Nginx 운영, maintenance fallback 문서화 |
+
+### 2. UI 리디자인 반영
+
+기존 텍스트 중심 UI는 `apps/web` 전반에서 Figma 기반 라벤더 UI 체계로 교체했습니다. Figma MCP 인증과 파일 접근은 확인됐지만, Starter plan call limit 때문에 최종 pixel-level 비교는 제한된 상태입니다. 따라서 현재 코드는 Figma에서 확인한 주요 frame 구조와 제공 이미지, 지정 팔레트를 바탕으로 구현했습니다.
+
+색상 기준:
+
+| 용도 | 색상 |
+| --- | --- |
+| 강조색 | `#6D48DB` |
+| 메인색 | `#F3EEFD` |
+| 보조 강조색 | `#9A85E1` |
+| 배경색 | `#FBF9FC` |
+| 보조 회색 | `#F3EFF7` |
+
+핵심 UI 파일:
+
+| 파일 | 반영 내용 |
+| --- | --- |
+| `apps/web/app/globals.css` | `maeari-stage`, `maeari-public-stage`, `figma-panel`, `maeari-hero-card`, `maeari-soft-panel`, `maeari-letter-surface`, action/chip/input 토큰 |
+| `apps/web/components/AppShell.tsx` | 고정 상단바, desktop sidebar, mobile bottom nav, 브랜드 아이콘, 하단 quote image panel |
+| `apps/web/components/ui.tsx` | Button, LinkButton, TextInput, TextArea, SelectInput, PageHeader, SectionPanel, StatusPill, EmotionPill, EmptyState, LetterThumb |
+| `apps/web/components/Notice.tsx` | 라벤더 팔레트 기반 notice tone |
+| `apps/web/components/QrShare.tsx` | `qrcode.react` 기반 QR 렌더링, 링크 복사, PNG 저장 |
+
+화면별 반영:
+
+- `/`: dashboard hero, 현재 KST 초 단위 clock, 곧 찾아갈 마음 timeline, 최근 보관한 마음, quick card.
+- `/write`: 전화번호 인증 gate, 서버 기준 +24시간 기본 도착, 수신자/본문/첨부/전달 설정, 성공 dialog와 QR.
+- `/sent`: 보낸 마음과 답장함 탭, 취소/삭제/QR/링크 복사.
+- `/inbox`, `/archive`, `/future`: 새 letter card, 상태 badge, 삭제/보관/복구/일괄 액션.
+- `/messages/[id]`: 상세 본문, 첨부, 수신자 상태, 답장 목록, QR, 신고/삭제/취소.
+- `/arrival/[token]`: 공개 열람 stage, 도착 전 gate, 첨부/답장/신고/수신거부/재구독.
+- `/friends`, `/friends/invite/[token]`: 친구 코드, 요청, 임시 초대 링크, 로그인 후 claim.
+- `/my`, `/phone-verification`: 휴대전화 인증을 최상단 흐름으로 배치하고 이메일은 수신 연결용 인증으로 유지.
+- `/tree`, `/tree/[token]`: 마음나무 생성, QR 공유, 공개 제출, 도착 후 공개.
+- `/reports`, `/admin`: 새 토큰을 사용하되 운영성은 유지하는 card/table 구조.
+
+### 3. 첨부와 이미지 OCR 안전 검사
+
+첨부 허용 정책은 모든 계층에서 동일합니다.
+
+```txt
+허용 확장자: .jpg, .jpeg, .png, .webp
+허용 MIME: image/jpeg, image/png, image/webp
+최대 개수: MAX_ATTACHMENT_COUNT=3
+파일당 최대: MAX_ATTACHMENT_BYTES=2097152
+전체 최대: MAX_ATTACHMENT_TOTAL_BYTES=6291456
+```
+
+검증 순서:
+
+```txt
+Browser accept
+  -> createAttachmentDraft(file.type + 확장자 + 용량)
+  -> API multer fileFilter(MIME + originalname)
+  -> message service magic bytes
+  -> OCR 텍스트 추출
+  -> title/content/emotion/OCR 텍스트 통합 moderation
+  -> DB 저장
+```
+
+magic bytes 기준:
+
+| 형식 | 검사 |
+| --- | --- |
+| JPEG/JPG | `FF D8 FF` |
+| PNG | `89 50 4E 47 0D 0A 1A 0A` |
+| WEBP | `RIFF....WEBP` |
+
+OCR 구현:
+
+- 구현 파일: `apps/api/src/modules/moderation/image-ocr.service.ts`
+- 라이브러리: `tesseract.js`
+- 기본 언어: `kor+eng`
+- timeout: `IMAGE_OCR_TIMEOUT_MS=8000`
+- 최대 병합 텍스트 길이: `IMAGE_OCR_MAX_TEXT_CHARS=4000`
+- 결과 저장: `MessageAttachment.ocrStatus`, `ocrText`, `ocrConfidence`, `ocrError`, `ocrCheckedAt`
+
+OCR 실패나 timeout은 안전 검사를 통과한 것으로 취급하지 않습니다. 메시지는 `MODERATION_FAILED` 상태로 남고, `retry-failed-moderation.job.ts`가 저장된 파일을 다시 읽어 OCR과 moderation을 재시도합니다.
+
+### 4. 전화번호 인증과 마음쓰기 권한
+
+마음쓰기 권한은 이메일 인증과 무관합니다. 서버는 메시지 생성 시 클라이언트가 보낸 `senderContactId`를 신뢰하지 않고, 직접 인증된 PHONE contact를 조회합니다.
+
+조건:
+
+```txt
+UserContact.type = PHONE
+verifiedAt != null
+deletedAt = null
+value matches ^010\d{8}$
+```
+
+선택 우선순위:
+
+```txt
+isPrimary=true PHONE
+  -> 없으면 가장 최근 verifiedAt PHONE
+  -> 없으면 409 SENDER_PHONE_VERIFICATION_REQUIRED
+```
+
+인증 요청 guard:
+
+- `01012345678`, `010-1234-5678`, `+821012345678`, `821012345678` 입력을 `01012345678`로 정규화합니다.
+- `070`, `050x`, `011/016/017/018/019`, 유선번호, 해외번호는 차단합니다.
+- 같은 번호 10분 내 4번째 요청부터 contact 24시간 lock을 겁니다.
+- 같은 IP에서 1시간 내 서로 다른 번호 6개째 요청부터 IP 1시간 lock을 겁니다.
+- raw IP/전화번호는 guard 테이블에 저장하지 않고 HMAC hash만 저장합니다.
+- Twilio Lookup v2가 켜져 있으면 `valid=true`, `country_code=KR`, `line_type_intelligence.type=mobile`만 통과합니다.
+- Twilio 장애/timeout은 fail-closed로 처리해 SMS를 발송하지 않습니다.
+
+verified PHONE은 직접 삭제할 수 없습니다. 새 번호 OTP 인증이 성공한 시점에 transaction으로 기존 active PHONE을 retire하고 새 PHONE을 primary active로 만듭니다.
+
+### 5. 알림, 답장, QR, 마음나무
+
+외부 알림 privacy 원칙:
+
+- 이메일 본문에 편지 내용을 넣지 않습니다.
+- SMS 본문에 편지 내용을 넣지 않습니다.
+- 답장 알림 이메일에도 원문/답장 내용을 넣지 않습니다.
+- 도착 링크 또는 내부 상세 링크만 제공합니다.
+
+답장함 흐름:
+
+```txt
+/arrival/[token] 답장 작성
+  -> MessageReply 생성
+  -> message.reply.created event emit
+  -> NotificationProcessor가 REPLY_RECEIVED 처리
+  -> IN_APP log 생성
+  -> 발신자 verified EMAIL이 있으면 Gmail SMTP 알림
+  -> /sent 답장함 탭에서 조회/읽음/삭제
+```
+
+QR 흐름:
+
+- 공개 도착 URL과 마음나무 URL은 DB에 별도 QR 값으로 저장하지 않습니다.
+- 기존 URL을 클라이언트에서 `QRCodeCanvas`로 렌더링합니다.
+- 링크 복사와 QR PNG 저장을 함께 제공합니다.
+
+마음나무 흐름:
+
+```txt
+회원이 /tree에서 title/description/scheduledAt 설정
+  -> public collection token 생성
+  -> URL/QR 공유
+  -> 비회원이 /tree/[token]에서 텍스트 제출
+  -> moderation 통과 시 submission 저장
+  -> scheduler가 scheduledAt 이후 DELIVERED 처리
+  -> owner에게 IN_APP/EMAIL 알림
+```
+
+### 6. DB 기준선과 배포 검증
+
+현재 DB 기준선은 다음 migration입니다.
+
+```txt
+20260706150000_ocr_replies_qr_collections
+```
+
+이 migration에 포함된 주요 영역:
+
+- `AttachmentOcrStatus`
+- `MessageAttachment` OCR 필드
+- `MessageReply` 답장함/알림 필드
+- `NotificationEventType.REPLY_RECEIVED`
+- `NotificationEventType.COLLECTION_DELIVERED`
+- `MessageCollection`
+- `MessageCollectionSubmission`
+
+UI 리디자인은 DB migration을 추가하지 않는 presentation layer 변경입니다. 운영 반영은 web build와 PM2 web restart로 충분합니다.
+
+검증 명령:
+
+```bash
+pnpm db:validate
+pnpm --filter @maeari/api typecheck
+pnpm --filter @maeari/web typecheck
+pnpm --filter @maeari/api build
+pnpm --filter @maeari/web build
+pm2 restart maeari-api --update-env
+pm2 restart maeari-scheduler --update-env
+pm2 restart maeari-web --update-env
+pm2 save
+```
+
+운영 smoke check:
+
+```bash
+curl -I http://127.0.0.1:4000/api/health
+curl -I http://127.0.0.1:3000/
+curl -I https://maeari.madcamp-kaist.org/api/health
+curl -I https://maeari.madcamp-kaist.org/
+```
+
+Next.js standalone CSS 확인:
+
+```bash
+curl -s http://127.0.0.1:3000/login \
+  | rg -o '/_next/static/css/[^" ]+\.css' \
+  | head -1 \
+  | xargs -r -I{} curl -I http://127.0.0.1:3000{}
+```
+
+응답이 `200 OK`이고 `Content-Type: text/css`이면 CSS asset serving이 정상입니다.

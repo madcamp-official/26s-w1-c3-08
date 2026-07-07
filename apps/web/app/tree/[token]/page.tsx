@@ -68,7 +68,7 @@ export default function PublicTreePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FBF9FC] px-4 py-8 text-[#4E536B]">
+    <main className="maeari-public-stage px-4 py-8 text-[#4E536B]">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <Image
@@ -76,7 +76,7 @@ export default function PublicTreePage() {
             alt="매아리"
             width={42}
             height={42}
-            className="h-[42px] w-[42px] rounded-[10px] object-cover"
+            className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
           <span className="text-xl font-semibold text-[#6D48DB]">매아리 마음나무</span>
@@ -86,12 +86,12 @@ export default function PublicTreePage() {
         {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
 
         {collection ? (
-          <section className="figma-panel rounded-lg border p-5">
+          <section className="figma-panel p-5">
             <div className="mb-5">
-              <span className="rounded-lg bg-[#F3EEFD] px-2 py-1 text-xs font-semibold text-[#6D48DB]">
+              <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
                 {collection.canSubmit ? "수집 중" : "닫힘"}
               </span>
-              <h1 className="mt-4 text-2xl font-semibold">{collection.title}</h1>
+              <h1 className="maeari-page-title mt-4">{collection.title}</h1>
               {collection.description ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#6E738A]">{collection.description}</p> : null}
               <p className="mt-3 text-sm text-[#A2A6BF]">도착 시점: {formatDateTime(collection.scheduledAt)}</p>
             </div>
@@ -117,7 +117,7 @@ export default function PublicTreePage() {
                 <button
                   type="submit"
                   disabled={submitting || content.trim().length === 0}
-                  className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#6D48DB] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                  className="focus-ring maeari-action maeari-action-primary h-11 disabled:opacity-50"
                 >
                   <Send size={16} />
                   {submitting ? "전달 중" : "마음 남기기"}

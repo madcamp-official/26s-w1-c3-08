@@ -177,13 +177,13 @@ export default function MyPage() {
   return (
     <AppShell>
       <div className="max-w-[1110px]">
-        <header className="figma-panel mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
+        <header className="maeari-hero-card mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
           <div>
-            <h1 className="text-[29px] font-medium text-[#4E536B]">내 정보</h1>
-            <p className="mt-2 text-[15px] leading-6 text-[#9FA2B4]">내 계정 정보를 확인하고 관리할 수 있어요.</p>
+            <h1 className="maeari-page-title">내 정보</h1>
+            <p className="maeari-page-copy mt-2">내 계정 정보를 확인하고 관리할 수 있어요.</p>
           </div>
-          <div className="relative mt-6 hidden h-[150px] overflow-hidden rounded-[10px] bg-[#F3EEFD] md:mt-0 md:block">
-            <Image src="/images/maeari-star-letter.png" alt="" fill sizes="260px" className="object-cover object-center" />
+          <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
+            <Image src="/images/maeari-star-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
           </div>
         </header>
 
@@ -199,9 +199,9 @@ export default function MyPage() {
         ) : null}
 
         {user ? (
-          <section className="mb-[15px] bg-white px-[28px] py-[36px]">
-            <div className="grid gap-8 lg:grid-cols-[171px_1fr]">
-              <div className="relative h-[171px] w-[171px] overflow-hidden rounded-[24px] bg-[#F3EEFD]">
+          <section className="figma-panel mb-[15px] px-[28px] py-[36px]">
+          <div className="grid gap-8 lg:grid-cols-[171px_1fr]">
+              <div className="maeari-hero-visual relative h-[171px] w-[171px] overflow-hidden">
                 <Image src="/images/maeari-app-icon.png" alt="" fill sizes="171px" className="object-cover" />
               </div>
               <div className="min-w-0 pt-[18px]">
@@ -222,12 +222,12 @@ export default function MyPage() {
           </section>
         ) : null}
 
-        <section className="mb-[15px] bg-white px-[28px] py-[24px]">
+        <section className="figma-panel mb-[15px] px-[28px] py-[24px]">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h2 className="text-[17px] text-[#64687D]">연락처 인증</h2>
             <Link
               href="/phone-verification?next=/my"
-              className="focus-ring inline-flex h-[35px] items-center justify-center gap-2 rounded-[13px] border-2 border-[#DBCEFB] bg-white px-4 text-sm text-[#9F88E6]"
+              className="focus-ring maeari-action h-[38px]"
             >
               <ShieldCheck size={15} />
               전화번호 인증/변경
@@ -254,12 +254,12 @@ export default function MyPage() {
                           {contact.label ? ` · ${contact.label}` : ""}
                         </p>
                         {isVerified ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#EEFBEF] px-2 py-1 text-xs font-semibold text-emerald-700">
+                          <span className="maeari-badge gap-1 bg-[#F3EEFD] text-[#6D48DB]">
                             <CheckCircle2 size={13} />
                             인증됨
                           </span>
                         ) : (
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">인증 대기</span>
+                          <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">인증 대기</span>
                         )}
                       </div>
                       <p className="mt-2 text-sm text-[#9598AB]">{contact.maskedValue}</p>
@@ -270,7 +270,7 @@ export default function MyPage() {
                           type="button"
                           onClick={() => void sendCode(contact.id)}
                           disabled={isBusy}
-                          className="focus-ring inline-flex h-9 items-center gap-2 rounded-[9px] border border-[#DAD4E8] bg-white px-3 text-sm text-[#8588A1] disabled:opacity-50"
+                          className="focus-ring maeari-action h-9 px-3 disabled:opacity-50"
                         >
                           <RefreshCw size={15} />
                           재발송
@@ -279,7 +279,7 @@ export default function MyPage() {
                       {isVerifiedPhone ? (
                         <Link
                           href="/phone-verification?next=/my"
-                          className="focus-ring inline-flex h-9 items-center gap-2 rounded-[9px] border border-[#DAD4E8] bg-white px-3 text-sm text-[#8588A1]"
+                          className="focus-ring maeari-action h-9 px-3"
                         >
                           <ShieldCheck size={15} />
                           변경
@@ -289,7 +289,7 @@ export default function MyPage() {
                           type="button"
                           onClick={() => void deleteContact(contact.id)}
                           disabled={isBusy}
-                          className="focus-ring inline-flex h-9 items-center gap-2 rounded-[9px] border border-rose-200 bg-white px-3 text-sm text-rose-700 disabled:opacity-50"
+                          className="focus-ring maeari-action maeari-action-danger h-9 px-3 disabled:opacity-50"
                         >
                           <Trash2 size={15} />
                           삭제
@@ -310,13 +310,13 @@ export default function MyPage() {
                         inputMode="numeric"
                         maxLength={6}
                         placeholder="6자리 인증번호"
-                        className="focus-ring maeari-input h-9 rounded-[7px] px-3"
+                        className="focus-ring maeari-input h-9 px-3"
                       />
                       <button
                         type="button"
                         onClick={() => void verifyContact(contact.id)}
                         disabled={isBusy}
-                        className="focus-ring h-9 rounded-[8px] bg-[#6D48DB] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                        className="focus-ring maeari-action maeari-action-primary h-9 px-4 disabled:opacity-50"
                       >
                         인증하기
                       </button>
@@ -335,19 +335,19 @@ export default function MyPage() {
               inputMode="email"
               onChange={(event) => setContactValue(event.target.value)}
               placeholder="name@example.com"
-              className="focus-ring maeari-input h-10 rounded-[7px] px-3"
+              className="focus-ring maeari-input h-10 px-3"
             />
             <input
               value={contactLabel}
               onChange={(event) => setContactLabel(event.target.value)}
               maxLength={40}
               placeholder="라벨"
-              className="focus-ring maeari-input h-10 rounded-[7px] px-3"
+              className="focus-ring maeari-input h-10 px-3"
             />
             <button
               type="submit"
               disabled={creatingContact}
-              className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#9A85E1] px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="focus-ring maeari-action maeari-action-primary h-10 px-4 disabled:opacity-50"
             >
               <Plus size={16} />
               {creatingContact ? "추가 중" : "이메일 추가"}
@@ -355,7 +355,7 @@ export default function MyPage() {
           </form>
         </section>
 
-        <section className="mb-[15px] bg-white px-[28px] py-[24px]">
+        <section className="figma-panel mb-[15px] px-[28px] py-[24px]">
           <div className="flex items-center justify-between border-b border-[#F9F9FA] pb-4">
             <h2 className="text-[17px] text-[#64687D]">기타</h2>
           </div>
@@ -365,7 +365,7 @@ export default function MyPage() {
               {user?.isAdmin ? (
                 <Link
                   href="/admin"
-                  className="focus-ring inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#DAD4E8] bg-white px-4 text-sm text-[#8588A1]"
+                  className="focus-ring maeari-action h-10 px-4"
                 >
                   <ShieldCheck size={16} />
                   관리자
@@ -374,7 +374,7 @@ export default function MyPage() {
               <button
                 type="button"
                 onClick={() => void logout()}
-                className="focus-ring inline-flex h-10 items-center gap-2 rounded-[9px] border border-[#FBBABA] bg-white px-4 text-sm text-[#F18E90]"
+                className="focus-ring maeari-action maeari-action-danger h-10 px-4"
               >
                 <LogOut size={16} />
                 로그아웃
@@ -383,7 +383,7 @@ export default function MyPage() {
           </div>
         </section>
 
-        <section className="bg-[#F4F1FD] px-[28px] py-[18px]">
+        <section className="figma-panel bg-[#F4F1FD]/90 px-[28px] py-[18px]">
           <p className="text-[15px] text-[#8E70E1]">개인정보는 소중하게 보호돼요.</p>
           <p className="mt-2 text-sm text-[#B6AADE]">
             계정 정보는 카카오 계정 정보를 기반으로 관리되며, 비밀번호는 카카오에서 안전하게 관리합니다.

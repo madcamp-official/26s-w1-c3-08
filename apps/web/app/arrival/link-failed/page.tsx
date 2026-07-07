@@ -15,18 +15,18 @@ export default function LinkFailedPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
-      <header className="h-[74px] border-b border-[#F1EEF8] bg-white px-5">
+    <main className="maeari-public-stage text-[#4E536B]">
+      <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
             src="/images/maeari-app-icon.png"
             alt="매아리"
             width={42}
             height={42}
-            className="h-[42px] w-[42px] rounded-[10px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
+            className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="ml-3 text-[25px] font-medium tracking-[0.02em] text-[#9A85E1]">매아리</span>
+          <span className="ml-3 text-[25px] font-semibold tracking-[0.01em] text-[#6D48DB]">매아리</span>
         </div>
       </header>
 
@@ -40,16 +40,16 @@ export default function LinkFailedPage() {
           {arrivalToken ? (
             <Link
               href={`/arrival/${arrivalToken}`}
-              className="focus-ring rounded-lg bg-[#6D48DB] px-4 py-2 text-sm font-semibold text-white"
+              className="focus-ring maeari-action maeari-action-primary"
             >
               공개 메시지로 돌아가기
             </Link>
           ) : (
-            <Link href="/login" className="focus-ring rounded-lg bg-[#6D48DB] px-4 py-2 text-sm font-semibold text-white">
+            <Link href="/login" className="focus-ring maeari-action maeari-action-primary">
               다시 로그인
             </Link>
           )}
-          <Link href="/write" className="focus-ring rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold">
+          <Link href="/write" className="focus-ring maeari-action">
             마음 쓰기
           </Link>
         </div>

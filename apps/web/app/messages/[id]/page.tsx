@@ -199,10 +199,10 @@ export default function MessageDetailPage() {
   return (
     <AppShell>
       <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/sent" className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold">
+        <Link href="/sent" className="focus-ring maeari-action">
           보낸 마음
         </Link>
-        <Link href="/inbox" className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold">
+        <Link href="/inbox" className="focus-ring maeari-action">
           받은 마음
         </Link>
       </div>
@@ -210,26 +210,26 @@ export default function MessageDetailPage() {
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
       {message ? (
-        <article className="rounded-lg border figma-panel p-5 ">
+        <article className="figma-panel p-5">
           <div className="mb-5 flex flex-wrap gap-2">
-            <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
+            <span className="maeari-badge bg-brand-gray text-[#6E738A]">
               {statusLabel(message.status)}
             </span>
-            <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+            <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
               {emotionLabel(message.emotionTag, message.customEmotionTag)}
             </span>
             {message.isSenderHidden ? (
-              <span className="rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
+              <span className="maeari-badge bg-[#EEE8FD] text-[#6D48DB]">
                 발신인 숨김
               </span>
             ) : null}
             {message.isDateHidden ? (
-              <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">
+              <span className="maeari-badge bg-[#F3EFF7] text-[#8588A1]">
                 도착일 숨김
               </span>
             ) : null}
           </div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">{message.title}</h1>
+          <h1 className="maeari-page-title">{message.title}</h1>
           <div className="mt-3 grid gap-1 text-sm text-[#A2A6BF]">
             <p>보낸 사람: {message.senderName ?? "익명 발신"}</p>
             <p>예약 시간: {formatDateTime(message.scheduledAt)}</p>
@@ -250,11 +250,11 @@ export default function MessageDetailPage() {
             ) : null}
           </div>
           {message.recipients && message.recipients.length > 0 ? (
-            <div className="mt-5 rounded-lg border figma-panel p-4">
+            <div className="maeari-soft-panel mt-5 p-4">
               <p className="text-sm font-semibold text-[#4E536B]">수신자</p>
               <div className="mt-3 grid gap-2 text-sm text-[#A2A6BF]">
                 {message.recipients.map((recipient) => (
-                  <div key={recipient.id} className="rounded-lg bg-brand-gray p-3">
+                  <div key={recipient.id} className="rounded-[8px] bg-[#F3EFF7] p-3">
                     <p>
                       {recipient.name ?? "수신자"} · {recipientTypeLabel(recipient.type)} ·{" "}
                       {statusLabel(recipient.deliveryStatus)}
@@ -266,7 +266,7 @@ export default function MessageDetailPage() {
                       <p className="mt-1 text-xs text-brand-sub">수신자 도착 시간: {formatDateTime(recipient.deliveredAt)}</p>
                     ) : null}
                     {recipient.latestNotification ? (
-                      <div className="mt-2 rounded-lg border border-brand-line bg-white p-2 text-xs">
+                      <div className="mt-2 rounded-[8px] border border-[#E3DEF0] bg-white p-2 text-xs">
                         <p className="font-semibold text-[#6E738A]">
                           외부 알림: {notificationStatusLabel(recipient.latestNotification.status)} ·{" "}
                           {notificationChannelLabel(recipient.latestNotification.channel)}
@@ -281,7 +281,7 @@ export default function MessageDetailPage() {
               </div>
             </div>
           ) : null}
-          <div className="mt-8 whitespace-pre-wrap rounded-lg border border-brand-line bg-brand-gray p-4 leading-7 text-[#4E536B]">
+          <div className="mt-8 whitespace-pre-wrap rounded-[8px] border border-[#E3DEF0] bg-[#F3EFF7]/70 p-4 leading-7 text-[#4E536B]">
             {message.content}
           </div>
           {message.attachments && message.attachments.length > 0 ? (
@@ -292,7 +292,7 @@ export default function MessageDetailPage() {
                   href={attachment.publicUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="focus-ring block overflow-hidden rounded-lg border border-brand-line bg-white"
+                  className="focus-ring block overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-white"
                 >
                   <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} className="w-full object-cover" />
                 </a>
@@ -300,11 +300,11 @@ export default function MessageDetailPage() {
             </div>
           ) : null}
           {message.replies && message.replies.length > 0 ? (
-            <div className="mt-6 rounded-lg border figma-panel p-4">
+            <div className="maeari-soft-panel mt-6 p-4">
               <p className="text-sm font-semibold text-[#4E536B]">답장</p>
               <div className="mt-3 grid gap-2">
                 {message.replies.map((reply) => (
-                  <div key={reply.id} className="rounded-lg bg-brand-gray p-3">
+                  <div key={reply.id} className="rounded-[8px] bg-[#F3EFF7] p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#A2A6BF]">
                       <span>{reply.senderDisplayName ?? "익명 수신자"}</span>
                       <span>{formatDateTime(reply.createdAt)}</span>
@@ -323,7 +323,7 @@ export default function MessageDetailPage() {
                   type="button"
                   onClick={() => void copyPublicLink()}
                   disabled={busy}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg bg-brand-sub px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="focus-ring maeari-action maeari-action-primary disabled:opacity-50"
                 >
                   <Copy size={16} />
                   공개 링크 복사
@@ -332,7 +332,7 @@ export default function MessageDetailPage() {
                   type="button"
                   onClick={() => void showPublicQr()}
                   disabled={busy}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
+                  className="focus-ring maeari-action disabled:opacity-50"
                 >
                   <QrCode size={16} />
                   QR 보기
@@ -344,7 +344,7 @@ export default function MessageDetailPage() {
                   type="button"
                   onClick={() => void cancelMessage()}
                   disabled={busy}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50"
+                  className="focus-ring maeari-action maeari-action-danger disabled:opacity-50"
                 >
                   <XCircle size={16} />
                   예약 취소
@@ -355,7 +355,7 @@ export default function MessageDetailPage() {
                   type="button"
                   onClick={() => void deleteFromMailbox()}
                   disabled={busy}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
+                  className="focus-ring maeari-action disabled:opacity-50"
                 >
                   <Trash2 size={16} />
                   {message.viewerRole === "SENDER" ? senderDeleteLabel(message.status) : "받은 마음에서 삭제"}
@@ -365,7 +365,7 @@ export default function MessageDetailPage() {
                 type="button"
                 onClick={() => void reportMessage()}
                 disabled={busy}
-                className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
+                className="focus-ring maeari-action disabled:opacity-50"
               >
                 <ShieldAlert size={16} />
                 신고
@@ -376,10 +376,10 @@ export default function MessageDetailPage() {
       ) : null}
       {qrUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-[16px] bg-white p-4 shadow-2xl">
+          <div className="figma-panel w-full max-w-sm p-4 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold text-[#4E536B]">공개 도착 QR</p>
-              <button type="button" onClick={() => setQrUrl(null)} className="focus-ring rounded-lg p-2" aria-label="닫기">
+              <button type="button" onClick={() => setQrUrl(null)} className="focus-ring rounded-[8px] p-2" aria-label="닫기">
                 <X size={18} />
               </button>
             </div>

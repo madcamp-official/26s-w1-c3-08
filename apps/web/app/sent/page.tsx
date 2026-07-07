@@ -7,6 +7,7 @@ import { Copy, Link2, MessageCircle, QrCode, RefreshCw, Trash2, X, XCircle } fro
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
+import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime, statusLabel } from "@/lib/format";
 
@@ -246,25 +247,23 @@ export default function SentPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">보낸 마음</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">예약한 마음과 도착한 마음을 확인해요.</p>
+          <h1 className="maeari-page-title">보낸 마음</h1>
+          <p className="maeari-page-copy mt-2">예약한 마음과 도착한 마음을 확인해요.</p>
         </div>
         <button
           type="button"
           onClick={() => void loadMessages()}
-          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+          className="focus-ring maeari-action"
         >
           <RefreshCw size={16} />
           새로고침
         </button>
       </div>
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="maeari-filterbar mb-5">
         <button
           type="button"
           onClick={() => setViewMode("MESSAGES")}
-          className={`focus-ring inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
-            viewMode === "MESSAGES" ? "border-brand-accent bg-[#6D48DB] text-white" : "border-[#DAD4E8] bg-white text-[#6E738A]"
-          }`}
+          className={`focus-ring maeari-chip ${viewMode === "MESSAGES" ? "maeari-chip-active" : ""}`}
         >
           <Link2 size={15} />
           보낸 마음
@@ -272,14 +271,12 @@ export default function SentPage() {
         <button
           type="button"
           onClick={() => setViewMode("REPLIES")}
-          className={`focus-ring inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
-            viewMode === "REPLIES" ? "border-brand-accent bg-[#6D48DB] text-white" : "border-[#DAD4E8] bg-white text-[#6E738A]"
-          }`}
+          className={`focus-ring maeari-chip ${viewMode === "REPLIES" ? "maeari-chip-active" : ""}`}
         >
           <MessageCircle size={15} />
           답장함
           {replies.some((reply) => !reply.senderReadAt) ? (
-            <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px]">{replies.filter((reply) => !reply.senderReadAt).length}</span>
+            <span className="rounded-[8px] bg-white/20 px-2 py-0.5 text-[11px]">{replies.filter((reply) => !reply.senderReadAt).length}</span>
           ) : null}
         </button>
       </div>
@@ -287,30 +284,24 @@ export default function SentPage() {
       {error ? <Notice title={error} tone="danger" /> : null}
       {viewMode === "MESSAGES" ? (
         <>
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="maeari-filterbar mb-5">
         {statusFilters.map((filter) => (
           <button
             key={filter.value}
             type="button"
             onClick={() => setStatusFilter(filter.value)}
-            className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-              statusFilter === filter.value
-                ? "border-brand-accent bg-[#6D48DB] text-white"
-                : "border-[#DAD4E8] bg-white text-[#6E738A]"
-            }`}
+            className={`focus-ring maeari-chip ${statusFilter === filter.value ? "maeari-chip-active" : ""}`}
           >
             {filter.label}
           </button>
         ))}
       </div>
       {emotionFilters.length > 0 ? (
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="maeari-filterbar mb-5">
           <button
             type="button"
             onClick={() => setEmotionFilter("ALL")}
-            className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-              emotionFilter === "ALL" ? "border-brand-accent bg-[#6D48DB] text-white" : "border-[#DAD4E8] bg-white text-[#6E738A]"
-            }`}
+            className={`focus-ring maeari-chip ${emotionFilter === "ALL" ? "maeari-chip-active" : ""}`}
           >
             모든 감정
           </button>
@@ -319,11 +310,7 @@ export default function SentPage() {
               key={filter.value}
               type="button"
               onClick={() => setEmotionFilter(filter.value)}
-              className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-                emotionFilter === filter.value
-                  ? "border-brand-accent bg-[#6D48DB] text-white"
-                  : "border-[#DAD4E8] bg-white text-[#6E738A]"
-              }`}
+              className={`focus-ring maeari-chip ${emotionFilter === filter.value ? "maeari-chip-active" : ""}`}
             >
               {filter.label}
             </button>
@@ -339,61 +326,61 @@ export default function SentPage() {
       ) : null}
       <div className="grid gap-3">
         {filteredMessages.map((message) => (
-          <article key={message.id} className="rounded-lg border figma-panel p-4">
+          <article key={message.id} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
-                    {statusLabel(message.status)}
-                  </span>
-                  <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
-                    {emotionLabel(message.emotionTag, message.customEmotionTag)}
-                  </span>
-                  {message.isSenderHidden ? (
-                    <span className="rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
-                      발신인 숨김
+              <div className="flex min-w-0 flex-1 gap-4">
+                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
+                      {statusLabel(message.status)}
                     </span>
+                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
+                      {emotionLabel(message.emotionTag, message.customEmotionTag)}
+                    </span>
+                    {message.isSenderHidden ? (
+                      <span className="maeari-badge bg-[#EEE8FD] text-[#6D48DB]">
+                        발신인 숨김
+                      </span>
+                    ) : null}
+                    {message.isDateHidden ? (
+                      <span className="maeari-badge bg-[#F3EFF7] text-[#8588A1]">
+                        도착일 숨김
+                      </span>
+                    ) : null}
+                  </div>
+                  <Link href={`/messages/${message.id}`} className="focus-ring rounded-[8px] text-lg font-semibold text-[#4E536B] hover:text-[#6D48DB]">
+                    {message.title}
+                  </Link>
+                  <p className="mt-2 text-sm text-[#A2A6BF]">
+                    {message.receiverCount && message.receiverCount > 1
+                      ? `${message.receiverCount}명`
+                      : message.receiver?.name ?? "수신자"}{" "}
+                    · {formatDateTime(message.scheduledAt)}
+                  </p>
+                  {message.receiver ? (
+                    <p className="mt-1 text-xs text-[#A2A6BF]">
+                      {[message.receiver.email, message.receiver.phone].filter(Boolean).join(" · ") || "연락처 미입력"} ·{" "}
+                      {statusLabel(message.receiver.deliveryStatus)}
+                    </p>
                   ) : null}
-                  {message.isDateHidden ? (
-                    <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">
-                      도착일 숨김
-                    </span>
+                  {message.status === "PENDING" ? (
+                    <p className="mt-2 text-sm text-[#A2A6BF]">
+                      예약 시간이 지나면 보통 1분 안에 도착 완료로 바뀌어요.
+                    </p>
+                  ) : null}
+                  {message.status === "SENT" && message.sentAt ? (
+                    <p className="mt-2 text-sm text-[#9A85E1]">도착 시간: {formatDateTime(message.sentAt)}</p>
+                  ) : null}
+                  {message.status === "MODERATION_FAILED" ? (
+                    <p className="mt-2 text-sm text-[#6D48DB]">
+                      다음 검사: {formatDateTime(message.moderationNextRetryAt)}
+                    </p>
                   ) : null}
                 </div>
-                <Link href={`/messages/${message.id}`} className="focus-ring rounded-lg text-lg font-semibold text-[#4E536B]">
-                  {message.title}
-                </Link>
-                <p className="mt-2 text-sm text-[#A2A6BF]">
-                  {message.receiverCount && message.receiverCount > 1
-                    ? `${message.receiverCount}명`
-                    : message.receiver?.name ?? "수신자"}{" "}
-                  · {formatDateTime(message.scheduledAt)}
-                </p>
-                {message.receiver ? (
-                  <p className="mt-1 text-xs text-[#A2A6BF]">
-                    {[message.receiver.email, message.receiver.phone].filter(Boolean).join(" · ") || "연락처 미입력"} ·{" "}
-                    {statusLabel(message.receiver.deliveryStatus)}
-                  </p>
-                ) : null}
-                {message.status === "PENDING" ? (
-                  <p className="mt-2 text-sm text-[#A2A6BF]">
-                    예약 시간이 지나면 보통 1분 안에 도착 완료로 바뀌어요.
-                  </p>
-                ) : null}
-                {message.status === "SENT" && message.sentAt ? (
-                  <p className="mt-2 text-sm text-brand-sub">도착 시간: {formatDateTime(message.sentAt)}</p>
-                ) : null}
-                {message.status === "MODERATION_FAILED" ? (
-                  <p className="mt-2 text-sm text-brand-accent">
-                    다음 검사: {formatDateTime(message.moderationNextRetryAt)}
-                  </p>
-                ) : null}
               </div>
-              <div className="flex gap-2">
-                <Link
-                  href={`/messages/${message.id}`}
-                  className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
-                >
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/messages/${message.id}`} className="focus-ring maeari-action">
                   상세
                 </Link>
                 {["PENDING", "SENT"].includes(message.status) ? (
@@ -402,7 +389,7 @@ export default function SentPage() {
                     type="button"
                     onClick={() => void copyPublicLink(message.id)}
                     disabled={linkingId === message.id}
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                    className="focus-ring maeari-action disabled:opacity-50"
                   >
                     {message.hasPublicLink ? <Copy size={16} /> : <Link2 size={16} />}
                     {linkingId === message.id ? "생성 중" : "링크 복사"}
@@ -411,7 +398,7 @@ export default function SentPage() {
                     type="button"
                     onClick={() => void showPublicQr(message.id)}
                     disabled={linkingId === message.id}
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+                    className="focus-ring maeari-action disabled:opacity-50"
                   >
                     <QrCode size={16} />
                     QR 보기
@@ -422,7 +409,7 @@ export default function SentPage() {
                   <button
                     type="button"
                     onClick={() => void cancel(message.id)}
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700"
+                    className="focus-ring maeari-action maeari-action-danger"
                   >
                     <XCircle size={16} />
                     취소
@@ -433,7 +420,7 @@ export default function SentPage() {
                     type="button"
                     onClick={() => void deleteFromMailbox(message.id)}
                     disabled={deletingId === message.id}
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
+                    className="focus-ring maeari-action disabled:opacity-50"
                   >
                     <Trash2 size={16} />
                     {deletingId === message.id ? "삭제 중" : senderDeleteLabel(message.status)}
@@ -449,21 +436,21 @@ export default function SentPage() {
         <div className="grid gap-3">
           {replies.length === 0 ? <Notice title="아직 도착한 답장이 없어요." /> : null}
           {replies.map((reply) => (
-            <article key={reply.replyId} className="rounded-lg border figma-panel p-4">
+            <article key={reply.replyId} className="maeari-letter-surface p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="mb-2 flex flex-wrap gap-2">
-                    <span className={`rounded-lg px-2 py-1 text-xs font-semibold ${reply.senderReadAt ? "bg-brand-gray text-[#6E738A]" : "bg-[#6D48DB] text-white"}`}>
+                    <span className={`maeari-badge ${reply.senderReadAt ? "bg-brand-gray text-[#6E738A]" : "bg-[#6D48DB] text-white"}`}>
                       {reply.senderReadAt ? "읽음" : "새 답장"}
                     </span>
-                    <span className="rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
+                    <span className="maeari-badge bg-[#EEE8FD] text-[#6D48DB]">
                       {reply.senderDisplayName ?? "익명 답장"}
                     </span>
                   </div>
                   <Link
                     href={`/messages/${reply.messageId}`}
                     onClick={() => void markReplyRead(reply.replyId)}
-                    className="focus-ring rounded-lg text-lg font-semibold text-[#4E536B]"
+                    className="focus-ring rounded-[8px] text-lg font-semibold text-[#4E536B]"
                   >
                     {reply.messageTitle}
                   </Link>
@@ -476,14 +463,14 @@ export default function SentPage() {
                   <Link
                     href={`/messages/${reply.messageId}`}
                     onClick={() => void markReplyRead(reply.replyId)}
-                    className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+                    className="focus-ring maeari-action"
                   >
                     확인
                   </Link>
                   <button
                     type="button"
                     onClick={() => void deleteReply(reply.replyId)}
-                    className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A]"
+                    className="focus-ring maeari-action"
                   >
                     <Trash2 size={16} />
                     삭제
@@ -496,10 +483,10 @@ export default function SentPage() {
       )}
       {qrUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-[16px] bg-white p-4 shadow-2xl">
+          <div className="figma-panel w-full max-w-sm p-4 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold text-[#4E536B]">공개 도착 QR</p>
-              <button type="button" onClick={() => setQrUrl(null)} className="focus-ring rounded-lg p-2" aria-label="닫기">
+              <button type="button" onClick={() => setQrUrl(null)} className="focus-ring rounded-[8px] p-2" aria-label="닫기">
                 <X size={18} />
               </button>
             </div>

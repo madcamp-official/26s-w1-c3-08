@@ -117,13 +117,13 @@ export default function TreePage() {
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">마음나무</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">링크를 열어둔 뒤, 정한 시간에 모인 마음을 한 번에 받아요.</p>
+          <h1 className="maeari-page-title">마음나무</h1>
+          <p className="maeari-page-copy mt-2">링크를 열어둔 뒤, 정한 시간에 모인 마음을 한 번에 받아요.</p>
         </div>
         <button
           type="button"
           onClick={() => void loadCollections()}
-          className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+          className="focus-ring maeari-action"
         >
           <RefreshCw size={16} />
           새로고침
@@ -133,7 +133,7 @@ export default function TreePage() {
       {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-        <section className="figma-panel rounded-lg border p-5">
+        <section className="figma-panel p-5">
           <h2 className="text-lg font-semibold text-[#4E536B]">새 마음나무 만들기</h2>
           <form className="mt-4 grid gap-3" onSubmit={(event) => void createCollection(event)}>
             <input
@@ -162,7 +162,7 @@ export default function TreePage() {
             <button
               type="submit"
               disabled={submitting}
-              className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#6D48DB] px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="focus-ring maeari-action maeari-action-primary h-11 disabled:opacity-50"
             >
               <Plus size={16} />
               {submitting ? "생성 중" : "링크 만들기"}
@@ -179,14 +179,14 @@ export default function TreePage() {
           {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
           {!loading && collections.length === 0 ? <Notice title="아직 마음나무가 없어요." /> : null}
           {collections.map((collection) => (
-            <article key={collection.id} className="figma-panel rounded-lg border p-4">
+            <article key={collection.id} className="maeari-letter-surface p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="mb-2 flex flex-wrap gap-2">
-                    <span className="rounded-lg bg-[#F3EEFD] px-2 py-1 text-xs font-semibold text-[#6D48DB]">
+                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
                       {collectionStatusLabel(collection.status)}
                     </span>
-                    <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
+                    <span className="maeari-badge bg-brand-gray text-[#6E738A]">
                       {collection.submissionCount}개
                     </span>
                   </div>
@@ -198,7 +198,7 @@ export default function TreePage() {
                   <button
                     type="button"
                     onClick={() => void openCollection(collection.id)}
-                    className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+                    className="focus-ring maeari-action"
                   >
                     열기
                   </button>
@@ -206,7 +206,7 @@ export default function TreePage() {
                     <button
                       type="button"
                       onClick={() => void cancelCollection(collection.id)}
-                      className="focus-ring inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700"
+                      className="focus-ring maeari-action maeari-action-danger"
                     >
                       <Trash2 size={16} />
                       닫기
@@ -217,7 +217,7 @@ export default function TreePage() {
             </article>
           ))}
           {selected ? (
-            <section className="figma-panel rounded-lg border p-5">
+            <section className="figma-panel p-5">
               <h2 className="text-lg font-semibold text-[#4E536B]">{selected.title}</h2>
               <p className="mt-2 text-sm text-[#A2A6BF]">
                 {selected.status === "DELIVERED"
@@ -227,7 +227,7 @@ export default function TreePage() {
               {selected.submissions && selected.submissions.length > 0 ? (
                 <div className="mt-4 grid gap-3">
                   {selected.submissions.map((submission) => (
-                    <div key={submission.id} className="rounded-lg bg-[#F3EFF7] p-4">
+                    <div key={submission.id} className="rounded-[8px] bg-[#F3EFF7] p-4">
                       <div className="mb-2 flex flex-wrap gap-2 text-xs text-[#8588A1]">
                         <span>{submission.senderDisplayName ?? "익명"}</span>
                         <span>{formatDateTime(submission.createdAt)}</span>

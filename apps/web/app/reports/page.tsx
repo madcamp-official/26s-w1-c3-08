@@ -65,20 +65,20 @@ export default function ReportsPage() {
     <AppShell>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">감정 리포트</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">이번 달에 남기고 받은 마음의 흐름을 확인해요.</p>
+          <h1 className="maeari-page-title">감정 리포트</h1>
+          <p className="maeari-page-copy mt-2">이번 달에 남기고 받은 마음의 흐름을 확인해요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
             type="month"
             value={month}
             onChange={(event) => setMonth(event.target.value)}
-            className="focus-ring rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm"
+            className="focus-ring maeari-input h-[38px] px-3 text-sm"
           />
           <button
             type="button"
             onClick={() => void load()}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action"
           >
             <RefreshCw size={16} />
             새로고침
@@ -99,7 +99,7 @@ export default function ReportsPage() {
             <ReportPanel title="보낸 마음 감정" items={report.sent.byEmotion} />
             <ReportPanel title="받은 마음 감정" items={report.received.byEmotion} />
           </section>
-          <section className="rounded-lg border figma-panel p-5">
+          <section className="figma-panel p-5">
             <div className="mb-3 flex items-center gap-2">
               <BarChart3 size={18} className="text-brand-sub" />
               <h2 className="font-semibold text-[#4E536B]">보낸 마음 상태</h2>
@@ -107,7 +107,7 @@ export default function ReportsPage() {
             <div className="grid gap-2">
               {statusRows.length > 0 ? (
                 statusRows.map(([status, count]) => (
-                  <div key={status} className="flex items-center justify-between rounded-lg bg-brand-gray px-3 py-2 text-sm">
+                  <div key={status} className="flex items-center justify-between rounded-[8px] bg-brand-gray px-3 py-2 text-sm">
                     <span>{statusLabel(status)}</span>
                     <span className="font-semibold">{count}</span>
                   </div>
@@ -125,7 +125,7 @@ export default function ReportsPage() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border figma-panel p-4">
+    <div className="figma-panel p-4">
       <p className="text-xs font-semibold text-[#A2A6BF]">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-[#4E536B]">{value}</p>
     </div>
@@ -134,14 +134,14 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function ReportPanel({ title, items }: { title: string; items: EmotionCount[] }) {
   return (
-    <section className="rounded-lg border figma-panel p-5">
+    <section className="figma-panel p-5">
       <h2 className="font-semibold text-[#4E536B]">{title}</h2>
       <div className="mt-3 grid gap-2">
         {items.length > 0 ? (
           items.map((item) => (
             <div
               key={`${item.emotionTag ?? "NONE"}:${item.customEmotionTag ?? ""}`}
-              className="flex items-center justify-between rounded-lg bg-brand-gray px-3 py-2 text-sm"
+              className="flex items-center justify-between rounded-[8px] bg-brand-gray px-3 py-2 text-sm"
             >
               <span>{emotionLabel(item.emotionTag, item.customEmotionTag)}</span>
               <span className="font-semibold">{item.count}</span>

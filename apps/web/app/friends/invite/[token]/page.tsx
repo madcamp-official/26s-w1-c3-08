@@ -99,18 +99,18 @@ export default function FriendInvitePage() {
   const unavailableMessage = getUnavailableMessage(preview?.availability.reason);
 
   return (
-    <main className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
-      <header className="h-[74px] border-b border-[#F1EEF8] bg-white px-5">
+    <main className="maeari-public-stage text-[#4E536B]">
+      <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
             src="/images/maeari-app-icon.png"
             alt="매아리"
             width={42}
             height={42}
-            className="h-[42px] w-[42px] rounded-[10px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
+            className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="ml-3 text-[25px] font-medium tracking-[0.02em] text-[#9A85E1]">매아리</span>
+          <span className="ml-3 text-[25px] font-semibold tracking-[0.01em] text-[#6D48DB]">매아리</span>
         </div>
       </header>
 
@@ -123,11 +123,11 @@ export default function FriendInvitePage() {
         ) : (
           <div className="grid gap-5">
             <div className="flex items-center gap-3">
-              <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-[#fbf7ff]">
+              <div className="relative h-12 w-12 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
                 <Image src="/images/maeari-app-icon.png" alt="" fill sizes="48px" className="object-cover" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-[#4E536B]">친구 초대</h1>
+                <h1 className="text-xl font-semibold text-[#3A3D8D]">친구 초대</h1>
                 <p className="mt-1 text-sm text-[#A2A6BF]">매아리에서 친구로 연결돼요.</p>
               </div>
             </div>
@@ -135,7 +135,7 @@ export default function FriendInvitePage() {
             {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
 
             {preview ? (
-              <div className="rounded-lg bg-brand-gray p-4">
+              <div className="rounded-[8px] border border-[#E3DEF0] bg-[#F3EFF7]/70 p-4">
                 <p className="text-sm text-[#A2A6BF]">초대한 사람</p>
                 <p className="mt-1 text-lg font-semibold text-[#4E536B]">{preview.invite.inviter.nickname}</p>
                 <p className="mt-3 text-sm text-[#A2A6BF]">{formatDateTime(preview.invite.expiresAt)}까지 유효</p>
@@ -147,7 +147,7 @@ export default function FriendInvitePage() {
                 type="button"
                 onClick={() => void claimInvite()}
                 disabled={claiming}
-                className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                className="focus-ring maeari-action maeari-action-primary h-11 w-full disabled:opacity-50"
               >
                 <UserPlus size={18} />
                 {claiming ? "친구로 연결 중" : "다시 시도"}
@@ -159,7 +159,7 @@ export default function FriendInvitePage() {
             <button
               type="button"
               onClick={() => router.replace("/friends")}
-              className="focus-ring rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold text-[#6E738A]"
+              className="focus-ring maeari-action w-full"
             >
               친구 페이지로 이동
             </button>

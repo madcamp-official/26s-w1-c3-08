@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Archive, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
+import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -172,21 +173,21 @@ export default function InboxPage() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">받은 마음</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">나에게 도착한 마음을 모아두었어요.</p>
+          <h1 className="maeari-page-title">받은 마음</h1>
+          <p className="maeari-page-copy mt-2">나에게 도착한 마음을 모아두었어요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => void load()}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action"
           >
             <RefreshCw size={16} />
             새로고침
           </button>
           <Link
             href="/archive"
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action"
           >
             <Archive size={16} />
             아카이브
@@ -195,37 +196,31 @@ export default function InboxPage() {
             type="button"
             onClick={() => void bulkDeleteVisible()}
             disabled={bulkDeleting || filteredMessages.length === 0}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            className="focus-ring maeari-action disabled:opacity-50"
           >
             <Trash2 size={16} />
             일괄 삭제
           </button>
         </div>
       </div>
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="maeari-filterbar mb-5">
         {readFilters.map((filter) => (
           <button
             key={filter.value}
             type="button"
             onClick={() => setReadFilter(filter.value)}
-            className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-              readFilter === filter.value
-                ? "border-brand-accent bg-[#6D48DB] text-white"
-                : "border-[#DAD4E8] bg-white text-[#6E738A]"
-            }`}
+            className={`focus-ring maeari-chip ${readFilter === filter.value ? "maeari-chip-active" : ""}`}
           >
             {filter.label}
           </button>
         ))}
       </div>
       {emotionFilters.length > 0 ? (
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="maeari-filterbar mb-5">
           <button
             type="button"
             onClick={() => setEmotionFilter("ALL")}
-            className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-              emotionFilter === "ALL" ? "border-brand-accent bg-[#6D48DB] text-white" : "border-[#DAD4E8] bg-white text-[#6E738A]"
-            }`}
+            className={`focus-ring maeari-chip ${emotionFilter === "ALL" ? "maeari-chip-active" : ""}`}
           >
             모든 감정
           </button>
@@ -234,11 +229,7 @@ export default function InboxPage() {
               key={filter.value}
               type="button"
               onClick={() => setEmotionFilter(filter.value)}
-              className={`focus-ring rounded-lg border px-3 py-2 text-sm font-semibold ${
-                emotionFilter === filter.value
-                  ? "border-brand-accent bg-[#6D48DB] text-white"
-                  : "border-[#DAD4E8] bg-white text-[#6E738A]"
-              }`}
+              className={`focus-ring maeari-chip ${emotionFilter === filter.value ? "maeari-chip-active" : ""}`}
             >
               {filter.label}
             </button>
@@ -256,58 +247,57 @@ export default function InboxPage() {
       ) : null}
       <div className="grid gap-3">
         {filteredMessages.map((message) => (
-          <article key={message.recipientId} className="rounded-lg border figma-panel p-4">
+          <article key={message.recipientId} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <Link href={`/messages/${message.id}`} className="focus-ring block min-w-0 rounded-lg hover:text-brand-accent">
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
-                    {emotionLabel(message.emotionTag, message.customEmotionTag)}
-                  </span>
-                  <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
-                    {message.senderName ?? "누군가의 마음"}
-                  </span>
-                  <span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
-                    {message.readAt ? "읽음" : "미열람"}
-                  </span>
-                  {message.linkedAt ? (
-                    <span className="rounded-lg bg-brand-sub/10 px-2 py-1 text-xs font-semibold text-brand-sub">
-                      자동 보관
+              <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
+                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
+                      {emotionLabel(message.emotionTag, message.customEmotionTag)}
                     </span>
-                  ) : null}
-                  {message.isSenderHidden ? (
-                    <span className="rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
-                      발신인 숨김
+                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
+                      {message.senderName ?? "누군가의 마음"}
                     </span>
-                  ) : null}
-                  {message.isDateHidden ? (
-                    <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800">
-                      도착일 숨김
+                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
+                      {message.readAt ? "읽음" : "미열람"}
                     </span>
-                  ) : null}
+                    {message.linkedAt ? (
+                      <span className="maeari-badge bg-[#9A85E1]/10 text-[#9A85E1]">
+                        자동 보관
+                      </span>
+                    ) : null}
+                    {message.isSenderHidden ? (
+                      <span className="maeari-badge bg-[#EEE8FD] text-[#6D48DB]">
+                        발신인 숨김
+                      </span>
+                    ) : null}
+                    {message.isDateHidden ? (
+                      <span className="maeari-badge bg-[#F3EFF7] text-[#8588A1]">
+                        도착일 숨김
+                      </span>
+                    ) : null}
+                  </div>
+                  <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
+                  <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
+                  <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
                 </div>
-                <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
-                <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
-                <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
               </Link>
-	              <div className="flex shrink-0 flex-wrap gap-2">
-	                <button
-	                  type="button"
-	                  onClick={() => void archiveMessage(message.id)}
-	                  className="focus-ring inline-flex w-fit items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A]"
-	                >
-	                  <Archive size={16} />
-	                  보관
-	                </button>
-	                <button
-	                  type="button"
-	                  onClick={() => void deleteFromInbox(message.id)}
-	                  disabled={deletingId === message.id}
-	                  className="focus-ring inline-flex w-fit items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
-	                >
-	                  <Trash2 size={16} />
-	                  {deletingId === message.id ? "삭제 중" : "삭제"}
-	                </button>
-	              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button type="button" onClick={() => void archiveMessage(message.id)} className="focus-ring maeari-action">
+                  <Archive size={16} />
+                  보관
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteFromInbox(message.id)}
+                  disabled={deletingId === message.id}
+                  className="focus-ring maeari-action disabled:opacity-50"
+                >
+                  <Trash2 size={16} />
+                  {deletingId === message.id ? "삭제 중" : "삭제"}
+                </button>
+              </div>
             </div>
           </article>
         ))}

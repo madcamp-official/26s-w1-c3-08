@@ -217,13 +217,13 @@ export default function FriendsPage() {
   return (
     <AppShell>
       <div className="max-w-[1146px]">
-        <header className="figma-panel mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
+        <header className="maeari-hero-card mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
           <div>
             <h1 className="text-[34px] font-bold leading-tight text-[#3A3D8D]">친구</h1>
             <p className="mt-2 text-sm leading-6 text-[#A2A6BF]">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
           </div>
-          <div className="relative mt-6 hidden h-[150px] overflow-hidden rounded-[10px] bg-[#F3EEFD] md:mt-0 md:block">
-            <Image src="/images/maeari-heart-letter.png" alt="" fill sizes="260px" className="object-cover object-center" />
+          <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
+            <Image src="/images/maeari-heart-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
           </div>
         </header>
 
@@ -234,9 +234,9 @@ export default function FriendsPage() {
         ) : null}
 
         <section className="mb-5 grid gap-4 lg:grid-cols-[378px_558px]">
-          <div className="rounded-[10px] bg-white p-[18px]">
+          <div className="figma-panel p-[18px]">
             <p className="text-[15px] text-[#6A6F88]">내 친구 코드</p>
-            <div className="mt-[10px] flex h-[41px] items-center bg-[#F9F5FD]">
+            <div className="mt-[10px] flex h-[41px] items-center rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD]">
               <code className="min-w-0 flex-1 px-4 font-mono text-[20px] font-bold text-[#9478E7]">
                 {me?.friendCode ?? (loading ? "불러오는 중" : "코드 없음")}
               </code>
@@ -244,7 +244,7 @@ export default function FriendsPage() {
                 type="button"
                 disabled={!me?.friendCode}
                 onClick={() => me?.friendCode && void navigator.clipboard.writeText(me.friendCode)}
-                className="focus-ring mr-1 inline-flex h-[33px] w-[93px] items-center justify-center gap-2 rounded-[6px] border border-[#B499FD] bg-[#F7F6FD] text-[13px] text-[#A18CE8] disabled:opacity-50"
+                className="focus-ring maeari-action mr-1 h-[33px] w-[93px] text-[13px] disabled:opacity-50"
               >
                 <Copy size={15} />
                 복사
@@ -252,7 +252,7 @@ export default function FriendsPage() {
             </div>
           </div>
 
-          <form onSubmit={sendRequest} className="rounded-[10px] bg-white p-[18px]">
+          <form onSubmit={sendRequest} className="figma-panel p-[18px]">
             <p className="text-[16px] text-[#626781]">친구 요청 보내기</p>
             <div className="mt-[11px] grid gap-2 md:grid-cols-[1fr_1fr_79px]">
               <input
@@ -260,19 +260,19 @@ export default function FriendsPage() {
                 value={friendCode}
                 onChange={(event) => setFriendCode(event.target.value.toUpperCase())}
                 placeholder="친구 코드 입력"
-                className="focus-ring maeari-input h-[38px] rounded-none px-3 text-sm"
+                className="focus-ring maeari-input h-[38px] px-3 text-sm"
               />
               <input
                 value={requestMessage}
                 maxLength={120}
                 onChange={(event) => setRequestMessage(event.target.value)}
                 placeholder="짧은 메시지"
-                className="focus-ring maeari-input h-[38px] rounded-none px-3 text-sm"
+                className="focus-ring maeari-input h-[38px] px-3 text-sm"
               />
               <button
                 type="submit"
                 disabled={submitting}
-                className="focus-ring inline-flex h-[36px] items-center justify-center gap-2 rounded-[10px] bg-[#6B45DA] text-sm text-white disabled:opacity-50"
+                className="focus-ring maeari-action maeari-action-primary h-[38px] disabled:opacity-50"
               >
                 <UserPlus size={15} />
                 요청
@@ -281,7 +281,7 @@ export default function FriendsPage() {
           </form>
         </section>
 
-        <section className="mb-5 rounded-[10px] bg-white p-5">
+        <section className="figma-panel mb-5 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex-1">
               <p className="text-[15px] text-[#686D87]">친구 찾기</p>
@@ -292,12 +292,12 @@ export default function FriendsPage() {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="닉네임 또는 친구 코드"
-                  className="focus-ring maeari-input h-[38px] min-w-0 flex-1 rounded-none px-3 text-sm"
+                  className="focus-ring maeari-input h-[38px] min-w-0 flex-1 px-3 text-sm"
                 />
                 <button
                   type="submit"
                   disabled={searching}
-                  className="focus-ring h-[36px] rounded-[10px] bg-[#6B45DA] px-5 text-sm text-white disabled:opacity-50"
+                  className="focus-ring maeari-action maeari-action-primary h-[38px] px-5 disabled:opacity-50"
                 >
                   {searching ? "찾는 중" : "찾기"}
                 </button>
@@ -308,7 +308,7 @@ export default function FriendsPage() {
                 type="button"
                 onClick={() => void createInviteLink()}
                 disabled={creatingInvite}
-                className="focus-ring inline-flex h-[36px] items-center gap-2 rounded-[10px] border border-[#DAD4E8] bg-white px-3 text-sm text-[#9478E7] disabled:opacity-50"
+                className="focus-ring maeari-action h-[38px] disabled:opacity-50"
               >
                 <Link2 size={15} />
                 {creatingInvite ? "만드는 중" : "초대 링크 만들기"}
@@ -317,7 +317,7 @@ export default function FriendsPage() {
                 <button
                   type="button"
                   onClick={() => void copyInviteLink()}
-                  className="focus-ring inline-flex h-[36px] items-center gap-2 rounded-[10px] bg-[#9478E7] px-3 text-sm text-white"
+                  className="focus-ring maeari-action maeari-action-primary h-[38px]"
                 >
                   <Copy size={15} />
                   링크 복사
@@ -327,12 +327,12 @@ export default function FriendsPage() {
           </div>
 
           {createdInviteUrl ? (
-            <p className="mt-3 break-all rounded-[8px] bg-[#F3EEFD] p-3 text-xs text-[#6D48DB]">{createdInviteUrl}</p>
+            <p className="mt-3 break-all rounded-[8px] border border-[#DED6EF] bg-[#F3EEFD] p-3 text-xs text-[#6D48DB]">{createdInviteUrl}</p>
           ) : null}
           {activeInvites.length > 0 ? (
             <div className="mt-3 grid gap-2">
               {activeInvites.map((invite) => (
-                <div key={invite.id} className="flex items-center justify-between gap-3 rounded-[8px] bg-[#F9F7FD] px-3 py-2 text-sm">
+                <div key={invite.id} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-3 py-2 text-sm">
                   <span className="text-[#8588A1]">
                     초대 링크 {invite.tokenPreview ? `#${invite.tokenPreview}` : ""} · {formatDateTime(invite.expiresAt)} 만료
                   </span>
@@ -340,7 +340,7 @@ export default function FriendsPage() {
                     type="button"
                     onClick={() => void revokeInvite(invite.id)}
                     disabled={busyInviteId === invite.id}
-                    className="focus-ring inline-flex items-center gap-1 text-[#EF777C] disabled:opacity-50"
+                    className="focus-ring inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-[#EF777C] disabled:opacity-50"
                   >
                     <X size={14} />
                     폐기
@@ -352,7 +352,7 @@ export default function FriendsPage() {
           {candidates.length > 0 ? (
             <div className="mt-4 grid gap-2">
               {candidates.map((candidate) => (
-                <div key={candidate.userId} className="flex items-center justify-between rounded-[8px] bg-[#F9F7FD] px-4 py-3">
+                <div key={candidate.userId} className="flex items-center justify-between rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-[#6A6F87]">{candidate.nickname}</p>
                     <p className="mt-1 font-mono text-xs text-[#A2A6BF]">{candidate.friendCode}</p>
@@ -361,7 +361,7 @@ export default function FriendsPage() {
                     type="button"
                     onClick={() => void createRequest(candidate.friendCode)}
                     disabled={submitting}
-                    className="focus-ring h-8 rounded-[8px] bg-[#6B45DA] px-3 text-xs text-white disabled:opacity-50"
+                    className="focus-ring maeari-action maeari-action-primary h-8 px-3 text-xs disabled:opacity-50"
                   >
                     요청
                   </button>
@@ -371,7 +371,7 @@ export default function FriendsPage() {
           ) : null}
         </section>
 
-        <section className="mb-5 rounded-[10px] bg-white p-5">
+        <section className="figma-panel mb-5 p-5">
           <h2 className="text-[15px] text-[#686D87]">받은 요청</h2>
           <div className="mt-4 grid gap-2">
             {requests.received.length === 0 ? (
@@ -384,10 +384,10 @@ export default function FriendsPage() {
                 body={`${request.message || "메시지 없음"} · ${formatDateTime(request.expiresAt)} 만료`}
                 action={
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => void act(`/friends/requests/${request.id}/accept`, "PATCH", "친구 요청을 수락했어요.")} className="focus-ring h-8 rounded-[8px] bg-[#9478E7] px-3 text-xs text-white">
+                    <button type="button" onClick={() => void act(`/friends/requests/${request.id}/accept`, "PATCH", "친구 요청을 수락했어요.")} className="focus-ring maeari-action maeari-action-primary h-8 px-3 text-xs">
                       수락
                     </button>
-                    <button type="button" onClick={() => void act(`/friends/requests/${request.id}/reject`, "PATCH", "친구 요청을 거절했어요.")} className="focus-ring h-8 rounded-[8px] border border-[#DAD4E8] px-3 text-xs text-[#8588A1]">
+                    <button type="button" onClick={() => void act(`/friends/requests/${request.id}/reject`, "PATCH", "친구 요청을 거절했어요.")} className="focus-ring maeari-action h-8 px-3 text-xs">
                       거절
                     </button>
                   </div>
@@ -397,7 +397,7 @@ export default function FriendsPage() {
           </div>
         </section>
 
-        <section className="mb-5 rounded-[10px] bg-white p-5">
+        <section className="figma-panel mb-5 p-5">
           <h2 className="text-[15px] text-[#686D87]">보낸 요청</h2>
           <div className="mt-4 grid gap-2">
             {requests.sent.length === 0 ? (
@@ -409,7 +409,7 @@ export default function FriendsPage() {
                 title={request.addressee.nickname}
                 body={`${formatDateTime(request.expiresAt)} 만료`}
                 action={
-                  <button type="button" onClick={() => void act(`/friends/requests/${request.id}/cancel`, "PATCH", "친구 요청을 취소했어요.")} className="focus-ring inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#DAD4E8] px-3 text-xs text-[#8588A1]">
+                  <button type="button" onClick={() => void act(`/friends/requests/${request.id}/cancel`, "PATCH", "친구 요청을 취소했어요.")} className="focus-ring maeari-action h-8 px-3 text-xs">
                     <X size={13} />
                     취소
                   </button>
@@ -419,7 +419,7 @@ export default function FriendsPage() {
           </div>
         </section>
 
-        <section className="rounded-[10px] bg-white p-5">
+        <section className="figma-panel p-5">
           <h2 className="text-[16px] font-bold text-[#72768D]">친구 목록</h2>
           <div className="mt-4 divide-y divide-[#F3EFF7]">
             {friends.length === 0 ? <EmptyFriendBlock title="아직 친구가 없어요." body="친구 코드를 보내고 마음을 나눠보세요." /> : null}
@@ -433,14 +433,14 @@ export default function FriendsPage() {
                     <button
                       type="button"
                       onClick={() => router.push(`/write?friendshipId=${friend.friendshipId}&friendUserId=${friend.userId}`)}
-                      className="focus-ring inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#9478E7] px-3 text-xs text-[#9478E7]"
+                      className="focus-ring maeari-action h-8 px-3 text-xs"
                     >
                       마음 쓰기
                     </button>
                     <button
                       type="button"
                       onClick={() => void act(`/friends/${friend.friendshipId}`, "DELETE", "친구를 삭제했어요.")}
-                      className="focus-ring h-8 rounded-[8px] border border-[#DAD4E8] px-3 text-xs text-[#8588A1]"
+                      className="focus-ring maeari-action h-8 px-3 text-xs"
                     >
                       삭제
                     </button>
@@ -457,7 +457,7 @@ export default function FriendsPage() {
 
 function EmptyFriendBlock({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-[8px] bg-[#FDFDFD] px-4 py-7 text-center">
+    <div className="rounded-[8px] border border-[#E9E2F4] bg-[#FDFDFD] px-4 py-7 text-center">
       <p className="text-sm text-[#6E738A]">{title}</p>
       <p className="mt-1 text-xs text-[#B3B6C4]">{body}</p>
     </div>
@@ -468,7 +468,7 @@ function FriendRow({ title, body, action }: { title: string; body: string; actio
   return (
     <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
       <div className="flex items-center gap-3">
-        <span className="h-9 w-9 rounded-full bg-[#E9D8FF]" />
+        <span className="h-9 w-9 rounded-[8px] bg-[#E9D8FF]" />
         <div>
           <p className="text-base text-[#696E86]">{title}</p>
           <p className="mt-1 text-xs text-[#BABDC9]">{body}</p>

@@ -175,18 +175,18 @@ export default function ArrivalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
-      <header className="h-[74px] border-b border-[#F1EEF8] bg-white px-5">
+    <main className="maeari-public-stage text-[#4E536B]">
+      <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
             src="/images/maeari-app-icon.png"
             alt="매아리"
             width={42}
             height={42}
-            className="h-[42px] w-[42px] rounded-[10px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
+            className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="ml-3 text-[25px] font-medium tracking-[0.02em] text-[#9A85E1]">매아리</span>
+          <span className="ml-3 text-[25px] font-semibold tracking-[0.01em] text-[#6D48DB]">매아리</span>
         </div>
       </header>
 
@@ -195,8 +195,8 @@ export default function ArrivalPage() {
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error && !gate ? <p className="text-sm text-[#A2A6BF]">도착한 마음을 확인하고 있어요.</p> : null}
       {gate ? (
-        <section className="rounded-lg border figma-panel p-6 text-center ">
-          <div className="relative mx-auto mb-5 aspect-square w-28 overflow-hidden rounded-lg bg-[#fbf7ff]">
+        <section className="figma-panel p-6 text-center">
+          <div className="relative mx-auto mb-5 aspect-square w-28 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
             <Image
               src="/images/maeari-moon-letter.png"
               alt="보관 중인 마음 봉투"
@@ -206,8 +206,8 @@ export default function ArrivalPage() {
             />
           </div>
           <Clock3 className="mx-auto mb-4 text-brand-sub" size={32} />
-          <h1 className="text-2xl font-semibold text-[#4E536B]">아직 보관 중인 마음이에요.</h1>
-          <p className="mt-3 text-sm leading-6 text-[#A2A6BF]">
+          <h1 className="maeari-page-title">아직 보관 중인 마음이에요.</h1>
+          <p className="maeari-page-copy mt-3">
             {gate.scheduledAt
               ? `${formatDateTime(gate.scheduledAt)} 이후에 열어볼 수 있어요.`
               : "도착 시간이 될 때까지 조금 더 기다려 주세요."}
@@ -215,7 +215,7 @@ export default function ArrivalPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="focus-ring mt-6 inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-4 py-2 text-sm font-semibold"
+            className="focus-ring maeari-action mt-6"
           >
             <RefreshCw size={16} />
             다시 확인
@@ -223,8 +223,8 @@ export default function ArrivalPage() {
         </section>
       ) : null}
       {message && !opened ? (
-        <section className="rounded-lg border figma-panel p-6 text-center ">
-          <div className="relative mx-auto mb-5 aspect-square w-36 overflow-hidden rounded-lg bg-[#fbf7ff]">
+        <section className="figma-panel p-6 text-center">
+          <div className="relative mx-auto mb-5 aspect-square w-36 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
             <Image
               src="/images/maeari-heart-letter.png"
               alt="도착한 마음 봉투"
@@ -235,29 +235,29 @@ export default function ArrivalPage() {
             />
           </div>
           <Gift className="mx-auto mb-4 text-brand-accent" size={32} />
-          <h1 className="text-2xl font-semibold text-[#4E536B]">오늘, 누군가의 마음이 도착했어요.</h1>
+          <h1 className="maeari-page-title">오늘, 누군가의 마음이 도착했어요.</h1>
           <button
             type="button"
             onClick={() => setOpened(true)}
-            className="focus-ring mt-6 rounded-lg bg-brand-accent px-5 py-3 text-sm font-semibold text-white"
+            className="focus-ring maeari-action maeari-action-primary mt-6 h-11 px-5"
           >
             열어보기
           </button>
         </section>
       ) : null}
       {message && opened ? (
-        <article className={`rounded-lg border figma-panel p-6  ${themeClass(message.theme)}`}>
+        <article className={`figma-panel p-6 ${themeClass(message.theme)}`}>
           <div className="mb-4 flex flex-wrap gap-2">
-            <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+            <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
               {emotionLabel(message.emotionTag, message.customEmotionTag)}
             </span>
-            <span className="rounded-lg bg-brand-gray px-2 py-1 text-xs font-semibold text-[#6E738A]">
+            <span className="maeari-badge bg-brand-gray text-[#6E738A]">
               {message.senderName ?? "누군가의 마음"}
             </span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#4E536B]">{message.title}</h1>
-          <p className="mt-2 text-sm text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
-          <div className="mt-8 whitespace-pre-wrap rounded-lg border border-brand-line bg-brand-gray p-4 leading-7 text-[#4E536B]">
+          <h1 className="maeari-page-title">{message.title}</h1>
+          <p className="maeari-page-copy mt-2">{formatDateTime(message.arrivedAt)}</p>
+          <div className="mt-8 whitespace-pre-wrap rounded-[8px] border border-[#E3DEF0] bg-[#F3EFF7]/70 p-4 leading-7 text-[#4E536B]">
             {message.content}
           </div>
           {message.attachments && message.attachments.length > 0 ? (
@@ -268,7 +268,7 @@ export default function ArrivalPage() {
                   href={attachment.publicUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="focus-ring block overflow-hidden rounded-lg border border-brand-line bg-white"
+                  className="focus-ring block overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-white"
                 >
                   <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} className="w-full object-cover" />
                 </a>
@@ -276,7 +276,7 @@ export default function ArrivalPage() {
             </div>
           ) : null}
           {message.canReply ? (
-            <div className="mt-6 rounded-lg border figma-panel p-4">
+            <div className="maeari-soft-panel mt-6 p-4">
               <p className="text-sm font-semibold text-[#4E536B]">익명 답장</p>
               <textarea
                 value={replyContent}
@@ -284,14 +284,14 @@ export default function ArrivalPage() {
                 rows={4}
                 maxLength={2000}
                 placeholder="보낸 사람에게 짧은 답장을 남겨보세요."
-                className="focus-ring mt-3 w-full resize-y rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm"
+                className="focus-ring maeari-input mt-3 w-full resize-y px-3 py-2 text-sm"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void sendReply()}
                   disabled={replying || replyContent.trim().length === 0}
-                  className="focus-ring inline-flex items-center gap-2 rounded-lg bg-brand-sub px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  className="focus-ring maeari-action maeari-action-primary disabled:opacity-50"
                 >
                   <Send size={16} />
                   {replying ? "보내는 중" : "답장 보내기"}
@@ -304,12 +304,12 @@ export default function ArrivalPage() {
           <button
             type="button"
             onClick={() => void reportMessage()}
-            className="focus-ring mt-4 inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] px-3 py-2 text-sm font-semibold text-[#6E738A]"
+            className="focus-ring maeari-action mt-4"
           >
             <ShieldAlert size={16} />
             신고
           </button>
-          <div className="mt-6 rounded-lg border figma-panel p-4">
+          <div className="maeari-soft-panel mt-6 p-4">
             {message.linked ? (
               <p className="text-sm font-medium text-[#6E738A]">이미 매아리 수신함에 보관된 마음이에요.</p>
             ) : (
@@ -319,7 +319,7 @@ export default function ArrivalPage() {
                 </p>
                 <a
                   href={`${getApiBaseUrl()}/auth/kakao`}
-                  className="focus-ring mt-3 inline-flex items-center gap-2 rounded-lg bg-[#fee500] px-4 py-2 text-sm font-semibold text-[#191600]"
+                  className="focus-ring mt-3 inline-flex min-h-[38px] items-center gap-2 rounded-[8px] bg-[#fee500] px-4 text-sm font-semibold text-[#191600] shadow-[0_10px_22px_rgba(55,43,13,0.10)]"
                 >
                   <LogIn size={16} />
                   카카오로 시작하기
@@ -328,7 +328,7 @@ export default function ArrivalPage() {
             )}
           </div>
           {message.canSuppressEmailNotification || message.canSuppressSmsNotification ? (
-            <div className="mt-4 rounded-lg border border-brand-line bg-brand-gray p-4">
+            <div className="mt-4 rounded-[8px] border border-[#E3DEF0] bg-[#F3EFF7]/70 p-4">
               <p className="text-sm text-[#A2A6BF]">
                 이 링크로 받은 알림을 앞으로 받고 싶지 않다면 채널별로 멈출 수 있어요.
               </p>
@@ -369,11 +369,11 @@ export default function ArrivalPage() {
 
 function themeClass(theme?: string | null) {
   const classes: Record<string, string> = {
-    LAVENDER: "bg-violet-50/50",
-    MOSS: "bg-emerald-50/50",
-    SUNSET: "bg-amber-50/50",
-    MIDNIGHT: "bg-slate-900 text-white",
-    PAPER: "bg-stone-50",
+    LAVENDER: "bg-[#F7F3FD]/90",
+    MOSS: "bg-[#F4FBF6]/90",
+    SUNSET: "bg-[#FFF8EA]/90",
+    MIDNIGHT: "bg-[#2E2456] text-white",
+    PAPER: "bg-[#FFFCF7]/90",
   };
 
   return theme ? classes[theme] ?? "" : "";
@@ -405,7 +405,7 @@ function SuppressionButton({
       type="button"
       onClick={() => void onToggle(channel, suppressed)}
       disabled={Boolean(suppressingChannel)}
-      className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#DAD4E8] bg-white px-4 py-2 text-sm font-semibold text-[#6E738A] disabled:opacity-50"
+      className="focus-ring maeari-action disabled:opacity-50"
     >
       {suppressed ? <Bell size={16} /> : <BellOff size={16} />}
       {isSuppressing ? "저장 중" : label}
