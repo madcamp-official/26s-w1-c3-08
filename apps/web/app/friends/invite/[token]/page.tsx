@@ -110,7 +110,7 @@ export default function FriendInvitePage() {
             className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="ml-3 text-[25px] font-semibold tracking-[0.01em] text-[#6D48DB]">매아리</span>
+          <span className="maeari-logo-text ml-3 text-[25px] text-[#6D48DB]">매아리</span>
         </div>
       </header>
 

@@ -634,8 +634,8 @@ export default function WritePage() {
         <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(320px,340px)] xl:items-start">
           <section className="figma-panel min-h-[578px] px-[21px] py-[24px]">
             <div className="px-[1px]">
-              <p className="text-sm font-medium text-[#7B7FAA]">현재 시각 (KST)</p>
-              <p className="mt-[13px] border-b border-[#F1EEF8] pb-[13px] font-mono text-[24px] font-medium text-[#4E5391] tabular-nums">
+              <p className="maeari-kst-time text-sm text-[#7B7FAA]">현재 시각 (KST)</p>
+              <p className="maeari-kst-time mt-[13px] border-b border-[#F1EEF8] pb-[13px] text-[24px] text-[#4E5391]">
                 {kstNow}
               </p>
             </div>

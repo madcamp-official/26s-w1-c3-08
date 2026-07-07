@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "SchoolSafe Universe";
+  src: url("/fonts/HakgyoansimWoojuR.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "KoPubWorld Batang";
+  src: url("/fonts/KoPubWorld-Batang-Bold.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "KoPubWorld Batang";
+  src: url("/fonts/KoPubWorld-Batang-Light.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 300;
+}
+
 :root {
   color-scheme: light;
   --background: #fbf9fc;
@@ -11,6 +35,9 @@
   --brand-sub: #9a85e1;
   --brand-gray: #f3eff7;
   --brand-line: #e6e0f1;
+  --font-logo-wooju: "SchoolSafe Universe", "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --font-title-batang: "KoPubWorld Batang", "Batang", serif;
+  --font-kst-batang: "KoPubWorld Batang", "Batang", serif;
 }
 
 * {
@@ -275,9 +302,40 @@ a {
 
 .maeari-page-title {
   color: #3a3d8d;
+  font-family: var(--font-title-batang);
   font-size: clamp(1.9rem, 2.7vw, 2.65rem);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.18;
+  letter-spacing: -0.05em;
+}
+
+.maeari-display-title {
+  font-family: var(--font-title-batang);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.maeari-logo-text {
+  font-family: var(--font-logo-wooju);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.maeari-sidebar-quote-title {
+  font-family: var(--font-title-batang);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.maeari-sidebar-quote-body {
+  font-family: var(--font-kst-batang);
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.maeari-kst-time {
+  font-family: var(--font-kst-batang);
+  font-weight: 300;
   letter-spacing: 0;
 }
 

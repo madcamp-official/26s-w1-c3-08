@@ -79,7 +79,7 @@ export default function PublicTreePage() {
             className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="text-xl font-semibold text-[#6D48DB]">매아리 마음나무</span>
+          <span className="maeari-logo-text text-xl text-[#6D48DB]">매아리 마음나무</span>
         </div>
 
         {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}

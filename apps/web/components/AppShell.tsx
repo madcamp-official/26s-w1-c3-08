@@ -73,7 +73,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
               priority
             />
-            <span className="text-[24px] font-semibold tracking-[0.01em] text-[#6D48DB] sm:text-[25px]">매아리</span>
+            <span className="maeari-logo-text text-[24px] text-[#6D48DB] sm:text-[25px]">매아리</span>
           </Link>
 
           <button
@@ -90,8 +90,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
       </header>
 
-      <aside className="fixed left-0 top-[74px] z-30 hidden h-[calc(100vh-74px)] w-[221px] border-r border-[#EEE8F8] bg-[#FFFCFF]/88 backdrop-blur-xl lg:block">
-        <nav className="px-3 pt-[29px]" aria-label="주요 메뉴">
+      <aside className="fixed left-0 top-[74px] z-30 hidden h-[calc(100vh-74px)] w-[221px] flex-col border-r border-[#EEE8F8] bg-[#FFFCFF]/88 backdrop-blur-xl lg:flex">
+        <nav className="shrink-0 px-3 pt-[29px]" aria-label="주요 메뉴">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -113,18 +113,18 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           })}
         </nav>
 
-        <div className="absolute bottom-9 left-[15px] h-[237px] w-[185px] overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_20px_45px_rgba(122,90,184,0.14)]">
+        <div className="relative mx-[15px] mb-9 mt-auto min-h-[237px] w-[185px] shrink-0 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_20px_45px_rgba(122,90,184,0.14)] max-[1100px]:hidden">
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
           <div className="absolute inset-0 bg-white/8" />
           <div className="absolute inset-0 px-[18px] py-[22px] text-[#4B405E]">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] bg-white/75 text-[#6D48DB]">
               <Sparkles size={15} />
             </span>
-            <p className="mt-3 text-base font-semibold">오늘의 한 줄</p>
-            <p className="mt-5 whitespace-pre-line text-[11px] leading-[15px] text-[#636363]">
+            <p className="maeari-sidebar-quote-title mt-3 text-base text-[#4B405E]">오늘의 한 줄</p>
+            <p className="maeari-sidebar-quote-body mt-5 whitespace-pre-line text-[11px] leading-[15px] text-[#636363]">
               꽃이 피었다고 너에게 쓰고{"\n"}꽃이 졌다고 너에게 쓴다.{"\n"}너에게 쓴 마음이{"\n"}벌써 길이 되었다
             </p>
-            <p className="mt-3 text-[11px] text-[#636363]">/ 너에게 쓴다, 천양희</p>
+            <p className="maeari-sidebar-quote-body mt-3 text-[11px] text-[#636363]">/ 너에게 쓴다, 천양희</p>
           </div>
         </div>
       </aside>

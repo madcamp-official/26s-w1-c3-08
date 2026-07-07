@@ -229,7 +229,7 @@ export default function FriendsPage() {
 
         <section className="mb-5 grid w-full gap-4 lg:grid-cols-2">
           <div className="figma-panel min-w-0 p-[18px]">
-            <p className="text-[15px] text-[#6A6F88]">내 친구 코드</p>
+            <p className="text-[15px] font-bold text-[#6A6F88]">내 친구 코드</p>
             <div className="mt-[12px] flex min-h-[58px] items-center gap-3 rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD] p-2">
               <code className="min-w-0 flex-1 truncate px-3 font-mono text-[22px] font-bold text-[#9478E7]">
                 {me?.friendCode ?? (loading ? "불러오는 중" : "코드 없음")}
@@ -238,7 +238,7 @@ export default function FriendsPage() {
                 type="button"
                 disabled={!me?.friendCode}
                 onClick={() => me?.friendCode && void navigator.clipboard.writeText(me.friendCode)}
-                className="focus-ring maeari-action h-[44px] min-w-[136px] border-[#B59CFF] text-[16px] text-[#9478E7] disabled:opacity-50"
+                className="focus-ring maeari-action maeari-action-primary h-[44px] min-w-[136px] text-[16px] disabled:opacity-50"
               >
                 <Copy size={21} />
                 복사
@@ -247,7 +247,7 @@ export default function FriendsPage() {
           </div>
 
           <form onSubmit={sendRequest} className="figma-panel min-w-0 p-[18px]">
-            <p className="text-[16px] text-[#626781]">친구 요청 보내기</p>
+            <p className="text-[16px] font-bold text-[#626781]">친구 요청 보내기</p>
             <div className="mt-[12px] grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 required
@@ -278,7 +278,7 @@ export default function FriendsPage() {
         <section className="figma-panel mb-5 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex-1">
-              <p className="text-[15px] text-[#686D87]">친구 찾기</p>
+              <p className="text-[15px] font-bold text-[#686D87]">친구 찾기</p>
               <form onSubmit={searchCandidates} className="mt-3 flex gap-2">
                 <input
                   required
@@ -366,7 +366,7 @@ export default function FriendsPage() {
         </section>
 
         <section className="figma-panel mb-5 p-5">
-          <h2 className="text-[15px] text-[#686D87]">받은 요청</h2>
+          <h2 className="text-[15px] font-bold text-[#686D87]">받은 요청</h2>
           <div className="mt-4 grid gap-2">
             {requests.received.length === 0 ? (
               <EmptyFriendBlock title="받은 친구 요청이 없어요." body="새로운 친구 요청을 기다려보세요!" />
@@ -392,7 +392,7 @@ export default function FriendsPage() {
         </section>
 
         <section className="figma-panel mb-5 p-5">
-          <h2 className="text-[15px] text-[#686D87]">보낸 요청</h2>
+          <h2 className="text-[15px] font-bold text-[#686D87]">보낸 요청</h2>
           <div className="mt-4 grid gap-2">
             {requests.sent.length === 0 ? (
               <EmptyFriendBlock title="대기 중인 보낸 요청이 없어요." body="새로운 친구에게 마음을 전해보세요!" />
