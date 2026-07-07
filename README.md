@@ -133,6 +133,9 @@
 
 상세 IA는 `MAEARI_IA.md`에 정리되어 있습니다.
 
+### 사용자 Information Architecture
+![본 서비스를 이용하는 사용자의 분류를 파악할 수 있는 도식이다.](user_IA.png)
+
 ### 주요 페이지
 
 - `/`: 메인 대시보드, KST 현재 시각, 주요 기능 진입
