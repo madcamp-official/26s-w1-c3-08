@@ -14,12 +14,18 @@ type ArchivedMessage = {
   id: string;
   recipientId: string;
   title: string;
+  thumbnail?: MessageThumbnail | null;
   preview: string;
   emotionTag?: string | null;
   customEmotionTag?: string | null;
   senderName?: string | null;
   arrivedAt?: string | null;
   readAt?: string | null;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function ArchivePage() {
@@ -206,7 +212,7 @@ export default function ArchivePage() {
           <article key={message.recipientId} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
-                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+                <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">

@@ -32,6 +32,12 @@ type InboxMessage = {
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
+  thumbnail?: MessageThumbnail | null;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function HomePage() {
@@ -181,7 +187,7 @@ export default function HomePage() {
 
         <section className="xl:col-span-2">
           <div className="mb-[17px] flex items-center justify-between">
-            <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 보관한 마음</h2>
+            <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 찾아온 마음</h2>
             <Link
               href="/archive"
               className="focus-ring inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs text-[#9A9CB0]"
@@ -199,7 +205,7 @@ export default function HomePage() {
                   className="focus-ring maeari-letter-surface relative h-[193px] p-4 transition hover:-translate-y-0.5 hover:border-[#CBBBFA]"
                 >
                   <div className="flex gap-[9px]">
-                    <LetterThumb className="h-[84px] w-[63px] shrink-0" />
+                    <LetterThumb src={letter.thumbnailUrl} className="h-[84px] w-[63px] shrink-0" />
                     <div className="pt-1">
                       <p className="text-[15px] font-medium text-[#797A94]">{letter.title}</p>
                       <p className="mt-1 line-clamp-2 text-[15px] font-medium text-[#7B7D97]">{letter.body}</p>
@@ -226,7 +232,7 @@ export default function HomePage() {
                   {loading ? "마음을 불러오고 있어요." : "아직 첫 마음이 도착하지 않았어요."}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-[#9EA2B7]">
-                  {loading ? "최근 보관한 마음을 확인하는 중이에요." : "첫 마음이 도착하면 이곳에서 가장 최근에 보관한 마음을 보여드릴게요."}
+                  {loading ? "최근 찾아온 마음을 확인하는 중이에요." : "첫 마음이 도착하면 이곳에서 가장 최근에 찾아온 마음을 보여드릴게요."}
                 </p>
               </div>
             </div>
@@ -263,6 +269,7 @@ function formatRecentMessage(message: InboxMessage) {
     meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
+    thumbnailUrl: message.thumbnail?.url,
   };
 }
 

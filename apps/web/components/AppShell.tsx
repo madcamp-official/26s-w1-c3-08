@@ -130,7 +130,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
