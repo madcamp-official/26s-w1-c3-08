@@ -24,9 +24,15 @@ set -Eeuo pipefail
 #   RUN_MIGRATIONS=0
 #   RESTART_NGINX=1
 #   SKIP_HEALTHCHECK=1
+#   DEPLOY_NODE_ENV=production
+#   DEPLOY_CI=true
 #   PM2_SERVICES="maeari-api maeari-scheduler maeari-web"
 #   API_HEALTH_URL=http://127.0.0.1:4000/api/health
 #   WEB_HEALTH_URL=http://127.0.0.1:3000/
+#
+# Env loading:
+#   The script loads .env.local, .env.production, then .env if present.
+#   Existing shell environment variables take precedence and are not overwritten.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -41,6 +47,8 @@ RUN_BUILD="${RUN_BUILD:-1}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-1}"
 RESTART_NGINX="${RESTART_NGINX:-0}"
 SKIP_HEALTHCHECK="${SKIP_HEALTHCHECK:-0}"
+DEPLOY_NODE_ENV="${DEPLOY_NODE_ENV:-production}"
+DEPLOY_CI="${DEPLOY_CI:-true}"
 
 PM2_SERVICES="${PM2_SERVICES:-maeari-api maeari-scheduler maeari-web}"
 API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:4000/api/health}"
@@ -75,6 +83,54 @@ run_step() {
   log "$1"
   shift
   "$@"
+}
+
+load_env_file() {
+  local file="$1"
+  local line key value
+
+  [[ -f "$file" ]] || return 0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    line="${line#export }"
+
+    [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
+
+    key="${line%%=*}"
+    value="${line#*=}"
+
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+
+    if [[ ! -v "$key" ]]; then
+      export "$key=$value"
+    fi
+  done < "$file"
+
+  log "Loaded env file: $file"
+}
+
+load_env_files() {
+  load_env_file ".env.local"
+  load_env_file ".env.production"
+  load_env_file ".env"
+}
+
+set_deploy_node_env() {
+  if [[ "${NODE_ENV:-}" != "$DEPLOY_NODE_ENV" ]]; then
+    warn "Overriding NODE_ENV='${NODE_ENV:-unset}' with NODE_ENV='$DEPLOY_NODE_ENV' for deploy."
+  fi
+
+  export NODE_ENV="$DEPLOY_NODE_ENV"
+  export CI="${CI:-$DEPLOY_CI}"
 }
 
 check_disk_space() {
@@ -148,12 +204,15 @@ check_url() {
   local label="$1"
   local url="$2"
   log "Health check: $label ($url)"
-  curl -fsS \
+  if ! curl -fsS \
     --retry 10 \
     --retry-connrefused \
+    --retry-all-errors \
     --retry-delay 2 \
     --max-time 10 \
-    "$url" >/dev/null
+    "$url" >/dev/null 2>&1; then
+    curl -fsS --max-time 10 "$url" >/dev/null
+  fi
 }
 
 main() {
@@ -168,6 +227,9 @@ main() {
 
   log "Repository: $ROOT_DIR"
   log "Target branch: $REMOTE/$BRANCH"
+
+  load_env_files
+  set_deploy_node_env
 
   check_disk_space
   ensure_clean_worktree
