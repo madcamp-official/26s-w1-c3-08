@@ -39,6 +39,7 @@ export default function TreePage() {
   const [notice, setNotice] = useState<{ title: string; body?: string; tone?: "danger" | "success" | "default" } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<Collection | null>(null);
 
   useEffect(() => {
     void loadCollections();
@@ -79,6 +80,7 @@ export default function TreePage() {
       setScheduledAt(defaultDatetimeLocal());
       setCreatedUrl(toBrowserPublicUrl(response.collection.collectionUrl ?? ""));
       setNotice({ title: "마음나무 링크를 만들었어요.", tone: "success" });
+      setPendingCancel(null);
       await loadCollections();
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "SENDER_PHONE_VERIFICATION_REQUIRED") {
@@ -103,6 +105,7 @@ export default function TreePage() {
   async function cancelCollection(collectionId: string) {
     try {
       await apiFetch(`/message-collections/${collectionId}`, { method: "DELETE" });
+      setPendingCancel(null);
       setNotice({ title: "마음나무를 닫았어요.", tone: "success" });
       await loadCollections();
       if (selected?.id === collectionId) {
@@ -215,7 +218,7 @@ export default function TreePage() {
                   {collection.status === "ACTIVE" ? (
                     <button
                       type="button"
-                      onClick={() => void cancelCollection(collection.id)}
+                      onClick={() => setPendingCancel(collection)}
                       className="focus-ring maeari-action maeari-action-danger"
                     >
                       <Trash2 size={16} />
@@ -251,6 +254,28 @@ export default function TreePage() {
           ) : null}
         </section>
       </div>
+      {pendingCancel ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="figma-panel w-full max-w-md p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
+            <p className="text-lg font-bold text-[#4E536B]">마음나무를 닫을까요?</p>
+            <p className="mt-3 break-keep text-sm leading-6 text-[#6E738A]">
+              해당 마음나무는 {formatDateTime(pendingCancel.scheduledAt)}까지 자랄 예정입니다. 지금 닫으시겠습니까?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setPendingCancel(null)} className="focus-ring maeari-action">
+                계속 열어두기
+              </button>
+              <button
+                type="button"
+                onClick={() => void cancelCollection(pendingCancel.id)}
+                className="focus-ring maeari-action maeari-action-danger"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

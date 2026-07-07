@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Clock3, Copy, Link2, MessageCircle, QrCode, RefreshCw, Send, Trash2, X, XCircle } from "lucide-react";
+import { Check, Clock3, Copy, Link2, MessageCircle, QrCode, RefreshCw, Send, Trash2, TriangleAlert, X, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
@@ -604,7 +604,7 @@ function createSentSummary(messages: SentMessage[]) {
     {
       label: "예약함",
       count: reserved,
-      icon: Send,
+      icon: Clock3,
       iconBg: "bg-[#E4F3FF]",
       iconText: "text-[#4BA5F5]",
     },
@@ -618,7 +618,7 @@ function createSentSummary(messages: SentMessage[]) {
     {
       label: "전달 실패",
       count: failed,
-      icon: Clock3,
+      icon: TriangleAlert,
       iconBg: "bg-[#FFE2E2]",
       iconText: "text-[#EF5757]",
     },
