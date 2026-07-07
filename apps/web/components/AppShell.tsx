@@ -5,13 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Archive, BarChart3, ChevronDown, Heart, Home, Send, Sprout, UserRound, UsersRound } from "lucide-react";
+import { Archive, BarChart3, ChevronDown, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
   { href: "/write", label: "마음 보내기", icon: Send },
-  { href: "/inbox", label: "받은 마음", icon: Heart },
+  { href: "/sent", label: "보낸 마음", icon: Inbox },
   { href: "/archive", label: "마음 보관함", icon: Archive },
   { href: "/tree", label: "마음나무", icon: Sprout },
   { href: "/friends", label: "친구", icon: UsersRound },
@@ -20,7 +20,7 @@ const navItems = [
 
 const mobileNavItems = [
   { href: "/write", label: "쓰기", icon: Send },
-  { href: "/inbox", label: "받은 마음", icon: Heart },
+  { href: "/sent", label: "보낸 마음", icon: Inbox },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/my", label: "내 정보", icon: UserRound },
 ];
