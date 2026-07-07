@@ -5,7 +5,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 ENV_FILE="${REPO_ROOT}/.env.local"
 SOURCE_BRANCH="backend"
-TARGET_BRANCH="backend"
+TARGET_BRANCH="dev"
+MERGE_MESSAGE="merge backend into dev for frontend integration"
 
 read_env_value() {
   local key="$1"
@@ -44,12 +45,6 @@ read_env_value() {
 GITHUB_PUSH_EMAIL="$(read_env_value GITHUB_PUSH_EMAIL)"
 GITHUB_PUSH_TOKEN="$(read_env_value GITHUB_PUSH_TOKEN)"
 GITHUB_PUSH_NAME="$(read_env_value GITHUB_PUSH_NAME)"
-configured_branch="$(read_env_value GITHUB_PUSH_BRANCH)"
-
-if [[ -n "$configured_branch" && "$configured_branch" != "$TARGET_BRANCH" ]]; then
-  echo "This script only pushes '$TARGET_BRANCH'. Use scripts/github-merge-backend-to-dev.sh for dev handoff."
-  exit 1
-fi
 
 if [[ -z "$GITHUB_PUSH_EMAIL" ]]; then
   echo "Missing GITHUB_PUSH_EMAIL. Add it to .env."
@@ -71,33 +66,9 @@ fi
 
 cd "$REPO_ROOT"
 
-current_branch="$(git branch --show-current)"
-
-if [[ -z "$current_branch" ]]; then
-  echo "Detached HEAD is not supported."
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree is not clean. Commit and push backend changes first."
   exit 1
-fi
-
-if [[ -n "$SOURCE_BRANCH" && "$current_branch" != "$SOURCE_BRANCH" ]]; then
-  echo "Run this script from '$SOURCE_BRANCH' branch. Current branch: '$current_branch'."
-  exit 1
-fi
-
-git config user.email "$GITHUB_PUSH_EMAIL"
-git config user.name "$GITHUB_PUSH_NAME"
-git add .
-
-if git diff --cached --quiet; then
-  echo "No changes to commit. Pushing existing HEAD to '$TARGET_BRANCH'."
-else
-  read -r -p "Commit message: " COMMIT_MESSAGE
-
-  if [[ -z "$COMMIT_MESSAGE" ]]; then
-    echo "Commit message is required."
-    exit 1
-  fi
-
-  git commit -m "$COMMIT_MESSAGE"
 fi
 
 askpass_script="$(mktemp)"
@@ -115,4 +86,33 @@ EOF
 chmod 700 "$askpass_script"
 export GITHUB_PUSH_TOKEN
 
+git config user.email "$GITHUB_PUSH_EMAIL"
+git config user.name "$GITHUB_PUSH_NAME"
+
+GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0 git fetch origin \
+  "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" \
+  "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+
+if git show-ref --verify --quiet "refs/heads/${SOURCE_BRANCH}"; then
+  git switch "$SOURCE_BRANCH"
+else
+  git switch -c "$SOURCE_BRANCH" "origin/${SOURCE_BRANCH}"
+fi
+git merge --ff-only "origin/${SOURCE_BRANCH}"
+
+if [[ "$(git rev-parse "$SOURCE_BRANCH")" != "$(git rev-parse "origin/${SOURCE_BRANCH}")" ]]; then
+  echo "Local '$SOURCE_BRANCH' differs from 'origin/${SOURCE_BRANCH}'. Run scripts/github-auto-commit.sh first."
+  exit 1
+fi
+
+if git show-ref --verify --quiet "refs/heads/${TARGET_BRANCH}"; then
+  git switch "$TARGET_BRANCH"
+else
+  git switch -c "$TARGET_BRANCH" "origin/${TARGET_BRANCH}"
+fi
+git merge --ff-only "origin/${TARGET_BRANCH}"
+git merge --no-ff "$SOURCE_BRANCH" -m "$MERGE_MESSAGE"
+
 GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0 git push -u origin "HEAD:${TARGET_BRANCH}"
+
+git switch "$SOURCE_BRANCH"
