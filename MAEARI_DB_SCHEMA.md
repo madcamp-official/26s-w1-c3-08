@@ -1236,13 +1236,14 @@ UI가 새로 읽거나 강조해서 보여주는 DB 흐름:
   - 오늘의 한 줄은 `/api/daily-line`이 `DailyLine`/`DailyLineSelection`을 통해 제공합니다.
 - 목록/상세 화면
   - `StatusPill`, `EmotionPill` 등은 기존 enum/string 값을 UI label로 변환할 뿐 DB 값을 변경하지 않습니다.
-  - 목록 card thumbnail은 첫 번째 `MessageAttachment.publicUrl` 또는 message id 기준 기본 asset 선택 결과인 API `thumbnail` 파생 필드를 사용합니다.
+  - 목록 card thumbnail은 첫 번째 `MessageAttachment.publicUrl` 또는 `Message.theme`에 매핑된 봉투 asset 선택 결과인 API `thumbnail` 파생 필드를 사용합니다.
   - 받은 마음/아카이브 앨범형 UI의 `coverImageUrl`, `coverImageAlt`, `attachmentCount`는 `MessageAttachment` 조회와 `_count.attachments`에서 파생합니다.
+  - `themeEnvelope`은 `packages/shared`의 theme 계약에서 파생하며 DB에 별도 저장하지 않습니다.
 - QR 공유
   - `QrShare`는 기존 `MessageAccessToken` 또는 `MessageCollection.tokenHash`에서 생성된 공개 URL을 클라이언트에서 QR로 렌더링합니다.
   - QR 이미지는 DB에 저장하지 않습니다.
 - Figma asset
-  - `maeari-hero-floral.png`, `maeari-sidebar-sky.png`, `maeari-card-letter.png`, `maeari-message-default-*.png` 등은 `apps/web/public/images` 정적 asset입니다.
+  - `maeari-hero-floral.png`, `maeari-sidebar-sky.png`, `maeari-card-letter.png`, `maeari-message-default-*.png`, `maeari-envelope-theme-*.png` 등은 `apps/web/public/images` 정적 asset입니다.
   - asset 선택은 DB migration 대상이 아닙니다.
 
 따라서 2026-07-07 UI 리디자인 이후에도 schema 기준선은 계속 `20260706150000_ocr_replies_qr_collections`입니다. UI 리디자인 배포에는 새 Prisma migration이 필요하지 않습니다. 필요한 검증은 `pnpm --filter @maeari/web typecheck`, `pnpm --filter @maeari/web build`, 주요 route 수동 smoke test입니다. 새로운 migration이 필요한 경우는 UI-only 변경이 아니라 새 상태, 새 relation, 새 감사 로그, 새 provider 식별자처럼 서버 데이터 계약이 추가될 때입니다.

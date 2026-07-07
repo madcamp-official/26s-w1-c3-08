@@ -12,6 +12,54 @@ export type EmotionTag = keyof typeof emotionTagLabels;
 
 export type MessageTheme = "LAVENDER" | "MOSS" | "SUNSET" | "MIDNIGHT" | "PAPER";
 
+export type MessageThemeEnvelope = {
+  theme: MessageTheme;
+  label: string;
+  imageUrl: string;
+  alt: string;
+};
+
+export const messageThemeEnvelopeByTheme = {
+  LAVENDER: {
+    theme: "LAVENDER",
+    label: "보라빛 봉투",
+    imageUrl: "/images/maeari-envelope-theme-lavender.png",
+    alt: "보라빛 봉투",
+  },
+  MOSS: {
+    theme: "MOSS",
+    label: "차분한 초록",
+    imageUrl: "/images/maeari-envelope-theme-moss.png",
+    alt: "차분한 초록 봉투",
+  },
+  SUNSET: {
+    theme: "SUNSET",
+    label: "저녁 노을",
+    imageUrl: "/images/maeari-envelope-theme-sunset.png",
+    alt: "저녁 노을 봉투",
+  },
+  MIDNIGHT: {
+    theme: "MIDNIGHT",
+    label: "한밤의 별",
+    imageUrl: "/images/maeari-envelope-theme-midnight.png",
+    alt: "한밤의 별 봉투",
+  },
+  PAPER: {
+    theme: "PAPER",
+    label: "종이 편지",
+    imageUrl: "/images/maeari-envelope-theme-paper.png",
+    alt: "종이 편지 봉투",
+  },
+} as const satisfies Record<MessageTheme, MessageThemeEnvelope>;
+
+export const messageThemeOptions = [
+  messageThemeEnvelopeByTheme.LAVENDER,
+  messageThemeEnvelopeByTheme.MOSS,
+  messageThemeEnvelopeByTheme.SUNSET,
+  messageThemeEnvelopeByTheme.MIDNIGHT,
+  messageThemeEnvelopeByTheme.PAPER,
+] as const;
+
 export type ReceiverType = "SELF" | "FRIEND" | "OTHER";
 
 export type ReceiverInfo = {
@@ -59,7 +107,7 @@ export type DailyLineResponse = {
   };
 };
 
-export type MessageThumbnailSource = "ATTACHMENT" | "DEFAULT";
+export type MessageThumbnailSource = "ATTACHMENT" | "THEME" | "DEFAULT";
 
 export type MessageThumbnail = {
   url: string;
@@ -80,6 +128,7 @@ export type ReceivedMessageListItem = {
   coverImageAlt: string | null;
   attachmentCount: number;
   thumbnail: MessageThumbnail;
+  themeEnvelope: MessageThemeEnvelope;
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
