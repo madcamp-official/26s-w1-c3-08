@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { Notice } from "@/components/Notice";
-import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -24,6 +24,10 @@ type InboxMessage = {
   readAt?: string | null;
   linkedAt?: string | null;
   thumbnail?: MessageThumbnail | null;
+  theme?: string | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  attachmentCount?: number;
 };
 
 type MessageThumbnail = {
@@ -33,8 +37,8 @@ type MessageThumbnail = {
 
 const readFilters = [
   { value: "ALL", label: "전체" },
-  { value: "UNREAD", label: "미열람" },
-  { value: "READ", label: "읽음" },
+  { value: "UNREAD", label: "읽지 않은 마음" },
+  { value: "READ", label: "읽은 마음" },
 ] as const;
 
 export default function InboxPage() {
@@ -52,6 +56,9 @@ export default function InboxPage() {
     if (!options?.silent) {
       setLoading(true);
     }
+
+    setError(null);
+
     try {
       const response = await apiFetch<{ messages: InboxMessage[] }>("/messages/received");
       setMessages(response.messages);
@@ -60,7 +67,7 @@ export default function InboxPage() {
         router.replace("/login");
         return;
       }
-      setError(caught instanceof Error ? caught.message : "수신함을 불러오지 못했어요.");
+      setError(caught instanceof Error ? caught.message : "받은 마음을 불러오지 못했어요.");
     } finally {
       if (!options?.silent) {
         setLoading(false);
@@ -91,11 +98,11 @@ export default function InboxPage() {
 
     try {
       await apiFetch(`/messages/${id}/archive`, { method: "PATCH" });
-      setNotice({ title: "아카이브에 보관했어요.", tone: "success" });
+      setNotice({ title: "마음 보관함에 담았어요.", tone: "success" });
       await load();
     } catch (caught) {
       setNotice({
-        title: caught instanceof ApiError ? caught.message : "아카이브하지 못했어요.",
+        title: caught instanceof ApiError ? caught.message : "보관하지 못했어요.",
         tone: "danger",
       });
     }
@@ -177,24 +184,17 @@ export default function InboxPage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="maeari-page-title">받은 마음</h1>
-          <p className="maeari-page-copy mt-2">나에게 도착한 마음을 모아두었어요.</p>
+          <p className="maeari-page-copy mt-2">누군가가 전한 따뜻한 마음을 확인해 보세요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="focus-ring maeari-action"
-          >
+          <button type="button" onClick={() => void load()} className="focus-ring maeari-action">
             <RefreshCw size={16} />
             새로고침
           </button>
-          <Link
-            href="/archive"
-            className="focus-ring maeari-action"
-          >
+          <Link href="/archive" className="focus-ring maeari-action">
             <Archive size={16} />
             마음 보관함
           </Link>
@@ -209,87 +209,70 @@ export default function InboxPage() {
           </button>
         </div>
       </div>
-      <div className="maeari-filterbar mb-5">
-        {readFilters.map((filter) => (
-          <button
-            key={filter.value}
-            type="button"
-            onClick={() => setReadFilter(filter.value)}
-            className={`focus-ring maeari-chip ${readFilter === filter.value ? "maeari-chip-active" : ""}`}
-          >
-            {filter.label}
-          </button>
-        ))}
-      </div>
-      {emotionFilters.length > 0 ? (
-        <div className="maeari-filterbar mb-5">
-          <button
-            type="button"
-            onClick={() => setEmotionFilter("ALL")}
-            className={`focus-ring maeari-chip ${emotionFilter === "ALL" ? "maeari-chip-active" : ""}`}
-          >
-            모든 감정
-          </button>
-          {emotionFilters.map((filter) => (
+
+      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="maeari-filterbar">
+          {readFilters.map((filter) => (
             <button
               key={filter.value}
               type="button"
-              onClick={() => setEmotionFilter(filter.value)}
-              className={`focus-ring maeari-chip ${emotionFilter === filter.value ? "maeari-chip-active" : ""}`}
+              onClick={() => setReadFilter(filter.value)}
+              className={`focus-ring maeari-chip ${readFilter === filter.value ? "maeari-chip-active" : ""}`}
             >
               {filter.label}
             </button>
           ))}
         </div>
-      ) : null}
+        {emotionFilters.length > 0 ? (
+          <div className="maeari-filterbar">
+            <button
+              type="button"
+              onClick={() => setEmotionFilter("ALL")}
+              className={`focus-ring maeari-chip ${emotionFilter === "ALL" ? "maeari-chip-active" : ""}`}
+            >
+              모든 감정
+            </button>
+            {emotionFilters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setEmotionFilter(filter.value)}
+                className={`focus-ring maeari-chip ${emotionFilter === filter.value ? "maeari-chip-active" : ""}`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
       {error ? <Notice title={error} tone="danger" /> : null}
       {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
       {!loading && messages.length === 0 ? (
-        <Notice title="아직 도착한 마음이 없어요." body="미래의 나에게 먼저 남겨보세요." />
+        <Notice title="아직 도착한 마음이 없어요." body="첫 마음이 도착하면 이곳에서 앨범처럼 보여드릴게요." />
       ) : null}
-      {!loading && messages.length > 0 && filteredMessages.length === 0 ? (
-        <Notice title="이 조건의 마음이 없어요." />
-      ) : null}
-      <div className="grid gap-3">
+      {!loading && messages.length > 0 && filteredMessages.length === 0 ? <Notice title="조건에 맞는 마음이 없어요." /> : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredMessages.map((message) => (
-          <article key={message.recipientId} className="maeari-letter-surface p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
-                <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
-                <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
-                      {emotionLabel(message.emotionTag, message.customEmotionTag)}
-                    </span>
-                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
-                      {message.senderName ?? "누군가의 마음"}
-                    </span>
-                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
-                      {message.readAt ? "읽음" : "미열람"}
-                    </span>
-                    {message.linkedAt ? (
-                      <span className="maeari-badge bg-[#9A85E1]/10 text-[#9A85E1]">
-                        자동 보관
-                      </span>
-                    ) : null}
-                    {message.isSenderHidden ? (
-                      <span className="maeari-badge bg-[#EEE8FD] text-[#6D48DB]">
-                        발신인 숨김
-                      </span>
-                    ) : null}
-                    {message.isDateHidden ? (
-                      <span className="maeari-badge bg-[#F3EFF7] text-[#8588A1]">
-                        도착일 숨김
-                      </span>
-                    ) : null}
-                  </div>
-                  <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
-                  <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
-                  <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
-                </div>
-              </Link>
-              <div className="flex shrink-0 flex-wrap gap-2">
+          <MessageAlbumCard
+            key={message.recipientId}
+            href={`/messages/${message.id}`}
+            message={{
+              id: message.id,
+              title: message.title,
+              preview: message.preview,
+              coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
+              coverAlt: message.coverImageAlt ?? message.title,
+              senderName: message.isSenderHidden ? "익명" : message.senderName,
+              arrivedAtLabel: message.isDateHidden ? "숨겨진 도착일" : formatDateTime(message.arrivedAt),
+              emotionLabel: emotionLabel(message.emotionTag, message.customEmotionTag),
+              unread: !message.readAt,
+              attachmentCount: message.attachmentCount,
+            }}
+            actions={
+              <>
                 <button type="button" onClick={() => void archiveMessage(message.id)} className="focus-ring maeari-action">
                   <Archive size={16} />
                   보관
@@ -303,9 +286,9 @@ export default function InboxPage() {
                   <Trash2 size={16} />
                   {deletingId === message.id ? "삭제 중" : "삭제"}
                 </button>
-              </div>
-            </div>
-          </article>
+              </>
+            }
+          />
         ))}
       </div>
     </AppShell>
