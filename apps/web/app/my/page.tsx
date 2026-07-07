@@ -197,7 +197,7 @@ export default function MyPage() {
           <section className="figma-panel mb-[15px] px-[28px] py-[36px]">
           <div className="grid gap-8 lg:grid-cols-[171px_1fr]">
               <div className="maeari-hero-visual relative h-[171px] w-[171px] overflow-hidden">
-                <Image src="/images/maeari-app-icon.png" alt="" fill sizes="171px" className="object-cover" />
+                <Image src="/images/maeari_logo.png" alt="" fill sizes="171px" className="object-cover" />
               </div>
               <div className="min-w-0 pt-[18px]">
                 <div className="grid grid-cols-[160px_1fr] border-b border-[#F0EEF7] py-4 text-[15px]">
@@ -350,13 +350,15 @@ export default function MyPage() {
           </form>
         </section>
 
-        <section className="figma-panel mb-[15px] px-[28px] py-[24px]">
-          <div className="flex items-center justify-between border-b border-[#F9F9FA] pb-4">
-            <h2 className="text-[17px] text-[#64687D]">기타</h2>
-          </div>
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="text-[15px] text-[#9195A7]">로그아웃</p>
-            <div className="flex flex-wrap gap-2">
+        <section className="figma-panel bg-[#F4F1FD]/90 px-[28px] py-[18px]">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[15px] text-[#8E70E1]">개인정보는 소중하게 보호돼요.</p>
+              <p className="mt-2 text-sm text-[#B6AADE]">
+                계정 정보는 카카오 계정 정보를 기반으로 관리되며, 비밀번호는 카카오에서 안전하게 관리합니다.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
               {user?.isAdmin ? (
                 <Link
                   href="/admin"
@@ -376,13 +378,6 @@ export default function MyPage() {
               </button>
             </div>
           </div>
-        </section>
-
-        <section className="figma-panel bg-[#F4F1FD]/90 px-[28px] py-[18px]">
-          <p className="text-[15px] text-[#8E70E1]">개인정보는 소중하게 보호돼요.</p>
-          <p className="mt-2 text-sm text-[#B6AADE]">
-            계정 정보는 카카오 계정 정보를 기반으로 관리되며, 비밀번호는 카카오에서 안전하게 관리합니다.
-          </p>
         </section>
       </div>
     </AppShell>

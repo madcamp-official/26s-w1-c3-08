@@ -230,17 +230,17 @@ export default function FriendsPage() {
         <section className="mb-5 grid w-full gap-4 lg:grid-cols-2">
           <div className="figma-panel min-w-0 p-[18px]">
             <p className="text-[15px] text-[#6A6F88]">내 친구 코드</p>
-            <div className="mt-[10px] flex h-[41px] items-center rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD]">
-              <code className="min-w-0 flex-1 px-4 font-mono text-[20px] font-bold text-[#9478E7]">
+            <div className="mt-[12px] flex min-h-[58px] items-center gap-3 rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD] p-2">
+              <code className="min-w-0 flex-1 truncate px-3 font-mono text-[22px] font-bold text-[#9478E7]">
                 {me?.friendCode ?? (loading ? "불러오는 중" : "코드 없음")}
               </code>
               <button
                 type="button"
                 disabled={!me?.friendCode}
                 onClick={() => me?.friendCode && void navigator.clipboard.writeText(me.friendCode)}
-                className="focus-ring maeari-action mr-1 h-[33px] w-[93px] text-[13px] disabled:opacity-50"
+                className="focus-ring maeari-action h-[44px] min-w-[136px] border-[#B59CFF] text-[16px] text-[#9478E7] disabled:opacity-50"
               >
-                <Copy size={15} />
+                <Copy size={21} />
                 복사
               </button>
             </div>
@@ -248,25 +248,25 @@ export default function FriendsPage() {
 
           <form onSubmit={sendRequest} className="figma-panel min-w-0 p-[18px]">
             <p className="text-[16px] text-[#626781]">친구 요청 보내기</p>
-            <div className="mt-[11px] grid gap-2 md:grid-cols-[1fr_1fr_79px]">
+            <div className="mt-[12px] grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 required
                 value={friendCode}
                 onChange={(event) => setFriendCode(event.target.value.toUpperCase())}
                 placeholder="친구 코드 입력"
-                className="focus-ring maeari-input h-[38px] px-3 text-sm"
+                className="focus-ring maeari-input h-[44px] min-w-0 px-3 text-sm"
               />
               <input
                 value={requestMessage}
                 maxLength={120}
                 onChange={(event) => setRequestMessage(event.target.value)}
                 placeholder="짧은 메시지"
-                className="focus-ring maeari-input h-[38px] px-3 text-sm"
+                className="focus-ring maeari-input h-[44px] min-w-0 px-3 text-sm"
               />
               <button
                 type="submit"
                 disabled={submitting}
-                className="focus-ring maeari-action maeari-action-primary h-[38px] disabled:opacity-50"
+                className="focus-ring maeari-action maeari-action-primary h-[44px] whitespace-nowrap px-5 disabled:opacity-50"
               >
                 <UserPlus size={15} />
                 요청
