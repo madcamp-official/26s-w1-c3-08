@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { FormEvent, useEffect, useState } from "react";
-import Image from "next/image";
 import { Copy, Link2, UserPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
@@ -216,15 +215,10 @@ export default function FriendsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1146px]">
-        <header className="maeari-hero-card mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
-          <div>
-            <h1 className="text-[34px] font-bold leading-tight text-[#3A3D8D]">친구</h1>
-            <p className="mt-2 text-sm leading-6 text-[#A2A6BF]">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
-          </div>
-          <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
-            <Image src="/images/maeari-heart-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
-          </div>
+      <div className="w-full max-w-[1146px]">
+        <header className="mb-[24px] pl-[5px]">
+          <h1 className="maeari-page-title">친구</h1>
+          <p className="maeari-page-copy mt-2">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
         </header>
 
         {notice ? (
@@ -233,8 +227,8 @@ export default function FriendsPage() {
           </div>
         ) : null}
 
-        <section className="mb-5 grid gap-4 lg:grid-cols-[378px_558px]">
-          <div className="figma-panel p-[18px]">
+        <section className="mb-5 grid w-full gap-4 lg:grid-cols-2">
+          <div className="figma-panel min-w-0 p-[18px]">
             <p className="text-[15px] text-[#6A6F88]">내 친구 코드</p>
             <div className="mt-[10px] flex h-[41px] items-center rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD]">
               <code className="min-w-0 flex-1 px-4 font-mono text-[20px] font-bold text-[#9478E7]">
@@ -252,7 +246,7 @@ export default function FriendsPage() {
             </div>
           </div>
 
-          <form onSubmit={sendRequest} className="figma-panel p-[18px]">
+          <form onSubmit={sendRequest} className="figma-panel min-w-0 p-[18px]">
             <p className="text-[16px] text-[#626781]">친구 요청 보내기</p>
             <div className="mt-[11px] grid gap-2 md:grid-cols-[1fr_1fr_79px]">
               <input
@@ -333,7 +327,7 @@ export default function FriendsPage() {
             <div className="mt-3 grid gap-2">
               {activeInvites.map((invite) => (
                 <div key={invite.id} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-3 py-2 text-sm">
-                  <span className="text-[#8588A1]">
+                  <span className="min-w-0 flex-1 break-keep text-[#8588A1]">
                     초대 링크 {invite.tokenPreview ? `#${invite.tokenPreview}` : ""} · {formatDateTime(invite.expiresAt)} 만료
                   </span>
                   <button
@@ -352,8 +346,8 @@ export default function FriendsPage() {
           {candidates.length > 0 ? (
             <div className="mt-4 grid gap-2">
               {candidates.map((candidate) => (
-                <div key={candidate.userId} className="flex items-center justify-between rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-4 py-3">
-                  <div>
+                <div key={candidate.userId} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-4 py-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#6A6F87]">{candidate.nickname}</p>
                     <p className="mt-1 font-mono text-xs text-[#A2A6BF]">{candidate.friendCode}</p>
                   </div>
@@ -466,15 +460,15 @@ function EmptyFriendBlock({ title, body }: { title: string; body: string }) {
 
 function FriendRow({ title, body, action }: { title: string; body: string; action: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3">
+    <div className="flex w-full flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <span className="h-9 w-9 rounded-[8px] bg-[#E9D8FF]" />
-        <div>
-          <p className="text-base text-[#696E86]">{title}</p>
-          <p className="mt-1 text-xs text-[#BABDC9]">{body}</p>
+        <div className="min-w-0">
+          <p className="truncate text-base text-[#696E86]">{title}</p>
+          <p className="mt-1 break-keep text-xs text-[#BABDC9]">{body}</p>
         </div>
       </div>
-      {action}
+      <div className="flex shrink-0 justify-end">{action}</div>
     </div>
   );
 }

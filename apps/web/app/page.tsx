@@ -153,14 +153,14 @@ export default function HomePage() {
           </div>
         </section>
 
-        <aside className="figma-panel hidden h-[380px] px-[22px] py-[24px] xl:block">
+        <aside className="figma-panel hidden self-start px-[22px] py-[24px] xl:block">
           <h2 className="mb-6 text-[21px] font-bold text-[#555777]">곧 찾아갈 마음</h2>
           <ol className="relative ml-[12px] border-l border-[#E7E2F1] pl-[23px]">
             {timelineItems.map((item, index, items) => (
               <li key={item.id} className={index === items.length - 1 ? "relative pb-0" : "relative pb-[31px]"}>
                 <span className="absolute -left-[30px] top-[5px] h-[14px] w-[14px] rounded-full bg-[#6D48DB]" />
                 <p className="text-[15px] font-semibold text-[#8D79D6]">{item.date}</p>
-                <p className="mt-2 line-clamp-1 text-sm text-[#A8ABBD]">{item.label}</p>
+                <p className="mt-2 break-keep text-sm leading-5 text-[#A8ABBD]">{item.label}</p>
                 {index < items.length - 1 ? <div className="mt-[20px] h-px w-[165px] bg-[#EDE9F4]" /> : null}
               </li>
             ))}

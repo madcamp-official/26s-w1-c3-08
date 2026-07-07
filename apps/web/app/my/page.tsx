@@ -177,14 +177,9 @@ export default function MyPage() {
   return (
     <AppShell>
       <div className="max-w-[1110px]">
-        <header className="maeari-hero-card mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
-          <div>
-            <h1 className="maeari-page-title">내 정보</h1>
-            <p className="maeari-page-copy mt-2">내 계정 정보를 확인하고 관리할 수 있어요.</p>
-          </div>
-          <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
-            <Image src="/images/maeari-star-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
-          </div>
+        <header className="mb-[24px] pl-[5px]">
+          <h1 className="maeari-page-title">내 정보</h1>
+          <p className="maeari-page-copy mt-2">내 계정 정보를 확인하고 관리할 수 있어요.</p>
         </header>
 
         {error ? (
