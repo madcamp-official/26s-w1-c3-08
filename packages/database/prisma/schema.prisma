@@ -171,6 +171,7 @@ model User {
   contacts            UserContact[]
   messageCollections  MessageCollection[]     @relation("MessageCollectionOwner")
   targetNotifications NotificationLog[]        @relation("NotificationTargetUser")
+  authoredReplies     MessageReply[]           @relation("ReplyAuthor")
 
   @@index([email])
   @@index([createdAt])
@@ -181,6 +182,7 @@ model Message {
   senderId                 String        @db.Uuid
   senderContactId          String?       @db.Uuid
   senderContactSnapshot    Json?
+  senderDisplayName        String?       @db.VarChar(80)
   title                    String        @db.VarChar(120)
   content                  String        @db.Text
   emotionTag               EmotionTag?
@@ -391,6 +393,7 @@ model MessageReply {
   id                 String             @id @default(uuid()) @db.Uuid
   messageId          String             @db.Uuid
   messageRecipientId String             @db.Uuid
+  authorUserId       String?            @db.Uuid
   content            String             @db.Text
   senderDisplayName  String?            @db.VarChar(80)
   isAnonymous        Boolean            @default(true)
@@ -399,6 +402,7 @@ model MessageReply {
   moderationCategories Json?
   senderReadAt       DateTime?          @db.Timestamptz(3)
   senderDeletedAt    DateTime?          @db.Timestamptz(3)
+  authorDeletedAt    DateTime?          @db.Timestamptz(3)
   notifiedAt         DateTime?          @db.Timestamptz(3)
   hiddenAt           DateTime?          @db.Timestamptz(3)
   hiddenReason       String?            @db.Text
@@ -407,10 +411,13 @@ model MessageReply {
 
   message   Message          @relation(fields: [messageId], references: [id], onDelete: Cascade)
   recipient MessageRecipient @relation(fields: [messageRecipientId], references: [id], onDelete: Cascade)
+  author    User?            @relation("ReplyAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   notifications NotificationLog[] @relation("ReplyNotifications")
 
   @@index([messageId, createdAt])
   @@index([messageRecipientId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@index([authorDeletedAt, createdAt])
   @@index([senderDeletedAt, createdAt])
   @@index([senderReadAt, createdAt])
   @@index([status, createdAt])
@@ -482,6 +489,7 @@ model NotificationLog {
   nextRetryAt        DateTime?             @db.Timestamptz(3)
   attemptedAt        DateTime?             @db.Timestamptz(3)
   sentAt             DateTime?             @db.Timestamptz(3)
+  readAt             DateTime?             @db.Timestamptz(3)
   createdAt          DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
 
@@ -492,6 +500,7 @@ model NotificationLog {
 
   @@index([messageRecipientId, channel])
   @@index([targetUserId, eventType, createdAt])
+  @@index([targetUserId, readAt, createdAt])
   @@index([messageReplyId])
   @@index([messageCollectionId])
   @@index([status, scheduledAt])
@@ -595,6 +604,33 @@ model MessageCollectionSubmission {
   @@index([collectionId, ipHash, createdAt])
   @@index([status, createdAt])
   @@index([ownerReadAt, createdAt])
+}
+
+model DailyLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  text        String   @db.Text
+  poemTitle   String   @db.VarChar(120)
+  poet        String   @db.VarChar(80)
+  sourceNote  String?  @db.VarChar(255)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  selections DailyLineSelection[]
+
+  @@index([isActive, sortOrder])
+}
+
+model DailyLineSelection {
+  date        String   @id @db.VarChar(10)
+  dailyLineId String   @db.Uuid
+  selectedAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  dailyLine DailyLine @relation(fields: [dailyLineId], references: [id], onDelete: Restrict)
+
+  @@index([dailyLineId])
+  @@index([selectedAt])
 }
 
 model Friendship {

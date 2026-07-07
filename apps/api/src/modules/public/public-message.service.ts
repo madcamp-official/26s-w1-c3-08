@@ -87,7 +87,7 @@ export async function getPublicMessage(rawToken: string) {
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
     })),
-    senderName: message.isSenderHidden ? null : message.sender.nickname,
+    senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
     arrivedAt: message.isDateHidden ? null : message.sentAt,
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,

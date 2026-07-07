@@ -19,3 +19,56 @@ export type ReceiverInfo = {
   userId?: string;
   preferredChannel?: "AUTO" | "SMS" | "EMAIL";
 };
+
+export type NotificationEventType =
+  | "MESSAGE_SENT"
+  | "ARRIVAL_HINT"
+  | "REPLY_RECEIVED"
+  | "COLLECTION_DELIVERED"
+  | "SYSTEM";
+
+export type NotificationSummaryResponse = {
+  unreadCount: number;
+};
+
+export type NotificationListItem = {
+  id: string;
+  eventType: NotificationEventType;
+  title: string;
+  body: string;
+  href: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type NotificationListResponse = {
+  unreadCount: number;
+  notifications: NotificationListItem[];
+};
+
+export type DailyLineResponse = {
+  dailyLine: {
+    date: string;
+    text: string;
+    poemTitle: string;
+    poet: string;
+  };
+};
+
+export type MessageReplyListItem = {
+  replyId: string;
+  messageId: string;
+  messageTitle: string;
+  senderDisplayName?: string | null;
+  isAnonymous?: boolean;
+  preview: string;
+  createdAt: string;
+  senderReadAt?: string | null;
+  senderName?: string | null;
+  receiverName?: string | null;
+  receiverType?: ReceiverType;
+};
+
+export type MessageRepliesResponse = {
+  replies: MessageReplyListItem[];
+};

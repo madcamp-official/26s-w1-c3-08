@@ -234,18 +234,18 @@ function severityScore(severity: MessageSafetyAssessment["severity"]) {
 }
 
 function detectKoreanAbuse(text: string): ModerationBlockedResult | null {
-  const normalized = text
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}ㄱ-ㅎㅏ-ㅣ]+/gu, "");
+  const normalized = normalizeKoreanAbuseText(text);
   const patterns = [
-    /개(?:새|세|쌔|쉐)끼/,
+    /개(?:새|세|쌔|쎄|섀|쉐|쉑)끼?/,
     /개자식/,
-    /씨발|시발|씨바|시바|ㅅㅂ|ㅆㅂ/,
-    /병신|븅신|ㅂㅅ/,
-    /좆|존나|ㅈ같/,
-    /지랄|ㅈㄹ/,
-    /씹(?:새|세|쌔|쉐)?끼?/,
+    /씨발|시발|쉬발|쒸발|씨바|시바|쉬바|쒸바|ㅅㅂ|ㅆㅂ/,
+    /미친(?:놈|년|새끼|쉐끼|섀끼|새키)?|ㅁㅊ/,
+    /멍청(?:이|한|해|하)?/,
+    /병신|븅신|빙신|븽신|ㅂㅅ/,
+    /좆|존나|졸라|ㅈ나|ㅈㄴ|ㅈ같/,
+    /지랄|쥐랄|ㅈㄹ/,
+    /꺼져|ㄲㅈ/,
+    /씹(?:새|세|쌔|쎄|섀|쉐|쉑)?끼?/,
     /땅딸보|땡중|멸거지|돌마니|돌추/,
     /똥개|똥꼬충|딸빵|딸딸이|딸피/,
     /마스터베이션아미|masturbationarmy/,
@@ -270,4 +270,13 @@ function detectKoreanAbuse(text: string): ModerationBlockedResult | null {
       "korean/profanity": 1,
     },
   };
+}
+
+function normalizeKoreanAbuseText(text: string) {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[0-9０-９]/g, "")
+    .replace(/[^\p{L}ㄱ-ㅎㅏ-ㅣ]+/gu, "")
+    .replace(/(.)\1{2,}/gu, "$1$1");
 }

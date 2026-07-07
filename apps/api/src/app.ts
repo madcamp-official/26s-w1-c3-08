@@ -9,8 +9,10 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { collectionRoutes } from "./modules/collections/collection.routes.js";
 import { contactRoutes } from "./modules/contacts/contact.routes.js";
+import { dailyLineRoutes } from "./modules/daily-line/daily-line.routes.js";
 import { friendRoutes } from "./modules/friends/friend.routes.js";
 import { messageRoutes } from "./modules/messages/message.routes.js";
+import { notificationRoutes } from "./modules/notifications/notification.routes.js";
 import { publicMessageRoutes } from "./modules/public/public-message.routes.js";
 import { reportRoutes } from "./modules/reports/report.routes.js";
 
@@ -46,8 +48,10 @@ export function createApp() {
   app.use("/api", adminRoutes);
   app.use("/api", collectionRoutes);
   app.use("/api", contactRoutes);
+  app.use("/api", dailyLineRoutes);
   app.use("/api", friendRoutes);
   app.use("/api", messageRoutes);
+  app.use("/api", notificationRoutes);
   app.use("/api", reportRoutes);
   app.use("/api", publicMessageRoutes);
 
