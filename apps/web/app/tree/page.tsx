@@ -232,7 +232,7 @@ export default function TreePage() {
               <p className="mt-2 text-sm text-[#A2A6BF]">
                 {selected.status === "DELIVERED"
                   ? `${selected.submissionCount}개의 마음이 도착했어요.`
-                  : `아직 도착 전이에요. 현재 ${selected.submissionCount}개의 마음이 모였어요.`}
+                  : "마음이 오는 중이에요. 도착까지 기다려 주세요."}
               </p>
               {selected.submissions && selected.submissions.length > 0 ? (
                 <div className="mt-4 grid gap-3">

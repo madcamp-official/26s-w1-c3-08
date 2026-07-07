@@ -101,7 +101,7 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <div className="grid w-full max-w-[1500px] gap-[25px] xl:grid-cols-[minmax(0,1fr)_265px]">
+      <div className="grid w-full gap-[25px] xl:grid-cols-[minmax(0,1fr)_265px]">
         <section className="maeari-hero-card maeari-hero-night relative min-h-[520px] overflow-hidden p-6 sm:min-h-[430px] sm:p-[38px] xl:min-h-[380px] xl:p-[42px]">
           <Image src="/images/maeari-hero-night.png" alt="" fill sizes="(min-width: 1280px) 1200px, calc(100vw - 32px)" className="object-cover object-bottom" priority />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(38,29,91,0.54)_0%,rgba(75,47,132,0.28)_48%,rgba(57,38,111,0.04)_100%)]" />

@@ -190,7 +190,7 @@ export default function InboxPage() {
             className="focus-ring maeari-action"
           >
             <Archive size={16} />
-            아카이브
+            마음 보관함
           </Link>
           <button
             type="button"

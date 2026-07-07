@@ -5,14 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { BarChart3, ChevronDown, Heart, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
+import { Archive, BarChart3, ChevronDown, Heart, Home, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
   { href: "/write", label: "마음 보내기", icon: Send },
   { href: "/inbox", label: "받은 마음", icon: Heart },
-  { href: "/sent", label: "보낸 마음", icon: Inbox },
+  { href: "/archive", label: "마음 보관함", icon: Archive },
   { href: "/tree", label: "마음나무", icon: Sprout },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/reports", label: "리포트", icon: BarChart3 },
@@ -21,7 +21,6 @@ const navItems = [
 const mobileNavItems = [
   { href: "/write", label: "쓰기", icon: Send },
   { href: "/inbox", label: "받은 마음", icon: Heart },
-  { href: "/sent", label: "보낸 마음", icon: Inbox },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/my", label: "내 정보", icon: UserRound },
 ];
@@ -126,7 +125,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       </aside>
 
       <main className="maeari-stage min-h-screen px-4 pb-24 pt-[92px] lg:ml-[221px] lg:min-h-screen lg:px-0 lg:pb-0 lg:pt-[74px]">
-        <div className="mx-auto w-full max-w-[1500px] lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
+        <div className="mx-auto w-full lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
           {children}
         </div>
       </main>
