@@ -72,7 +72,7 @@ export default function PublicTreePage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <Image
-            src="/images/maeari-app-icon.png"
+            src="/images/maeari_logo.png"
             alt="매아리"
             width={42}
             height={42}

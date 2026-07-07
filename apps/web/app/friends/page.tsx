@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { FormEvent, useEffect, useState } from "react";
-import Image from "next/image";
 import { Copy, Link2, UserPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
@@ -216,15 +215,10 @@ export default function FriendsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1146px]">
-        <header className="maeari-hero-card mb-[24px] grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
-          <div>
-            <h1 className="text-[34px] font-bold leading-tight text-[#3A3D8D]">친구</h1>
-            <p className="mt-2 text-sm leading-6 text-[#A2A6BF]">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
-          </div>
-          <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
-            <Image src="/images/maeari-heart-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
-          </div>
+      <div className="w-full max-w-[1146px]">
+        <header className="mb-[24px] pl-[5px]">
+          <h1 className="maeari-page-title">친구</h1>
+          <p className="maeari-page-copy mt-2">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
         </header>
 
         {notice ? (
@@ -233,46 +227,46 @@ export default function FriendsPage() {
           </div>
         ) : null}
 
-        <section className="mb-5 grid gap-4 lg:grid-cols-[378px_558px]">
-          <div className="figma-panel p-[18px]">
+        <section className="mb-5 grid w-full gap-4 lg:grid-cols-2">
+          <div className="figma-panel min-w-0 p-[18px]">
             <p className="text-[15px] text-[#6A6F88]">내 친구 코드</p>
-            <div className="mt-[10px] flex h-[41px] items-center rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD]">
-              <code className="min-w-0 flex-1 px-4 font-mono text-[20px] font-bold text-[#9478E7]">
+            <div className="mt-[12px] flex min-h-[58px] items-center gap-3 rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD] p-2">
+              <code className="min-w-0 flex-1 truncate px-3 font-mono text-[22px] font-bold text-[#9478E7]">
                 {me?.friendCode ?? (loading ? "불러오는 중" : "코드 없음")}
               </code>
               <button
                 type="button"
                 disabled={!me?.friendCode}
                 onClick={() => me?.friendCode && void navigator.clipboard.writeText(me.friendCode)}
-                className="focus-ring maeari-action mr-1 h-[33px] w-[93px] text-[13px] disabled:opacity-50"
+                className="focus-ring maeari-action h-[44px] min-w-[136px] border-[#B59CFF] text-[16px] text-[#9478E7] disabled:opacity-50"
               >
-                <Copy size={15} />
+                <Copy size={21} />
                 복사
               </button>
             </div>
           </div>
 
-          <form onSubmit={sendRequest} className="figma-panel p-[18px]">
+          <form onSubmit={sendRequest} className="figma-panel min-w-0 p-[18px]">
             <p className="text-[16px] text-[#626781]">친구 요청 보내기</p>
-            <div className="mt-[11px] grid gap-2 md:grid-cols-[1fr_1fr_79px]">
+            <div className="mt-[12px] grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
               <input
                 required
                 value={friendCode}
                 onChange={(event) => setFriendCode(event.target.value.toUpperCase())}
                 placeholder="친구 코드 입력"
-                className="focus-ring maeari-input h-[38px] px-3 text-sm"
+                className="focus-ring maeari-input h-[44px] min-w-0 px-3 text-sm"
               />
               <input
                 value={requestMessage}
                 maxLength={120}
                 onChange={(event) => setRequestMessage(event.target.value)}
                 placeholder="짧은 메시지"
-                className="focus-ring maeari-input h-[38px] px-3 text-sm"
+                className="focus-ring maeari-input h-[44px] min-w-0 px-3 text-sm"
               />
               <button
                 type="submit"
                 disabled={submitting}
-                className="focus-ring maeari-action maeari-action-primary h-[38px] disabled:opacity-50"
+                className="focus-ring maeari-action maeari-action-primary h-[44px] whitespace-nowrap px-5 disabled:opacity-50"
               >
                 <UserPlus size={15} />
                 요청
@@ -333,7 +327,7 @@ export default function FriendsPage() {
             <div className="mt-3 grid gap-2">
               {activeInvites.map((invite) => (
                 <div key={invite.id} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-3 py-2 text-sm">
-                  <span className="text-[#8588A1]">
+                  <span className="min-w-0 flex-1 break-keep text-[#8588A1]">
                     초대 링크 {invite.tokenPreview ? `#${invite.tokenPreview}` : ""} · {formatDateTime(invite.expiresAt)} 만료
                   </span>
                   <button
@@ -352,8 +346,8 @@ export default function FriendsPage() {
           {candidates.length > 0 ? (
             <div className="mt-4 grid gap-2">
               {candidates.map((candidate) => (
-                <div key={candidate.userId} className="flex items-center justify-between rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-4 py-3">
-                  <div>
+                <div key={candidate.userId} className="flex items-center justify-between gap-3 rounded-[8px] border border-[#E9E2F4] bg-[#F9F7FD] px-4 py-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#6A6F87]">{candidate.nickname}</p>
                     <p className="mt-1 font-mono text-xs text-[#A2A6BF]">{candidate.friendCode}</p>
                   </div>
@@ -466,15 +460,15 @@ function EmptyFriendBlock({ title, body }: { title: string; body: string }) {
 
 function FriendRow({ title, body, action }: { title: string; body: string; action: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3">
+    <div className="flex w-full flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <span className="h-9 w-9 rounded-[8px] bg-[#E9D8FF]" />
-        <div>
-          <p className="text-base text-[#696E86]">{title}</p>
-          <p className="mt-1 text-xs text-[#BABDC9]">{body}</p>
+        <div className="min-w-0">
+          <p className="truncate text-base text-[#696E86]">{title}</p>
+          <p className="mt-1 break-keep text-xs text-[#BABDC9]">{body}</p>
         </div>
       </div>
-      {action}
+      <div className="flex shrink-0 justify-end">{action}</div>
     </div>
   );
 }

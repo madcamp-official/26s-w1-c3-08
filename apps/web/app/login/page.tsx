@@ -10,7 +10,7 @@ export default function LoginPage() {
       <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
-            src="/images/maeari-app-icon.png"
+            src="/images/maeari_logo.png"
             alt="매아리"
             width={42}
             height={42}
@@ -41,7 +41,7 @@ export default function LoginPage() {
         <aside className="figma-panel order-1 flex min-h-[360px] flex-col justify-between p-[31px] sm:min-h-[430px] lg:order-2 lg:min-h-[520px]">
           <div>
             <div className="relative mb-[38px] h-[64px] w-[64px] overflow-hidden rounded-[8px] border border-[#F1EEF8] bg-[#F3EEFD]">
-              <Image src="/images/maeari-app-icon.png" alt="" fill sizes="64px" className="object-cover" priority />
+              <Image src="/images/maeari_logo.png" alt="" fill sizes="64px" className="object-cover" priority />
             </div>
             <p className="text-sm font-bold text-[#6D48DB]">카카오로 시작하기</p>
             <h2 className="mt-[17px] text-[30px] font-bold leading-[1.32] text-[#3A3D8D]">
