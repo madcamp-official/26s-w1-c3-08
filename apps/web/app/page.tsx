@@ -40,6 +40,13 @@ type MessageThumbnail = {
   url: string;
 };
 
+const homeRecentThumbnails = [
+  "/images/KakaoTalk_Photo_2026-07-06-21-56-35 001.png",
+  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 002.png",
+  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 003.png",
+  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 004.png",
+];
+
 export default function HomePage() {
   const router = useRouter();
   const [sentMessages, setSentMessages] = useState<SentMessage[]>([]);
@@ -269,8 +276,13 @@ function formatRecentMessage(message: InboxMessage) {
     meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
-    thumbnailUrl: message.thumbnail?.url,
+    thumbnailUrl: homeRecentThumbnailFor(message.id),
   };
+}
+
+function homeRecentThumbnailFor(id: string) {
+  const hash = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return homeRecentThumbnails[hash % homeRecentThumbnails.length];
 }
 
 function formatShortDate(value: string) {

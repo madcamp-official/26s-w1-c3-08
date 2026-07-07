@@ -348,8 +348,12 @@ export default function SentPage() {
           ) : null}
         </button>
       </div>
-      {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
-      {error ? <Notice title={error} tone="danger" /> : null}
+      {notice || error ? (
+        <div className="mb-5 space-y-3">
+          {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
+          {error ? <Notice title={error} tone="danger" /> : null}
+        </div>
+      ) : null}
       {viewMode === "MESSAGES" ? (
         <>
       {emotionFilters.length > 0 ? (
