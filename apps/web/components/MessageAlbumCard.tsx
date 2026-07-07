@@ -51,9 +51,6 @@ export function MessageAlbumCard({
         <div className="mb-3 flex min-h-[40px] items-end justify-between gap-3">
           <div className="min-w-0">
             <h2 className="line-clamp-1 text-[15px] font-semibold drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]">{message.title}</h2>
-            {message.preview ? (
-              <p className="mt-1 line-clamp-1 text-xs text-white/78 drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]">{message.preview}</p>
-            ) : null}
           </div>
           <MoreHorizontal size={19} className="shrink-0 text-white/90" />
         </div>
