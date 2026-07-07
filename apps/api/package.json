@@ -4,16 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @maeari/shared build",
     "dev": "tsx watch src/server.ts",
+    "predev:scheduler": "pnpm --filter @maeari/shared build",
     "dev:scheduler": "tsx watch src/scheduler.ts",
+    "prebuild": "pnpm --filter @maeari/shared build",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:scheduler": "node dist/scheduler.js",
+    "pretypecheck": "pnpm --filter @maeari/shared build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@maeari/database": "workspace:*",
+    "@maeari/shared": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

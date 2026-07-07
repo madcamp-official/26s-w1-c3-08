@@ -1,9 +1,12 @@
-import type { Message, MessageAccessToken, MessageRecipient, User } from "@maeari/database";
+import type { Message, MessageAccessToken, MessageAttachment, MessageRecipient, User } from "@maeari/database";
+import { messageThemeEnvelopeByTheme, type MessageTheme as SharedMessageTheme } from "@maeari/shared";
 import { config } from "../../config/env.js";
 
 type RecipientWithAccessToken = MessageRecipient & {
   accessTokens?: MessageAccessToken[];
 };
+
+type MessageThumbnailAttachment = Pick<MessageAttachment, "id" | "publicUrl" | "originalName">;
 
 export function toPublicUrl(rawToken?: string | null) {
   if (!rawToken) {
@@ -16,9 +19,12 @@ export function toPublicUrl(rawToken?: string | null) {
 export function mapMessageListItem(
   message: Message & {
     recipients: RecipientWithAccessToken[];
+    attachments?: MessageThumbnailAttachment[];
   },
 ) {
   const recipient = message.recipients[0];
+  const themeEnvelope = getMessageThemeEnvelope(message.theme);
+  const thumbnail = buildMessageThumbnail(message.attachments, themeEnvelope);
 
   return {
     id: message.id,
@@ -37,6 +43,8 @@ export function mapMessageListItem(
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     moderationNextRetryAt: message.moderationNextRetryAt,
+    thumbnail,
+    themeEnvelope,
     receiver: recipient
       ? {
           id: recipient.id,
@@ -69,10 +77,17 @@ export function mapReceivedItem(
     accessTokens?: Pick<MessageAccessToken, "linkedAt" | "linkedUserId">[];
     message: Message & {
       sender: Pick<User, "id" | "nickname">;
+      attachments?: MessageThumbnailAttachment[];
+      _count?: {
+        attachments: number;
+      };
     };
   },
 ) {
   const message = recipient.message;
+  const coverAttachment = message.attachments?.[0] ?? null;
+  const themeEnvelope = getMessageThemeEnvelope(message.theme);
+  const thumbnail = buildMessageThumbnail(message.attachments, themeEnvelope);
 
   return {
     id: message.id,
@@ -82,11 +97,48 @@ export function mapReceivedItem(
     emotionTag: message.emotionTag,
     customEmotionTag: message.customEmotionTag,
     theme: message.theme,
+    coverImageUrl: coverAttachment?.publicUrl ?? null,
+    coverImageAlt: coverAttachment?.originalName ?? null,
+    attachmentCount: message._count?.attachments ?? message.attachments?.length ?? 0,
+    themeEnvelope,
     senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
     arrivedAt: message.isDateHidden ? null : message.sentAt,
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     readAt: recipient.readAt,
     linkedAt: recipient.accessTokens?.find((token) => token.linkedUserId === recipient.receiverUserId)?.linkedAt ?? null,
+    thumbnail,
   };
+}
+
+export function getMessageThemeEnvelope(theme?: string | null) {
+  const normalizedTheme = isMessageTheme(theme) ? theme : "LAVENDER";
+  return messageThemeEnvelopeByTheme[normalizedTheme];
+}
+
+function buildMessageThumbnail(
+  attachments: MessageThumbnailAttachment[] | undefined,
+  themeEnvelope: ReturnType<typeof getMessageThemeEnvelope>,
+) {
+  const firstAttachment = attachments?.[0];
+
+  if (firstAttachment?.publicUrl) {
+    return {
+      url: firstAttachment.publicUrl,
+      source: "ATTACHMENT" as const,
+      attachmentId: firstAttachment.id,
+      alt: firstAttachment.originalName ?? null,
+    };
+  }
+
+  return {
+    url: themeEnvelope.imageUrl,
+    source: "THEME" as const,
+    attachmentId: null,
+    alt: themeEnvelope.alt,
+  };
+}
+
+function isMessageTheme(theme?: string | null): theme is SharedMessageTheme {
+  return typeof theme === "string" && theme in messageThemeEnvelopeByTheme;
 }

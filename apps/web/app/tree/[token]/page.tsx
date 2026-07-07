@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Send } from "lucide-react";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -70,7 +71,7 @@ export default function PublicTreePage() {
   return (
     <main className="maeari-public-stage px-4 py-8 text-[#4E536B]">
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center gap-3">
+        <Link href="/" className="focus-ring mb-6 flex w-fit items-center gap-3 rounded-[8px]">
           <Image
             src="/images/maeari_logo.png"
             alt="매아리"
@@ -80,7 +81,7 @@ export default function PublicTreePage() {
             priority
           />
           <span className="maeari-logo-text text-xl text-[#6D48DB]">매아리 마음나무</span>
-        </div>
+        </Link>
 
         {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
         {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}

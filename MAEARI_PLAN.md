@@ -390,6 +390,17 @@
 - 프롬프트는 공개저작물로 판단 가능한 고전 시만 사용하도록 제한하고, 최신/저작권 불명 작품은 인용하지 않도록 합니다.
 - OpenAI 생성 실패 시 `DAILY_LINE_GENERATION_FAILED`로 실패하며, mock/dummy/seed 문구는 만들지 않습니다.
 
+### 0.2.5.9 마음 목록 thumbnail backend 계약
+
+- `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`의 각 message에 `thumbnail` 객체를 추가합니다.
+- `thumbnail.source="ATTACHMENT"`이면 첫 번째 첨부 이미지의 `publicUrl`을 `thumbnail.url`로 반환합니다.
+- 첨부 이미지가 없으면 선택된 봉투 테마의 `themeEnvelope.imageUrl`을 `thumbnail.url`로 사용하고 `thumbnail.source="THEME"`로 반환합니다.
+- `packages/shared`는 `messageThemeOptions`와 `messageThemeEnvelopeByTheme`로 `LAVENDER`, `MOSS`, `SUNSET`, `MIDNIGHT`, `PAPER`의 label/imageUrl/alt 계약을 제공합니다.
+- `POST /api/messages`, 목록, 상세, 공개 도착 응답은 모두 `themeEnvelope`을 제공합니다.
+- `/api/messages/received`와 `/api/messages/archived`는 앨범형 UI를 위해 `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`도 제공합니다.
+- frontend는 메인/수신함/발신함/아카이브 card의 `LetterThumb` 또는 앨범 card 배경에 `thumbnail.url`을 넣으면 되고, 앨범 UI에서 첨부 우선 규칙을 직접 제어하려면 `coverImageUrl ?? themeEnvelope.imageUrl`을 사용합니다.
+- 이 변경은 목록 응답 파생 필드와 정적 asset 추가이므로 DB migration은 만들지 않습니다.
+
 ---
 
 ## 0.3 구현 원칙

@@ -18,6 +18,7 @@ export default function LinkFailedPage() {
     <main className="maeari-public-stage text-[#4E536B]">
       <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
+          <Link href="/" className="focus-ring flex items-center rounded-[8px]">
           <Image
             src="/images/maeari_logo.png"
             alt="매아리"
@@ -27,6 +28,7 @@ export default function LinkFailedPage() {
             priority
           />
           <span className="maeari-logo-text ml-3 text-[25px] text-[#6D48DB]">매아리</span>
+          </Link>
         </div>
       </header>
 

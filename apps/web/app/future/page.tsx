@@ -13,6 +13,7 @@ import { emotionLabel, formatDateTime, statusLabel } from "@/lib/format";
 type SentMessage = {
   id: string;
   title: string;
+  thumbnail?: MessageThumbnail | null;
   emotionTag?: string | null;
   customEmotionTag?: string | null;
   scheduledAt: string;
@@ -22,6 +23,11 @@ type SentMessage = {
     type: string;
     name?: string | null;
   } | null;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function FutureSelfPage() {
@@ -133,7 +139,7 @@ export default function FutureSelfPage() {
             href={`/messages/${message.id}`}
             className="focus-ring maeari-letter-surface flex gap-4 p-4 transition hover:-translate-y-0.5 hover:border-[#6D48DB]"
           >
-            <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
+            <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap gap-2">
                 <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">

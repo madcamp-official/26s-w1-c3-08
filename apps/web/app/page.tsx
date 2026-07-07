@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox, Plus, Send, Sparkles } from "lucide-react";
+import { Heart, Inbox, Plus, Send, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -32,6 +32,12 @@ type InboxMessage = {
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
+  thumbnail?: MessageThumbnail | null;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function HomePage() {
@@ -101,9 +107,9 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <div className="grid max-w-[1190px] gap-[25px] xl:grid-cols-[minmax(0,1fr)_265px]">
-        <section className="maeari-hero-card maeari-hero-night relative min-h-[520px] overflow-hidden p-6 sm:min-h-[430px] sm:p-[38px] xl:col-span-2 xl:min-h-[380px] xl:p-[42px]">
-          <Image src="/images/maeari-hero-night.png" alt="" fill sizes="(min-width: 1024px) 1190px, calc(100vw - 32px)" className="object-cover object-bottom" priority />
+      <div className="grid w-full gap-[25px] xl:grid-cols-[minmax(0,1fr)_265px]">
+        <section className="maeari-hero-card maeari-hero-night relative min-h-[520px] overflow-hidden p-6 sm:min-h-[430px] sm:p-[38px] xl:min-h-[380px] xl:p-[42px]">
+          <Image src="/images/maeari-hero-night.png" alt="" fill sizes="(min-width: 1280px) 1200px, calc(100vw - 32px)" className="object-cover object-bottom" priority />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(38,29,91,0.54)_0%,rgba(75,47,132,0.28)_48%,rgba(57,38,111,0.04)_100%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_54%,rgba(255,215,236,0.2),transparent_35%)]" />
 
@@ -144,30 +150,44 @@ export default function HomePage() {
                 href="/inbox"
                 className="focus-ring maeari-action h-[49px] w-full border-white/70 bg-white/92 text-sm text-[#6D48DB] shadow-[0_14px_30px_rgba(35,24,84,0.22)] sm:w-[167px]"
               >
-                <Inbox size={17} />
+                <Heart size={17} />
                 받은 마음 보기
               </Link>
             </div>
           </div>
         </section>
 
-        <aside className="figma-panel hidden px-[22px] py-[24px] xl:col-span-2 xl:block">
+        <aside className="figma-panel hidden self-stretch px-[22px] py-[24px] xl:block">
           <h2 className="maeari-display-title mb-6 text-[24px] text-[#555777]">곧 찾아갈 마음</h2>
-          <ol className="grid gap-3 xl:grid-cols-4">
+          <ol className="relative ml-[12px] border-l border-[#E7E2F1] pl-[23px]">
             {timelineItems.map((item, index, items) => (
-              <li key={item.id} className="relative rounded-[8px] border border-[#EEE8FD] bg-[#FBF9FF] px-4 py-3">
-                <span className="mb-3 block h-[14px] w-[14px] rounded-full bg-[#6D48DB]" />
+              <li key={item.id} className={index === items.length - 1 ? "relative pb-0" : "relative pb-[31px]"}>
+                <span className="absolute -left-[30px] top-[5px] h-[14px] w-[14px] rounded-full bg-[#6D48DB]" />
                 <p className="text-[15px] font-semibold text-[#8D79D6]">{item.date}</p>
                 <p className="mt-2 break-keep text-sm leading-5 text-[#A8ABBD]">{item.label}</p>
-                {index < items.length - 1 ? <div className="absolute right-[-10px] top-1/2 hidden h-px w-[20px] bg-[#EDE9F4] xl:block" /> : null}
+                {index < items.length - 1 ? <div className="mt-[20px] h-px w-full bg-[#EDE9F4]" /> : null}
               </li>
             ))}
           </ol>
         </aside>
 
+        <section className="xl:hidden">
+          <div className="figma-panel p-5">
+            <h2 className="maeari-display-title mb-5 text-[22px] text-[#555777]">곧 찾아갈 마음</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {timelineItems.map((item) => (
+                <div key={item.id} className="rounded-[8px] bg-[#F3EEFD] px-4 py-3">
+                  <p className="font-semibold text-[#8D79D6]">{item.date}</p>
+                  <p className="mt-1 text-sm text-[#A8ABBD]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="xl:col-span-2">
-          <div className="mb-[17px] flex items-center justify-between px-[26px]">
-            <h2 className="text-xl font-bold text-[#71738C]">최근 보관한 마음</h2>
+          <div className="mb-[17px] flex items-center justify-between">
+            <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 찾아온 마음</h2>
             <Link
               href="/archive"
               className="focus-ring inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs text-[#9A9CB0]"
@@ -185,7 +205,7 @@ export default function HomePage() {
                   className="focus-ring maeari-letter-surface relative h-[193px] p-4 transition hover:-translate-y-0.5 hover:border-[#CBBBFA]"
                 >
                   <div className="flex gap-[9px]">
-                    <LetterThumb className="h-[84px] w-[63px] shrink-0" />
+                    <LetterThumb src={letter.thumbnailUrl} className="h-[84px] w-[63px] shrink-0" />
                     <div className="pt-1">
                       <p className="text-[15px] font-medium text-[#797A94]">{letter.title}</p>
                       <p className="mt-1 line-clamp-2 text-[15px] font-medium text-[#7B7D97]">{letter.body}</p>
@@ -212,26 +232,13 @@ export default function HomePage() {
                   {loading ? "마음을 불러오고 있어요." : "아직 첫 마음이 도착하지 않았어요."}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-[#9EA2B7]">
-                  {loading ? "최근 보관한 마음을 확인하는 중이에요." : "첫 마음이 도착하면 이곳에서 가장 최근에 보관한 마음을 보여드릴게요."}
+                  {loading ? "최근 찾아온 마음을 확인하는 중이에요." : "첫 마음이 도착하면 이곳에서 가장 최근에 찾아온 마음을 보여드릴게요."}
                 </p>
               </div>
             </div>
           )}
         </section>
 
-        <section className="xl:hidden">
-          <div className="figma-panel p-5">
-            <h2 className="maeari-display-title mb-5 text-[22px] text-[#555777]">곧 찾아갈 마음</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {timelineItems.map((item) => (
-                <div key={item.id} className="rounded-[8px] bg-[#F3EEFD] px-4 py-3">
-                  <p className="font-semibold text-[#8D79D6]">{item.date}</p>
-                  <p className="mt-1 text-sm text-[#A8ABBD]">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
     </AppShell>
   );
@@ -239,10 +246,7 @@ export default function HomePage() {
 
 function createTimelineFallback() {
   return [
-    { id: "fallback-today", date: "오늘", label: "새 마음을 기다리는 중" },
-    { id: "fallback-week", date: "1주 뒤", label: "미래의 나" },
-    { id: "fallback-month", date: "1개월 뒤", label: "고마움" },
-    { id: "fallback-tree", date: "마음나무", label: "링크로 모은 마음" },
+    { id: "fallback-tree", date: "마음나무", label: "직접 모은 마음을 기다리고 있어요" },
   ];
 }
 
@@ -265,6 +269,7 @@ function formatRecentMessage(message: InboxMessage) {
     meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
+    thumbnailUrl: message.thumbnail?.url,
   };
 }
 

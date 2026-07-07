@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, LogOut, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, LogOut, Plus, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -40,6 +40,7 @@ export default function MyPage() {
   const [contactValue, setContactValue] = useState("");
   const [contactLabel, setContactLabel] = useState("");
   const [verificationCodes, setVerificationCodes] = useState<Record<string, string>>({});
+  const [activeVerificationContactId, setActiveVerificationContactId] = useState<string | null>(null);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [creatingContact, setCreatingContact] = useState(false);
   const [busyContactId, setBusyContactId] = useState<string | null>(null);
@@ -144,6 +145,7 @@ export default function MyPage() {
         body: JSON.stringify({ code: verificationCodes[contactId] ?? "" }),
       });
       setVerificationCodes((previous) => ({ ...previous, [contactId]: "" }));
+      setActiveVerificationContactId(null);
       setNotice({ title: "연락처 인증이 완료됐어요.", tone: "success" });
       await loadContacts();
     } catch (caught) {
@@ -155,6 +157,8 @@ export default function MyPage() {
       setBusyContactId(null);
     }
   }
+
+  const activeVerificationContact = contacts.find((contact) => contact.id === activeVerificationContactId) ?? null;
 
   async function deleteContact(contactId: string) {
     setBusyContactId(contactId);
@@ -261,15 +265,24 @@ export default function MyPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {!isVerified ? (
-                        <button
-                          type="button"
-                          onClick={() => void sendCode(contact.id)}
-                          disabled={isBusy}
-                          className="focus-ring maeari-action h-9 px-3 disabled:opacity-50"
-                        >
-                          <RefreshCw size={15} />
-                          재발송
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void sendCode(contact.id)}
+                            disabled={isBusy}
+                            className="focus-ring maeari-action h-9 px-3 disabled:opacity-50"
+                          >
+                            <RefreshCw size={15} />
+                            재발송
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveVerificationContactId(contact.id)}
+                            className="focus-ring maeari-action maeari-action-primary h-9 px-3"
+                          >
+                            인증하기
+                          </button>
+                        </>
                       ) : null}
                       {isVerifiedPhone ? (
                         <Link
@@ -292,31 +305,6 @@ export default function MyPage() {
                       )}
                     </div>
                   </div>
-                  {!isVerified ? (
-                    <div className="mt-3 grid gap-2 md:grid-cols-[180px_auto]">
-                      <input
-                        value={verificationCodes[contact.id] ?? ""}
-                        onChange={(event) =>
-                          setVerificationCodes((previous) => ({
-                            ...previous,
-                            [contact.id]: event.target.value.replace(/\D/g, "").slice(0, 6),
-                          }))
-                        }
-                        inputMode="numeric"
-                        maxLength={6}
-                        placeholder="6자리 인증번호"
-                        className="focus-ring maeari-input h-9 px-3"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void verifyContact(contact.id)}
-                        disabled={isBusy}
-                        className="focus-ring maeari-action maeari-action-primary h-9 px-4 disabled:opacity-50"
-                      >
-                        인증하기
-                      </button>
-                    </div>
-                  ) : null}
                 </article>
               );
             })}
@@ -379,6 +367,63 @@ export default function MyPage() {
             </div>
           </div>
         </section>
+
+        {activeVerificationContact ? (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-[#3A2D62]/28 px-4 backdrop-blur-sm">
+            <section className="figma-panel w-full max-w-[420px] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-[#4E536B]">인증번호 입력</h2>
+                  <p className="mt-2 text-sm leading-6 text-[#9598AB]">
+                    {activeVerificationContact.maskedValue}로 받은 6자리 번호를 입력해 주세요.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveVerificationContactId(null)}
+                  className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-[8px] text-[#8F93AA] hover:bg-[#F3EEFD] hover:text-[#6D48DB]"
+                  aria-label="인증 팝업 닫기"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <input
+                value={verificationCodes[activeVerificationContact.id] ?? ""}
+                onChange={(event) =>
+                  setVerificationCodes((previous) => ({
+                    ...previous,
+                    [activeVerificationContact.id]: event.target.value.replace(/\D/g, "").slice(0, 6),
+                  }))
+                }
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6자리 인증번호"
+                className="focus-ring maeari-input mt-5 h-11 w-full px-3 text-center text-lg tracking-[0.12em]"
+              />
+
+              <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <button
+                  type="button"
+                  onClick={() => void verifyContact(activeVerificationContact.id)}
+                  disabled={busyContactId === activeVerificationContact.id}
+                  className="focus-ring maeari-action maeari-action-primary h-11 disabled:opacity-50"
+                >
+                  확인
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendCode(activeVerificationContact.id)}
+                  disabled={busyContactId === activeVerificationContact.id}
+                  className="focus-ring maeari-action h-11 px-4 disabled:opacity-50"
+                >
+                  <RefreshCw size={15} />
+                  재발송
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );

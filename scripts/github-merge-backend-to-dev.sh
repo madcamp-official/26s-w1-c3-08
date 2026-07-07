@@ -105,14 +105,11 @@ if [[ "$(git rev-parse "$SOURCE_BRANCH")" != "$(git rev-parse "origin/${SOURCE_B
   exit 1
 fi
 
-if git show-ref --verify --quiet "refs/heads/${TARGET_BRANCH}"; then
-  git switch "$TARGET_BRANCH"
-else
-  git switch -c "$TARGET_BRANCH" "origin/${TARGET_BRANCH}"
-fi
-git merge --ff-only "origin/${TARGET_BRANCH}"
+integration_branch="backend-to-dev-$(date +%Y%m%d%H%M%S)"
+git switch -c "$integration_branch" "origin/${TARGET_BRANCH}"
 git merge --no-ff "$SOURCE_BRANCH" -m "$MERGE_MESSAGE"
 
 GIT_ASKPASS="$askpass_script" GIT_TERMINAL_PROMPT=0 git push -u origin "HEAD:${TARGET_BRANCH}"
 
 git switch "$SOURCE_BRANCH"
+git branch -D "$integration_branch"
