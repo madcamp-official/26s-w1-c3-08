@@ -19,14 +19,14 @@ export default function LinkFailedPage() {
       <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
-            src="/images/maeari-app-icon.png"
+            src="/images/maeari_logo.png"
             alt="매아리"
             width={42}
             height={42}
             className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="ml-3 text-[25px] font-semibold tracking-[0.01em] text-[#6D48DB]">매아리</span>
+          <span className="maeari-logo-text ml-3 text-[25px] text-[#6D48DB]">매아리</span>
         </div>
       </header>
 

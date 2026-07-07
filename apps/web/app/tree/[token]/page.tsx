@@ -72,14 +72,14 @@ export default function PublicTreePage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center gap-3">
           <Image
-            src="/images/maeari-app-icon.png"
+            src="/images/maeari_logo.png"
             alt="매아리"
             width={42}
             height={42}
             className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
             priority
           />
-          <span className="text-xl font-semibold text-[#6D48DB]">매아리 마음나무</span>
+          <span className="maeari-logo-text text-xl text-[#6D48DB]">매아리 마음나무</span>
         </div>
 
         {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
