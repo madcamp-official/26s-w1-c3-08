@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { MoreHorizontal, Paperclip, Star } from "lucide-react";
+import { MoreHorizontal, Paperclip } from "lucide-react";
 
 export type MessageAlbumCardData = {
   id: string;
@@ -43,8 +43,7 @@ export function MessageAlbumCard({
       <Link href={href} className="focus-ring absolute inset-0 rounded-[8px]" aria-label={`${message.title} 자세히 보기`} />
 
       <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-2">
-        {message.unread ? <span className="h-2 w-2 rounded-full bg-[#6D48DB]" aria-hidden="true" /> : null}
-        <Star size={20} strokeWidth={1.7} className="text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]" />
+        {message.unread ? <span className="h-2.5 w-2.5 rounded-full border border-white bg-[#6D48DB] shadow-[0_1px_4px_rgba(0,0,0,0.35)]" aria-hidden="true" /> : null}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 text-white">

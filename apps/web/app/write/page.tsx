@@ -1294,7 +1294,7 @@ function WriteNoticeDialog({
               <button
                 type="button"
                 onClick={onViewSent}
-                className="focus-ring rounded-[8px] border border-[#D9C8FF] bg-white px-3 py-2 text-sm font-semibold text-[#6D48DB]"
+                className="hidden"
               >
                 보낸 마음 보기
               </button>

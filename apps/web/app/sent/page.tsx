@@ -7,7 +7,6 @@ import { Check, Clock3, Copy, Link2, MessageCircle, QrCode, RefreshCw, Send, Tra
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
-import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime, statusLabel } from "@/lib/format";
 
@@ -389,7 +388,6 @@ export default function SentPage() {
           <article key={message.id} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex min-w-0 flex-1 gap-4">
-                <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
