@@ -694,21 +694,105 @@ nginx             -> Backend/infra 담당
 postgres          -> Backend 담당
 ```
 
-## 11.1 Frontend만 변경한 경우
+운영 서버에서 GitHub `main` branch의 최신 코드를 서비스에 적용할 때는 `scripts/deploy-main.sh`를 표준 배포 명령으로 사용합니다.
+
+## 11.1 표준 자동 배포
+
+처음 한 번만 실행 권한을 확인합니다.
+
+```bash
+chmod +x scripts/deploy-main.sh
+```
+
+일반 배포:
+
+```bash
+./scripts/deploy-main.sh
+```
+
+이 스크립트가 수행하는 작업:
+
+```txt
+1. local working tree가 clean 상태인지 확인
+2. origin/main을 fetch
+3. main branch로 전환
+4. git pull --ff-only origin main
+5. pnpm install --frozen-lockfile
+6. pnpm db:validate
+7. pnpm db:generate
+8. pnpm --filter @maeari/api build
+9. pnpm --filter @maeari/web build
+10. pnpm db:deploy
+11. pm2 restart maeari-api --update-env
+12. pm2 restart maeari-scheduler --update-env
+13. pm2 restart maeari-web --update-env
+14. pm2 save
+15. local API/Web health check
+```
+
+기본 health check:
+
+```txt
+API: http://127.0.0.1:4000/api/health
+Web: http://127.0.0.1:3000/
+```
+
+Nginx까지 함께 재시작해야 할 때:
+
+```bash
+RESTART_NGINX=1 ./scripts/deploy-main.sh
+```
+
+DB migration이 없는 배포에서 migration 단계를 건너뛸 때:
+
+```bash
+RUN_MIGRATIONS=0 ./scripts/deploy-main.sh
+```
+
+의존성 설치를 건너뛰고 빠르게 재배포할 때:
+
+```bash
+RUN_INSTALL=0 ./scripts/deploy-main.sh
+```
+
+health check를 임시로 건너뛸 때:
+
+```bash
+SKIP_HEALTHCHECK=1 ./scripts/deploy-main.sh
+```
+
+특정 PM2 서비스만 재시작할 때:
+
+```bash
+PM2_SERVICES="maeari-web" RUN_MIGRATIONS=0 ./scripts/deploy-main.sh
+PM2_SERVICES="maeari-api maeari-scheduler" ./scripts/deploy-main.sh
+```
+
+주의:
+
+```txt
+기본값은 dirty working tree 배포를 막는다.
+운영 배포 전에는 변경사항을 commit/push한 뒤 실행한다.
+ALLOW_DIRTY=1은 스크립트 자체 테스트나 긴급 상황에서만 사용한다.
+git pull은 --ff-only이므로 서버에서 직접 수정한 파일과 충돌이 있으면 배포가 중단된다.
+중단되면 에러를 먼저 해결하고 같은 명령을 다시 실행한다.
+```
+
+## 11.2 Frontend만 변경한 경우
 
 ```bash
 pnpm --filter @maeari/web build
 pm2 restart maeari-web
 ```
 
-## 11.2 Backend API만 변경한 경우
+## 11.3 Backend API만 변경한 경우
 
 ```bash
 pnpm --filter @maeari/api build
 pm2 restart maeari-api
 ```
 
-## 11.3 Scheduler도 변경한 경우
+## 11.4 Scheduler도 변경한 경우
 
 ```bash
 pnpm --filter @maeari/api build
@@ -716,7 +800,7 @@ pm2 restart maeari-api
 pm2 restart maeari-scheduler
 ```
 
-## 11.4 DB migration이 있는 경우
+## 11.5 DB migration이 있는 경우
 
 ```bash
 pnpm db:deploy
@@ -725,7 +809,7 @@ pm2 restart maeari-api
 pm2 restart maeari-scheduler
 ```
 
-## 11.5 env가 추가된 경우
+## 11.6 env가 추가된 경우
 
 ```txt
 1. .env.example 수정
