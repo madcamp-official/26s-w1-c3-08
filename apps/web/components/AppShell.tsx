@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { BarChart3, ChevronDown, Heart, Home, Inbox, Send, Sparkles, TreePine, UserRound, UsersRound } from "lucide-react";
+import { BarChart3, ChevronDown, Heart, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
 
 const navItems = [
@@ -13,10 +13,9 @@ const navItems = [
   { href: "/write", label: "마음 보내기", icon: Send },
   { href: "/inbox", label: "받은 마음", icon: Heart },
   { href: "/sent", label: "보낸 마음", icon: Inbox },
-  { href: "/tree", label: "마음나무", icon: TreePine },
+  { href: "/tree", label: "마음나무", icon: Sprout },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/reports", label: "리포트", icon: BarChart3 },
-  { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
 const mobileNavItems = [
@@ -113,24 +112,21 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           })}
         </nav>
 
-        <div className="relative mx-[15px] mb-9 mt-auto min-h-[237px] w-[185px] shrink-0 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_20px_45px_rgba(122,90,184,0.14)] max-[1100px]:hidden">
+        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_16px_34px_rgba(122,90,184,0.12)]">
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
           <div className="absolute inset-0 bg-white/8" />
-          <div className="absolute inset-0 px-[18px] py-[22px] text-[#4B405E]">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] bg-white/75 text-[#6D48DB]">
-              <Sparkles size={15} />
-            </span>
-            <p className="maeari-sidebar-quote-title mt-3 text-base text-[#4B405E]">오늘의 한 줄</p>
-            <p className="maeari-sidebar-quote-body mt-5 whitespace-pre-line text-[11px] leading-[15px] text-[#636363]">
-              꽃이 피었다고 너에게 쓰고{"\n"}꽃이 졌다고 너에게 쓴다.{"\n"}너에게 쓴 마음이{"\n"}벌써 길이 되었다
+          <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#4B405E]">
+            <p className="maeari-sidebar-quote-title text-[14px] text-[#4B405E]">오늘의 한 줄🌙</p>
+            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(9px,1.15vh,12px)] leading-[1.35] text-[#636363]">
+              꽃이 피었다고 너에게 쓰고{"\n"}꽃이 졌다고 너에게 쓴다.{"\n"}너에게 쓴 마음이 벌써 길이 되었다
             </p>
-            <p className="maeari-sidebar-quote-body mt-3 text-[11px] text-[#636363]">/ 너에게 쓴다, 천양희</p>
+            <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(9px,1.05vh,11px)] text-[#636363]">/ 너에게 쓴다, 천양희</p>
           </div>
         </div>
       </aside>
 
       <main className="maeari-stage min-h-screen px-4 pb-24 pt-[92px] lg:ml-[221px] lg:min-h-screen lg:px-0 lg:pb-0 lg:pt-[74px]">
-        <div className="mx-auto w-full max-w-[1190px] lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
+        <div className="mx-auto w-full max-w-[1500px] lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
           {children}
         </div>
       </main>

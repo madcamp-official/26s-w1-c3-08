@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Sprout, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
@@ -177,7 +177,17 @@ export default function TreePage() {
 
         <section className="grid gap-3">
           {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
-          {!loading && collections.length === 0 ? <Notice title="아직 마음나무가 없어요." /> : null}
+          {!loading && collections.length === 0 ? (
+            <div className="maeari-letter-surface flex min-h-[180px] items-center justify-center p-6 text-center">
+              <div>
+                <span className="mx-auto grid h-16 w-16 place-items-center rounded-[8px] bg-[#F3EEFD] text-[#6D48DB]">
+                  <Sprout size={30} strokeWidth={1.8} />
+                </span>
+                <p className="mt-4 text-lg font-bold text-[#4E536B]">마음나무를 심어주세요.</p>
+                <p className="mt-2 text-sm text-[#A2A6BF]">링크를 만들면 이곳에서 심어둔 마음나무를 확인할 수 있어요.</p>
+              </div>
+            </div>
+          ) : null}
           {collections.map((collection) => (
             <article key={collection.id} className="maeari-letter-surface p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

@@ -982,7 +982,7 @@ export default function WritePage() {
                     key={minute}
                     type="button"
                     onClick={() => applyQuarterMinute(minute)}
-                    className="focus-ring maeari-chip h-7 flex-1 px-1 text-[11px]"
+                    className="focus-ring maeari-chip h-7 flex-1 px-1 text-[11px] !font-normal"
                   >
                     {minute}
                   </button>
@@ -996,7 +996,7 @@ export default function WritePage() {
                   key={key}
                   type="button"
                   onClick={() => applyPreset(key)}
-                  className="focus-ring maeari-chip min-w-0 break-keep px-2 py-2 text-[11px] leading-4"
+                  className="focus-ring maeari-chip min-w-0 break-keep px-2 py-2 text-[11px] !font-normal leading-4"
                 >
                   {label}
                 </button>
@@ -1004,11 +1004,11 @@ export default function WritePage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs ${arrivalMode === "FIXED" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs font-normal ${arrivalMode === "FIXED" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
                 <input type="radio" name="arrivalMode" checked={arrivalMode === "FIXED"} onChange={() => setArrivalMode("FIXED")} className="sr-only" />
                 고정 도착
               </label>
-              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs ${arrivalMode === "RANDOM_WINDOW" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
+              <label className={`focus-ring flex h-9 cursor-pointer items-center justify-center rounded-[8px] border text-xs font-normal ${arrivalMode === "RANDOM_WINDOW" ? "border-[#CBBBFA] bg-[#F3EEFD] text-[#6D48DB]" : "border-[#E3E5EF] text-[#8588A1]"}`}>
                 <input type="radio" name="arrivalMode" checked={arrivalMode === "RANDOM_WINDOW"} onChange={() => setArrivalMode("RANDOM_WINDOW")} className="sr-only" />
                 랜덤 도착
               </label>
@@ -1157,13 +1157,15 @@ function receiverTypeLabel(type: ReceiverType) {
 function emotionIcon(value: string) {
   switch (value) {
     case "THANKS":
-      return "🍀";
+      return "🌷";
     case "CHEER":
-      return "⭐";
+      return "🍀";
     case "CELEBRATION":
       return "🎉";
     case "COMFORT":
       return "🌙";
+    case "LONGING":
+      return "💧";
     case "LOVE":
       return "💗";
     case "CUSTOM":
