@@ -103,7 +103,7 @@ export default function FriendInvitePage() {
       <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Image
-            src="/images/maeari-app-icon.png"
+            src="/images/maeari_logo.png"
             alt="매아리"
             width={42}
             height={42}
@@ -124,7 +124,7 @@ export default function FriendInvitePage() {
           <div className="grid gap-5">
             <div className="flex items-center gap-3">
               <div className="relative h-12 w-12 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
-                <Image src="/images/maeari-app-icon.png" alt="" fill sizes="48px" className="object-cover" />
+                <Image src="/images/maeari_logo.png" alt="" fill sizes="48px" className="object-cover" />
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-[#3A3D8D]">친구 초대</h1>

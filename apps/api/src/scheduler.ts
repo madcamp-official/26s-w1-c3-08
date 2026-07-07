@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { config } from "./config/env.js";
 import { registerDomainEventHandlers } from "./events/register-events.js";
 import { deliverMessageCollections } from "./jobs/deliver-message-collections.job.js";
+import { ensureDailyLine } from "./jobs/ensure-daily-line.job.js";
 import { retryFailedModerationMessages } from "./jobs/retry-failed-moderation.job.js";
 import { retryPendingNotifications } from "./jobs/retry-pending-notifications.job.js";
 import { sendArrivalHints } from "./jobs/send-arrival-hints.job.js";
@@ -14,6 +15,7 @@ let moderationRetryRunning = false;
 let notificationRetryRunning = false;
 let arrivalHintRunning = false;
 let collectionDeliveryRunning = false;
+let dailyLineRunning = false;
 
 function runDeliveryOnce(source: string) {
   if (deliveryRunning) {
@@ -115,16 +117,36 @@ function runCollectionDeliveryOnce(source: string) {
     });
 }
 
+function runDailyLineOnce(source: string) {
+  if (dailyLineRunning) {
+    return;
+  }
+
+  dailyLineRunning = true;
+  void ensureDailyLine()
+    .then((result) => {
+      console.log(`ensureDailyLine selected ${result.dailyLineId} for ${result.date} from ${source}`);
+    })
+    .catch((error) => {
+      console.error("ensureDailyLine failed", error);
+    })
+    .finally(() => {
+      dailyLineRunning = false;
+    });
+}
+
 cron.schedule(config.deliveryCron, () => runArrivalHintsOnce("cron"));
 cron.schedule(config.deliveryCron, () => runDeliveryOnce("cron"));
 cron.schedule(config.deliveryCron, () => runCollectionDeliveryOnce("cron"));
 cron.schedule(config.moderationRetryCron, () => runModerationRetryOnce("cron"));
 cron.schedule(config.notificationRetryCron, () => runNotificationRetryOnce("cron"));
+cron.schedule(config.dailyLineCron, () => runDailyLineOnce("cron"), { timezone: "Asia/Seoul" });
 
 runArrivalHintsOnce("startup");
 runDeliveryOnce("startup");
 runCollectionDeliveryOnce("startup");
 runModerationRetryOnce("startup");
 runNotificationRetryOnce("startup");
+runDailyLineOnce("startup");
 
 console.log("maeari scheduler started");

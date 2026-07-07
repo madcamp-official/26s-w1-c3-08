@@ -28,6 +28,7 @@ type ExternalRecipient = Pick<
 > & {
   message?: {
     isSenderHidden: boolean;
+    senderDisplayName: string | null;
     sender: {
       nickname: string;
     };
@@ -52,6 +53,7 @@ export class NotificationProcessor {
             message: {
               select: {
                 isSenderHidden: true,
+                senderDisplayName: true,
                 sender: {
                   select: {
                     nickname: true,
@@ -71,7 +73,7 @@ export class NotificationProcessor {
 
       for (const recipient of message.recipients) {
         if (recipient.receiverUserId) {
-          await this.createInAppHintNotification(recipient.id, message.id, hintedAt);
+          await this.createInAppHintNotification(recipient, message.id, hintedAt);
         }
 
         if (!shouldDeliverExternal(recipient)) {
@@ -109,6 +111,7 @@ export class NotificationProcessor {
         message: {
           select: {
             isSenderHidden: true,
+            senderDisplayName: true,
             sender: {
               select: {
                 nickname: true,
@@ -121,7 +124,7 @@ export class NotificationProcessor {
 
     for (const recipient of recipients) {
       if (recipient.receiverUserId) {
-        await this.createInAppNotification(recipient.id, payload);
+        await this.createInAppNotification(recipient, payload);
       }
 
       if (!shouldDeliverExternal(recipient)) {
@@ -308,6 +311,7 @@ export class NotificationProcessor {
             message: {
               select: {
                 isSenderHidden: true,
+                senderDisplayName: true,
                 sender: {
                   select: {
                     nickname: true,
@@ -333,15 +337,18 @@ export class NotificationProcessor {
     return { processed: logs.length };
   }
 
-  private async createInAppNotification(recipientId: string, payload: MessageSentEventPayload) {
-    const idempotencyKey = createIdempotencyKey(recipientId, NotificationEventType.MESSAGE_SENT, NotificationChannel.IN_APP);
+  private async createInAppNotification(recipient: ExternalRecipient, payload: MessageSentEventPayload) {
+    const idempotencyKey = createIdempotencyKey(recipient.id, NotificationEventType.MESSAGE_SENT, NotificationChannel.IN_APP);
 
     await prisma.$transaction(async (tx) => {
       await tx.notificationLog.upsert({
         where: { idempotencyKey },
-        update: {},
+        update: {
+          targetUserId: recipient.receiverUserId,
+        },
         create: {
-          messageRecipientId: recipientId,
+          messageRecipientId: recipient.id,
+          targetUserId: recipient.receiverUserId,
           eventType: NotificationEventType.MESSAGE_SENT,
           channel: NotificationChannel.IN_APP,
           status: NotificationStatus.SENT,
@@ -359,7 +366,7 @@ export class NotificationProcessor {
       });
 
       await tx.messageRecipient.update({
-        where: { id: recipientId },
+        where: { id: recipient.id },
         data: {
           deliveryStatus: RecipientDeliveryStatus.SENT,
           deliveredAt: payload.sentAt,
@@ -369,14 +376,17 @@ export class NotificationProcessor {
     await finalizeMessageDeliveryState(payload.messageId);
   }
 
-  private async createInAppHintNotification(recipientId: string, messageId: string, hintedAt: Date) {
-    const idempotencyKey = createIdempotencyKey(recipientId, NotificationEventType.ARRIVAL_HINT, NotificationChannel.IN_APP);
+  private async createInAppHintNotification(recipient: ExternalRecipient, messageId: string, hintedAt: Date) {
+    const idempotencyKey = createIdempotencyKey(recipient.id, NotificationEventType.ARRIVAL_HINT, NotificationChannel.IN_APP);
 
     await prisma.notificationLog.upsert({
       where: { idempotencyKey },
-      update: {},
+      update: {
+        targetUserId: recipient.receiverUserId,
+      },
       create: {
-        messageRecipientId: recipientId,
+        messageRecipientId: recipient.id,
+        targetUserId: recipient.receiverUserId,
         eventType: NotificationEventType.ARRIVAL_HINT,
         channel: NotificationChannel.IN_APP,
         status: NotificationStatus.SENT,
@@ -787,6 +797,14 @@ function shouldDeliverExternal(recipient: ExternalRecipient) {
   return recipient.receiverType === RecipientType.OTHER && Boolean(recipient.receiverEmail || recipient.receiverPhone);
 }
 
+function getRecipientSenderName(recipient: ExternalRecipient) {
+  if (recipient.message?.isSenderHidden) {
+    return null;
+  }
+
+  return recipient.message?.senderDisplayName ?? recipient.message?.sender.nickname ?? null;
+}
+
 type NotificationContent = {
   subject?: string;
   text: string;
@@ -799,7 +817,7 @@ function createNotificationContent(
   publicUrl: string,
 ): NotificationContent {
   const receiverName = recipient.receiverName?.trim() || "받는 분";
-  const senderName = recipient.message?.isSenderHidden ? null : recipient.message?.sender.nickname ?? null;
+  const senderName = getRecipientSenderName(recipient);
   const arrivalLine = senderName
     ? `${senderName}님이 보낸 마음이 도착했어요.`
     : "누군가의 마음이 도착했어요.";
@@ -849,7 +867,7 @@ function createHintNotificationContent(
   publicUrl: string,
 ): NotificationContent {
   const receiverName = recipient.receiverName?.trim() || "받는 분";
-  const senderName = recipient.message?.isSenderHidden ? null : recipient.message?.sender.nickname ?? null;
+  const senderName = getRecipientSenderName(recipient);
   const hintLine = senderName
     ? `${senderName}님이 맡긴 마음이 곧 도착할 예정이에요.`
     : "당신을 위한 마음이 곧 도착할 예정이에요.";

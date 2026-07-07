@@ -41,6 +41,7 @@ export const createMessageSchema = z
     receiverInfo: receiverInfoSchema.optional(),
     recipients: z.array(receiverInfoSchema).min(1).max(20).optional(),
     senderContactId: z.string().uuid().optional(),
+    senderDisplayName: z.string().trim().max(80).optional().or(z.literal("")),
     title: z.string().trim().min(1).max(120),
     content: z.string().trim().min(1).max(5000),
     emotionTag: z
@@ -202,3 +203,11 @@ function validateReceiverInfo(
 }
 
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
+
+export const createMessageReplySchema = z.object({
+  content: z.string().trim().min(1).max(2000),
+  senderDisplayName: z.string().trim().max(80).optional().or(z.literal("")),
+  isAnonymous: z.boolean().default(true).optional(),
+});
+
+export type CreateMessageReplyInput = z.infer<typeof createMessageReplySchema>;

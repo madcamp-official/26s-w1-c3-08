@@ -5,6 +5,8 @@ import {
   ModerationAttemptStatus,
   MessageStatus,
   MessageTheme,
+  NotificationChannel,
+  NotificationEventType,
   RecipientDeliveryStatus,
   RecipientType,
   UserContactType,
@@ -13,6 +15,7 @@ import crypto from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../../config/env.js";
+import { MESSAGE_REPLY_CREATED_EVENT, domainEvents } from "../../events/domain-events.js";
 import { AppError } from "../../lib/app-error.js";
 import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "../../lib/contact-normalization.js";
 import { prisma } from "../../lib/prisma.js";
@@ -31,12 +34,14 @@ import {
 } from "../moderation/image-ocr.service.js";
 import { assertActiveFriendship } from "../friends/friend.service.js";
 import { assertVerifiedSenderPhoneContact } from "../contacts/contact.service.js";
-import type { CreateMessageInput } from "./message.validation.js";
+import type { CreateMessageInput, CreateMessageReplyInput } from "./message.validation.js";
 import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
   const messageId = crypto.randomUUID();
   const schedule = resolveSchedule(input);
+  const sender = await getMessageSender(userId);
+  const senderDisplayName = normalizeDisplayName(input.senderDisplayName, sender.nickname);
   const senderContact = await assertVerifiedSenderPhoneContact(userId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
@@ -71,6 +76,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
         senderId: userId,
         senderContactId: senderContact.id,
         senderContactSnapshot: senderContact.snapshot,
+        senderDisplayName,
         title: input.title,
         content: input.content,
         emotionTag: input.emotionTag,
@@ -114,6 +120,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
       senderId: userId,
       senderContactId: senderContact.id,
       senderContactSnapshot: senderContact.snapshot,
+      senderDisplayName,
       title: input.title,
       content: input.content,
       emotionTag: input.emotionTag,
@@ -180,6 +187,10 @@ export async function listSentMessages(userId: string) {
 }
 
 export async function listSentMessageReplies(userId: string) {
+  return listReceivedMessageReplies(userId);
+}
+
+export async function listReceivedMessageReplies(userId: string) {
   const replies = await prisma.messageReply.findMany({
     where: {
       status: MessageReplyStatus.VISIBLE,
@@ -221,15 +232,161 @@ export async function listSentMessageReplies(userId: string) {
   }));
 }
 
+export async function listAuthoredMessageReplies(userId: string) {
+  const replies = await prisma.messageReply.findMany({
+    where: {
+      authorUserId: userId,
+      authorDeletedAt: null,
+      status: MessageReplyStatus.VISIBLE,
+      recipient: {
+        receiverDeletedAt: null,
+      },
+    },
+    include: {
+      message: {
+        select: {
+          id: true,
+          title: true,
+          senderDisplayName: true,
+          isSenderHidden: true,
+          sender: {
+            select: {
+              nickname: true,
+            },
+          },
+        },
+      },
+      recipient: {
+        select: {
+          receiverName: true,
+          receiverType: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  return replies.map((reply) => ({
+    replyId: reply.id,
+    messageId: reply.messageId,
+    messageTitle: reply.message.title,
+    senderName: reply.message.isSenderHidden
+      ? null
+      : reply.message.senderDisplayName ?? reply.message.sender.nickname,
+    preview: reply.content.slice(0, 140),
+    createdAt: reply.createdAt,
+    isAnonymous: reply.isAnonymous,
+    senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
+    receiverName: reply.recipient.receiverName,
+    receiverType: reply.recipient.receiverType,
+  }));
+}
+
+export async function createAuthenticatedMessageReply(
+  userId: string,
+  messageId: string,
+  input: CreateMessageReplyInput,
+) {
+  const content = input.content.trim();
+  const recipient = await prisma.messageRecipient.findFirst({
+    where: {
+      messageId,
+      receiverUserId: userId,
+      receiverDeletedAt: null,
+      message: {
+        status: MessageStatus.SENT,
+      },
+    },
+    include: {
+      message: {
+        select: {
+          id: true,
+          isReplyEnabled: true,
+        },
+      },
+    },
+  });
+
+  if (!recipient) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 마음에 답장할 권한이 없어요.", 403);
+  }
+
+  if (!recipient.message.isReplyEnabled) {
+    throw new AppError("REPLY_DISABLED", "이 마음에는 답장을 보낼 수 없어요.", 409);
+  }
+
+  const moderationInput = {
+    title: "답장",
+    content,
+    emotionTag: "reply",
+  };
+  const moderation = await moderateMessageWithRetry(moderationInput);
+
+  if (moderation.allowed === false) {
+    throw new AppError("REPLY_BLOCKED_BY_MODERATION", moderation.feedback, 422, {
+      blockedCategories: moderation.blockedCategories,
+    });
+  }
+
+  if (moderation.allowed === "unavailable") {
+    throw new AppError("REPLY_MODERATION_UNAVAILABLE", "지금은 답장 안전 검사를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.", 503);
+  }
+
+  const author = await getMessageSender(userId);
+  const isAnonymous = input.isAnonymous ?? true;
+  const reply = await prisma.messageReply.create({
+    data: {
+      messageId: recipient.messageId,
+      messageRecipientId: recipient.id,
+      authorUserId: userId,
+      content,
+      senderDisplayName: isAnonymous ? null : normalizeDisplayName(input.senderDisplayName, author.nickname),
+      isAnonymous,
+      moderationInputHash: getModerationInputHash(moderationInput),
+      moderationCategories: moderation.categories,
+    },
+  });
+
+  domainEvents.emit(MESSAGE_REPLY_CREATED_EVENT, {
+    replyId: reply.id,
+    messageId: recipient.messageId,
+    messageRecipientId: recipient.id,
+    createdAt: reply.createdAt,
+  });
+
+  return {
+    reply: {
+      id: reply.id,
+      content: reply.content,
+      senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
+      isAnonymous: reply.isAnonymous,
+      createdAt: reply.createdAt,
+    },
+  };
+}
+
 export async function markSentReplyRead(userId: string, replyId: string) {
   const reply = await findOwnedSentReply(userId, replyId);
+  const readAt = reply.senderReadAt ?? new Date();
 
   if (!reply.senderReadAt) {
     await prisma.messageReply.update({
       where: { id: reply.id },
-      data: { senderReadAt: new Date() },
+      data: { senderReadAt: readAt },
     });
   }
+
+  await prisma.notificationLog.updateMany({
+    where: {
+      targetUserId: userId,
+      messageReplyId: reply.id,
+      eventType: NotificationEventType.REPLY_RECEIVED,
+      channel: NotificationChannel.IN_APP,
+      readAt: null,
+    },
+    data: { readAt },
+  });
 
   return { read: true };
 }
@@ -418,13 +575,24 @@ export async function getMessageDetail(userId: string, messageId: string) {
   }
 
   if (recipient && !recipient.readAt && message.status === MessageStatus.SENT) {
+    const readAt = new Date();
     await prisma.messageRecipient.update({
       where: { id: recipient.id },
-      data: { readAt: new Date() },
+      data: { readAt },
+    });
+    await prisma.notificationLog.updateMany({
+      where: {
+        targetUserId: userId,
+        messageRecipientId: recipient.id,
+        channel: NotificationChannel.IN_APP,
+        readAt: null,
+      },
+      data: { readAt },
     });
   }
 
   if (isSender) {
+    const readAt = new Date();
     await prisma.messageReply.updateMany({
       where: {
         messageId: message.id,
@@ -432,7 +600,21 @@ export async function getMessageDetail(userId: string, messageId: string) {
         senderDeletedAt: null,
         senderReadAt: null,
       },
-      data: { senderReadAt: new Date() },
+      data: { senderReadAt: readAt },
+    });
+    await prisma.notificationLog.updateMany({
+      where: {
+        targetUserId: userId,
+        eventType: NotificationEventType.REPLY_RECEIVED,
+        channel: NotificationChannel.IN_APP,
+        messageReplyId: {
+          in: message.replies
+            .filter((reply) => !reply.senderDeletedAt && !reply.senderReadAt)
+            .map((reply) => reply.id),
+        },
+        readAt: null,
+      },
+      data: { readAt },
     });
   }
 
@@ -459,7 +641,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
     canDeleteFromMailbox: isSender ? isSenderDeletableStatus(message.status) : Boolean(recipient),
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
-    senderName: message.isSenderHidden ? null : message.sender.nickname,
+    senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
     attachments: message.attachments.map((attachment) => ({
       id: attachment.id,
       publicUrl: attachment.publicUrl,
@@ -475,6 +657,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
         content: reply.content,
         senderDisplayName: reply.isAnonymous ? null : reply.senderDisplayName,
         isAnonymous: reply.isAnonymous,
+        isMine: reply.authorUserId === userId,
         senderReadAt: reply.senderReadAt,
         createdAt: reply.createdAt,
       })),
@@ -811,6 +994,26 @@ async function createModerationLog(messageId: string, moderation: ModerationResu
       errorMessage: moderation.reason,
     },
   });
+}
+
+async function getMessageSender(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      nickname: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  return user;
+}
+
+function normalizeDisplayName(value: string | undefined | null, fallback: string) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized.slice(0, 80) : fallback.slice(0, 80);
 }
 
 function getReceiverInputs(input: CreateMessageInput) {

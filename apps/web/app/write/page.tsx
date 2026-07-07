@@ -631,7 +631,7 @@ export default function WritePage() {
           />
         ) : null}
 
-        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(292px,312px)] xl:items-start">
+        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(320px,340px)] xl:items-start">
           <section className="figma-panel min-h-[578px] px-[21px] py-[24px]">
             <div className="px-[1px]">
               <p className="text-sm font-medium text-[#7B7FAA]">현재 시각 (KST)</p>
@@ -913,7 +913,7 @@ export default function WritePage() {
             </div>
           </section>
 
-          <aside className="figma-panel min-h-[521px] px-[26px] py-[29px] xl:sticky xl:top-[96px]">
+          <aside className="figma-panel min-h-[521px] min-w-0 overflow-hidden px-[26px] py-[29px] xl:sticky xl:top-[96px]">
             <h2 className="text-[21px] font-medium text-[#6D71AF]">전달설정</h2>
             <div className="mt-[24px]">
               <label className="text-[13px] font-medium text-[#7D81B1]">전달 예정일</label>
@@ -932,7 +932,7 @@ export default function WritePage() {
 
             <div className="mt-[20px]">
               <label className="text-[13px] font-medium text-[#7B80B3]">전달 예정 시간</label>
-              <div className="mt-[8px] grid grid-cols-[93px_1fr_1fr] gap-1.5">
+              <div className="mt-[8px] grid min-w-0 grid-cols-[86px_minmax(0,1fr)_minmax(0,1fr)] gap-1.5">
                 <select
                   value={Number(arrivalTime.split(":")[0] || "0") < 12 ? "AM" : "PM"}
                   onChange={(event) => {
@@ -942,7 +942,7 @@ export default function WritePage() {
                     setArrivalTouched(true);
                     setArrivalTime(`${String(normalized).padStart(2, "0")}:${minute}`);
                   }}
-                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#8489B8]"
+                  className="focus-ring maeari-input h-[43px] min-w-0 px-2 text-sm text-[#8489B8]"
                 >
                   <option value="AM">오전</option>
                   <option value="PM">오후</option>
@@ -959,7 +959,7 @@ export default function WritePage() {
                     setArrivalTime(`${event.target.value.padStart(2, "0").slice(-2)}:${minute}`);
                   }}
                   aria-label="도착 시"
-                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#6E72AC]"
+                  className="focus-ring maeari-input h-[43px] min-w-0 px-3 text-sm text-[#6E72AC]"
                 />
                 <input
                   required
@@ -973,7 +973,7 @@ export default function WritePage() {
                     setArrivalTime(`${hour}:${event.target.value.padStart(2, "0").slice(-2)}`);
                   }}
                   aria-label="도착 분"
-                  className="focus-ring maeari-input h-[43px] px-3 text-sm text-[#7478AD]"
+                  className="focus-ring maeari-input h-[43px] min-w-0 px-3 text-sm text-[#7478AD]"
                 />
               </div>
               <div className="mt-2 flex gap-1.5">
@@ -996,7 +996,7 @@ export default function WritePage() {
                   key={key}
                   type="button"
                   onClick={() => applyPreset(key)}
-                  className="focus-ring maeari-chip px-2 py-2 text-[11px]"
+                  className="focus-ring maeari-chip min-w-0 break-keep px-2 py-2 text-[11px] leading-4"
                 >
                   {label}
                 </button>
@@ -1062,7 +1062,7 @@ export default function WritePage() {
               />
             </div>
 
-            <div className="mt-4 rounded-[8px] bg-[#F6F4F9] px-3 py-2 text-[12px] leading-5 text-[#7A80B1]">
+            <div className="mt-4 min-w-0 break-words rounded-[8px] bg-[#F6F4F9] px-3 py-2 text-[12px] leading-5 text-[#7A80B1] [overflow-wrap:anywhere]">
               {arrivalMode === "RANDOM_WINDOW"
                 ? `랜덤 도착: ${scheduledAtDate ? formatKstArrival(scheduledAtDate) : "시작 미정"} ~ ${
                     toDateFromKstInput(randomEndDate, randomEndTime)
@@ -1185,12 +1185,16 @@ function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4">
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+      className="focus-ring flex w-full items-center justify-between gap-4 rounded-[8px] text-left"
+    >
       <span>
         <span className="block text-[13px] font-medium text-[#777CB1]">{title}</span>
         <span className="mt-1 block text-[12px] text-[#B8BCCF]">{description}</span>
       </span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="sr-only" />
       <span
         className={`relative h-[30px] w-[51px] shrink-0 rounded-full transition ${checked ? "bg-[#6D48DB]" : "bg-[#D8D8E4]"}`}
       >
@@ -1200,7 +1204,7 @@ function ToggleRow({
           }`}
         />
       </span>
-    </label>
+    </button>
   );
 }
 

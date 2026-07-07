@@ -66,7 +66,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <div className="flex h-full items-center justify-between px-5 lg:px-[25px]">
           <Link href="/" className="focus-ring flex h-[54px] items-center gap-3 rounded-[8px]">
             <Image
-              src="/images/maeari-app-icon.png"
+              src="/images/maeari_logo.png"
               alt="매아리"
               width={42}
               height={42}
