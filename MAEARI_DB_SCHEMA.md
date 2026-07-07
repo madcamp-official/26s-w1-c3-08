@@ -1237,6 +1237,7 @@ UI가 새로 읽거나 강조해서 보여주는 DB 흐름:
 - 목록/상세 화면
   - `StatusPill`, `EmotionPill` 등은 기존 enum/string 값을 UI label로 변환할 뿐 DB 값을 변경하지 않습니다.
   - 목록 card thumbnail은 첫 번째 `MessageAttachment.publicUrl` 또는 message id 기준 기본 asset 선택 결과인 API `thumbnail` 파생 필드를 사용합니다.
+  - 받은 마음/아카이브 앨범형 UI의 `coverImageUrl`, `coverImageAlt`, `attachmentCount`는 `MessageAttachment` 조회와 `_count.attachments`에서 파생합니다.
 - QR 공유
   - `QrShare`는 기존 `MessageAccessToken` 또는 `MessageCollection.tokenHash`에서 생성된 공개 URL을 클라이언트에서 QR로 렌더링합니다.
   - QR 이미지는 DB에 저장하지 않습니다.

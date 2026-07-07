@@ -82,10 +82,14 @@ export function mapReceivedItem(
     message: Message & {
       sender: Pick<User, "id" | "nickname">;
       attachments?: MessageThumbnailAttachment[];
+      _count?: {
+        attachments: number;
+      };
     };
   },
 ) {
   const message = recipient.message;
+  const coverAttachment = message.attachments?.[0] ?? null;
   const thumbnail = buildMessageThumbnail(message.id, message.attachments);
 
   return {
@@ -96,6 +100,9 @@ export function mapReceivedItem(
     emotionTag: message.emotionTag,
     customEmotionTag: message.customEmotionTag,
     theme: message.theme,
+    coverImageUrl: coverAttachment?.publicUrl ?? null,
+    coverImageAlt: coverAttachment?.originalName ?? null,
+    attachmentCount: message._count?.attachments ?? message.attachments?.length ?? 0,
     senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
     arrivedAt: message.isDateHidden ? null : message.sentAt,
     isSenderHidden: message.isSenderHidden,

@@ -8,6 +8,10 @@ export const emotionTagLabels = {
   CUSTOM: "직접 입력",
 } as const;
 
+export type EmotionTag = keyof typeof emotionTagLabels;
+
+export type MessageTheme = "LAVENDER" | "MOSS" | "SUNSET" | "MIDNIGHT" | "PAPER";
+
 export type ReceiverType = "SELF" | "FRIEND" | "OTHER";
 
 export type ReceiverInfo = {
@@ -63,6 +67,32 @@ export type MessageThumbnail = {
   attachmentId: string | null;
   alt: string | null;
 };
+
+export type ReceivedMessageListItem = {
+  id: string;
+  recipientId: string;
+  title: string;
+  preview: string;
+  emotionTag?: EmotionTag | null;
+  customEmotionTag?: string | null;
+  theme: MessageTheme | null;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  attachmentCount: number;
+  thumbnail: MessageThumbnail;
+  senderName?: string | null;
+  arrivedAt?: string | null;
+  isSenderHidden: boolean;
+  isDateHidden: boolean;
+  readAt?: string | null;
+  linkedAt?: string | null;
+};
+
+export type ReceivedMessagesResponse = {
+  messages: ReceivedMessageListItem[];
+};
+
+export type ArchivedMessagesResponse = ReceivedMessagesResponse;
 
 export type MessageReplyListItem = {
   replyId: string;
