@@ -1,4 +1,5 @@
 import type { Message, MessageAccessToken, MessageAttachment, MessageRecipient, User } from "@maeari/database";
+import { messageThemeEnvelopeByTheme, type MessageTheme as SharedMessageTheme } from "@maeari/shared";
 import { config } from "../../config/env.js";
 
 type RecipientWithAccessToken = MessageRecipient & {
@@ -6,13 +7,6 @@ type RecipientWithAccessToken = MessageRecipient & {
 };
 
 type MessageThumbnailAttachment = Pick<MessageAttachment, "id" | "publicUrl" | "originalName">;
-
-const DEFAULT_MESSAGE_THUMBNAIL_URLS = [
-  "/images/maeari-message-default-1.png",
-  "/images/maeari-message-default-2.png",
-  "/images/maeari-message-default-3.png",
-  "/images/maeari-message-default-4.png",
-] as const;
 
 export function toPublicUrl(rawToken?: string | null) {
   if (!rawToken) {
@@ -29,7 +23,8 @@ export function mapMessageListItem(
   },
 ) {
   const recipient = message.recipients[0];
-  const thumbnail = buildMessageThumbnail(message.id, message.attachments);
+  const themeEnvelope = getMessageThemeEnvelope(message.theme);
+  const thumbnail = buildMessageThumbnail(message.attachments, themeEnvelope);
 
   return {
     id: message.id,
@@ -49,6 +44,7 @@ export function mapMessageListItem(
     isDateHidden: message.isDateHidden,
     moderationNextRetryAt: message.moderationNextRetryAt,
     thumbnail,
+    themeEnvelope,
     receiver: recipient
       ? {
           id: recipient.id,
@@ -90,7 +86,8 @@ export function mapReceivedItem(
 ) {
   const message = recipient.message;
   const coverAttachment = message.attachments?.[0] ?? null;
-  const thumbnail = buildMessageThumbnail(message.id, message.attachments);
+  const themeEnvelope = getMessageThemeEnvelope(message.theme);
+  const thumbnail = buildMessageThumbnail(message.attachments, themeEnvelope);
 
   return {
     id: message.id,
@@ -103,6 +100,7 @@ export function mapReceivedItem(
     coverImageUrl: coverAttachment?.publicUrl ?? null,
     coverImageAlt: coverAttachment?.originalName ?? null,
     attachmentCount: message._count?.attachments ?? message.attachments?.length ?? 0,
+    themeEnvelope,
     senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
     arrivedAt: message.isDateHidden ? null : message.sentAt,
     isSenderHidden: message.isSenderHidden,
@@ -113,7 +111,15 @@ export function mapReceivedItem(
   };
 }
 
-function buildMessageThumbnail(messageId: string, attachments?: MessageThumbnailAttachment[]) {
+export function getMessageThemeEnvelope(theme?: string | null) {
+  const normalizedTheme = isMessageTheme(theme) ? theme : "LAVENDER";
+  return messageThemeEnvelopeByTheme[normalizedTheme];
+}
+
+function buildMessageThumbnail(
+  attachments: MessageThumbnailAttachment[] | undefined,
+  themeEnvelope: ReturnType<typeof getMessageThemeEnvelope>,
+) {
   const firstAttachment = attachments?.[0];
 
   if (firstAttachment?.publicUrl) {
@@ -126,19 +132,13 @@ function buildMessageThumbnail(messageId: string, attachments?: MessageThumbnail
   }
 
   return {
-    url: selectDefaultMessageThumbnailUrl(messageId),
-    source: "DEFAULT" as const,
+    url: themeEnvelope.imageUrl,
+    source: "THEME" as const,
     attachmentId: null,
-    alt: null,
+    alt: themeEnvelope.alt,
   };
 }
 
-function selectDefaultMessageThumbnailUrl(messageId: string) {
-  let hash = 0;
-
-  for (const char of messageId) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-
-  return DEFAULT_MESSAGE_THUMBNAIL_URLS[hash % DEFAULT_MESSAGE_THUMBNAIL_URLS.length];
+function isMessageTheme(theme?: string | null): theme is SharedMessageTheme {
+  return typeof theme === "string" && theme in messageThemeEnvelopeByTheme;
 }

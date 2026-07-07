@@ -27,6 +27,9 @@ importers:
       '@maeari/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@maeari/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
