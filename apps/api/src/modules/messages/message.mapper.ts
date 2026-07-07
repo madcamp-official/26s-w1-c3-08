@@ -1,9 +1,18 @@
-import type { Message, MessageAccessToken, MessageRecipient, User } from "@maeari/database";
+import type { Message, MessageAccessToken, MessageAttachment, MessageRecipient, User } from "@maeari/database";
 import { config } from "../../config/env.js";
 
 type RecipientWithAccessToken = MessageRecipient & {
   accessTokens?: MessageAccessToken[];
 };
+
+type MessageThumbnailAttachment = Pick<MessageAttachment, "id" | "publicUrl" | "originalName">;
+
+const DEFAULT_MESSAGE_THUMBNAIL_URLS = [
+  "/images/maeari-message-default-1.png",
+  "/images/maeari-message-default-2.png",
+  "/images/maeari-message-default-3.png",
+  "/images/maeari-message-default-4.png",
+] as const;
 
 export function toPublicUrl(rawToken?: string | null) {
   if (!rawToken) {
@@ -16,9 +25,11 @@ export function toPublicUrl(rawToken?: string | null) {
 export function mapMessageListItem(
   message: Message & {
     recipients: RecipientWithAccessToken[];
+    attachments?: MessageThumbnailAttachment[];
   },
 ) {
   const recipient = message.recipients[0];
+  const thumbnail = buildMessageThumbnail(message.id, message.attachments);
 
   return {
     id: message.id,
@@ -37,6 +48,7 @@ export function mapMessageListItem(
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     moderationNextRetryAt: message.moderationNextRetryAt,
+    thumbnail,
     receiver: recipient
       ? {
           id: recipient.id,
@@ -69,10 +81,12 @@ export function mapReceivedItem(
     accessTokens?: Pick<MessageAccessToken, "linkedAt" | "linkedUserId">[];
     message: Message & {
       sender: Pick<User, "id" | "nickname">;
+      attachments?: MessageThumbnailAttachment[];
     };
   },
 ) {
   const message = recipient.message;
+  const thumbnail = buildMessageThumbnail(message.id, message.attachments);
 
   return {
     id: message.id,
@@ -88,5 +102,36 @@ export function mapReceivedItem(
     isDateHidden: message.isDateHidden,
     readAt: recipient.readAt,
     linkedAt: recipient.accessTokens?.find((token) => token.linkedUserId === recipient.receiverUserId)?.linkedAt ?? null,
+    thumbnail,
   };
+}
+
+function buildMessageThumbnail(messageId: string, attachments?: MessageThumbnailAttachment[]) {
+  const firstAttachment = attachments?.[0];
+
+  if (firstAttachment?.publicUrl) {
+    return {
+      url: firstAttachment.publicUrl,
+      source: "ATTACHMENT" as const,
+      attachmentId: firstAttachment.id,
+      alt: firstAttachment.originalName ?? null,
+    };
+  }
+
+  return {
+    url: selectDefaultMessageThumbnailUrl(messageId),
+    source: "DEFAULT" as const,
+    attachmentId: null,
+    alt: null,
+  };
+}
+
+function selectDefaultMessageThumbnailUrl(messageId: string) {
+  let hash = 0;
+
+  for (const char of messageId) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return DEFAULT_MESSAGE_THUMBNAIL_URLS[hash % DEFAULT_MESSAGE_THUMBNAIL_URLS.length];
 }

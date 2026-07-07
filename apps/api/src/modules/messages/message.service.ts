@@ -179,6 +179,10 @@ export async function listSentMessages(userId: string) {
         },
         orderBy: { createdAt: "asc" },
       },
+      attachments: {
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -482,6 +486,10 @@ export async function listReceivedMessages(userId: string) {
               nickname: true,
             },
           },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
         },
       },
     },
@@ -520,6 +528,10 @@ export async function listArchivedMessages(userId: string) {
               id: true,
               nickname: true,
             },
+          },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+            take: 1,
           },
         },
       },

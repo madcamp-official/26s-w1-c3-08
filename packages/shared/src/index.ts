@@ -55,6 +55,15 @@ export type DailyLineResponse = {
   };
 };
 
+export type MessageThumbnailSource = "ATTACHMENT" | "DEFAULT";
+
+export type MessageThumbnail = {
+  url: string;
+  source: MessageThumbnailSource;
+  attachmentId: string | null;
+  alt: string | null;
+};
+
 export type MessageReplyListItem = {
   replyId: string;
   messageId: string;
