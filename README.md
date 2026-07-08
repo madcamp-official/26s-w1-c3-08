@@ -302,7 +302,6 @@
 | POST | `/api/message-collections` | 마음나무 생성 | 세션 쿠키, `{ title, description?, scheduledAt }` | `{ collection }` |
 | GET | `/api/message-collections` | 내 마음나무 목록 | 세션 쿠키 | `{ collections }` |
 | GET | `/api/message-collections/:id` | 내 마음나무 상세와 도착 후 제출물 조회 | 세션 쿠키, collection id | `{ collection }` |
-| POST | `/api/message-collections/:id/share-link` | 도착 전 마음나무 URL/QR 재확인용 새 공유 링크 발급 | 세션 쿠키, collection id | `{ collectionUrl, tokenPreview, expiresAt }` |
 | PATCH | `/api/message-collections/:id/close` | 마음나무 즉시 도착 처리 | 세션 쿠키, collection id | `{ closed: true, collection }` |
 | DELETE | `/api/message-collections/:id/permanent` | 마음나무 완전 삭제 | 세션 쿠키, collection id | `{ deleted: true }` |
 | DELETE | `/api/message-collections/:id` | 마음나무 취소. deprecated legacy route | 세션 쿠키, collection id | `{ canceled: true }` |
@@ -737,7 +736,7 @@ Frontend 연동 포인트:
 - `/sent`에는 `보낸 마음 / 답장함` 탭이 추가되었습니다. 답장함은 새 답장, 읽음 상태, 발신자 화면 삭제를 지원합니다.
 - 공개 링크 공유는 기존 URL token 구조를 유지하되 웹에서 QR로 렌더링합니다. 마음쓰기 완료 모달, 보낸 마음, 메시지 상세 화면에서 QR 표시/링크 복사/QR 저장이 가능합니다.
 - 이메일/전화번호 인증 성공 후 기존 비회원 수신 메시지를 현재 회원의 받은 마음으로 자동 연결합니다. 외부 알림 실패로 `FAILED`가 된 단일 수신 메시지는 내부 수신으로 복구 가능한 경우 `SENT`로 복구합니다.
-- `마음나무` 기능이 추가되었습니다. 회원은 `/tree`에서 도착 시점을 정한 공개 링크/QR을 만들고, 비회원은 도착 전까지 `/tree/[token]`에서 편지를 남깁니다. 도착 이후 공개 링크는 `COLLECTION_LINK_EXPIRED`로 만료되고, 스케줄러 또는 owner의 즉시 도착 처리로 제출물을 owner에게 공개합니다. 마음나무 URL/QR은 생성 직후 응답 또는 `POST /api/message-collections/:id/share-link` 재발급 응답으로만 제공하며, 재발급 시 이전 URL/QR은 무효화됩니다.
+- `마음나무` 기능이 추가되었습니다. 회원은 `/tree`에서 도착 시점을 정한 공개 링크/QR을 만들고, 비회원은 도착 전까지 `/tree/[token]`에서 편지를 남깁니다. 도착 이후 공개 링크는 `COLLECTION_LINK_EXPIRED`로 만료되고, 스케줄러 또는 owner의 즉시 도착 처리로 제출물을 owner에게 공개합니다.
 
 ### 추가 환경 변수
 
@@ -1304,7 +1303,6 @@ QR 흐름:
 - 공개 도착 URL과 마음나무 URL은 DB에 별도 QR 값으로 저장하지 않습니다.
 - 기존 URL을 클라이언트에서 `QRCodeCanvas`로 렌더링합니다.
 - 링크 복사와 QR PNG 저장을 함께 제공합니다.
-- 마음나무 URL/QR은 생성 직후 `collectionUrl` 또는 `POST /api/message-collections/:id/share-link` 응답으로만 제공합니다. raw token은 저장하지 않으며, share-link 재발급 시 이전 URL/QR은 무효화됩니다.
 
 마음나무 흐름:
 
@@ -1326,9 +1324,6 @@ PATCH /api/message-collections/:id/close
 
 DELETE /api/message-collections/:id/permanent
   -> MessageCollection hard delete, submissions/collection notifications는 FK cascade로 함께 삭제
-
-POST /api/message-collections/:id/share-link
-  -> ACTIVE && scheduledAt > now인 마음나무의 새 public token을 발급하고 collectionUrl/tokenPreview/expiresAt 반환
 
 DELETE /api/message-collections/:id
   -> legacy cancel route. 기존 frontend 호환용이며 새 UI에서는 사용하지 않음

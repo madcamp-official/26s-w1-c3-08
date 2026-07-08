@@ -370,7 +370,6 @@
 - 마음나무 owner는 verified strict PHONE이 필요하고, 비회원 제출은 텍스트만 허용합니다.
 - scheduler는 도착 시점이 지난 ACTIVE collection을 DELIVERED로 바꾸고, visible submissions를 owner에게 공개합니다.
 - 공개 마음나무 URL은 `ACTIVE && scheduledAt > now`일 때만 조회/제출할 수 있고, 도착 이후에는 `410 COLLECTION_LINK_EXPIRED`와 `도착시간이 지나 만료된 링크입니다.`를 반환합니다.
-- 마음나무 URL/QR은 생성 직후 `collectionUrl` 또는 `POST /api/message-collections/:id/share-link` 응답으로만 제공하고, share-link 재발급 시 이전 URL/QR은 무효화합니다.
 - owner는 `PATCH /api/message-collections/:id/close`로 예정 시각 전에도 즉시 DELIVERED 처리할 수 있고, `DELETE /api/message-collections/:id/permanent`로 collection과 제출물/알림을 완전 삭제할 수 있습니다.
 - 기존 `DELETE /api/message-collections/:id`는 legacy cancel route로 남기며 새 frontend는 사용하지 않습니다.
 
@@ -755,8 +754,6 @@ node-cron 실행
   -> POST /api/message-collections
   -> raw token이 포함된 collectionUrl 반환
   -> Web에서 QR/링크 공유
-  -> 도착 전 URL/QR 재확인이 필요하면 POST /api/message-collections/:id/share-link
-  -> 새 collectionUrl 반환, 이전 URL/QR 무효화
 
 비회원
   -> /tree/[token]
@@ -3444,7 +3441,6 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - 비회원 제출은 기존 텍스트 guardrail을 즉시 통과해야 저장됩니다.
 - scheduler는 `DELIVERY_CRON` 주기로 `ACTIVE` 마음나무 중 `scheduledAt`이 지난 항목을 `DELIVERED`로 전환하고 제출물을 일괄 공개합니다.
 - 도착 시각이 지난 공개 링크는 더 이상 조회/제출할 수 없으며 frontend는 `COLLECTION_LINK_EXPIRED`를 만료 페이지로 표시합니다.
-- `POST /api/message-collections/:id/share-link`는 도착 전 ACTIVE 마음나무의 URL/QR 재확인을 위해 새 public token을 발급합니다. 새 링크를 만들면 이전 링크는 더 이상 유효하지 않습니다.
 - `PATCH /api/message-collections/:id/close`는 즉시 도착 처리, `DELETE /api/message-collections/:id/permanent`는 완전 삭제입니다.
 
 ### 22.6 운영 DB migration 상태

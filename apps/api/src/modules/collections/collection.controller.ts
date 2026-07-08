@@ -5,7 +5,6 @@ import {
   cancelMessageCollection,
   closeMessageCollectionNow,
   createMessageCollection,
-  createMessageCollectionShareLink,
   createPublicMessageCollectionSubmission,
   deleteMessageCollectionPermanently,
   getMessageCollection,
@@ -36,15 +35,6 @@ export const getMessageCollectionController = asyncHandler(async (request: Reque
 
   const collectionId = requireParam(request.params.id, "COLLECTION_ID_REQUIRED");
   response.json({ collection: await getMessageCollection(request.user.id, collectionId) });
-});
-
-export const createMessageCollectionShareLinkController = asyncHandler(async (request: Request, response: Response) => {
-  if (!request.user) {
-    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
-  }
-
-  const collectionId = requireParam(request.params.id, "COLLECTION_ID_REQUIRED");
-  response.status(201).json(await createMessageCollectionShareLink(request.user.id, collectionId));
 });
 
 export const cancelMessageCollectionController = asyncHandler(async (request: Request, response: Response) => {

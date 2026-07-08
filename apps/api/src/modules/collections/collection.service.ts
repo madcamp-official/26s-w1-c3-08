@@ -107,40 +107,6 @@ export async function getMessageCollection(userId: string, collectionId: string)
   };
 }
 
-export async function createMessageCollectionShareLink(userId: string, collectionId: string) {
-  const collection = await prisma.messageCollection.findFirst({
-    where: { id: collectionId, ownerId: userId },
-    select: {
-      id: true,
-      status: true,
-      scheduledAt: true,
-    },
-  });
-
-  if (!collection) {
-    throw new AppError("COLLECTION_NOT_FOUND", "마음나무를 찾을 수 없어요.", 404);
-  }
-
-  assertPublicCollectionOpen(collection);
-
-  const rawToken = createPublicToken();
-  const tokenPreview = createTokenPreview(rawToken);
-
-  await prisma.messageCollection.update({
-    where: { id: collection.id },
-    data: {
-      tokenHash: hashPublicToken(rawToken),
-      tokenPreview,
-    },
-  });
-
-  return {
-    collectionUrl: toCollectionUrl(rawToken),
-    tokenPreview,
-    expiresAt: collection.scheduledAt,
-  };
-}
-
 export async function cancelMessageCollection(userId: string, collectionId: string) {
   const collection = await prisma.messageCollection.findFirst({
     where: { id: collectionId, ownerId: userId },
