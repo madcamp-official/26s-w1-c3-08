@@ -104,11 +104,10 @@ const emotionOptions = [
 ] as const;
 
 const presetOptions = [
-  ["todayNight", "오늘 밤 9시"],
-  ["tomorrowMorning", "내일 아침 9시"],
-  ["tomorrowNight", "내일 밤 9시"],
-  ["nextWeek", "1주 뒤"],
-  ["nextMonth", "1개월 뒤"],
+  ["oneMinute", "1분 후"],
+  ["tenMinutes", "10분 후"],
+  ["oneDay", "하루 후"],
+  ["oneWeek", "일주일 후"],
 ] as const;
 
 const quarterMinuteOptions = ["00", "15", "30", "45"];
@@ -1348,28 +1347,14 @@ async function fetchServerTimeWithRetry(): Promise<ServerTimeResponse> {
 }
 
 function createPresetDate(key: (typeof presetOptions)[number][0]) {
-  const now = new Date();
-  const parts = getKstParts(now);
-  const rounded = getKstParts(roundToNextKstQuarterHour(now));
+  const offsets: Record<(typeof presetOptions)[number][0], number> = {
+    oneMinute: 60 * 1000,
+    tenMinutes: 10 * 60 * 1000,
+    oneDay: 24 * 60 * 60 * 1000,
+    oneWeek: 7 * 24 * 60 * 60 * 1000,
+  };
 
-  if (key === "todayNight") {
-    const todayNight = fromKstParts(parts.year, parts.month, parts.day, 21, 0);
-    return todayNight.getTime() > Date.now() ? todayNight : fromKstParts(parts.year, parts.month, parts.day + 1, 21, 0);
-  }
-
-  if (key === "tomorrowMorning") {
-    return fromKstParts(parts.year, parts.month, parts.day + 1, 9, 0);
-  }
-
-  if (key === "tomorrowNight") {
-    return fromKstParts(parts.year, parts.month, parts.day + 1, 21, 0);
-  }
-
-  if (key === "nextWeek") {
-    return fromKstParts(rounded.year, rounded.month, rounded.day + 7, rounded.hour, rounded.minute);
-  }
-
-  return fromKstParts(rounded.year, rounded.month + 1, rounded.day, rounded.hour, rounded.minute);
+  return new Date(Date.now() + offsets[key]);
 }
 
 function toDateFromKstInput(dateValue: string, timeValue: string) {
@@ -1397,14 +1382,6 @@ function toDateFromKstInput(dateValue: string, timeValue: string) {
   }
 
   return fromKstParts(year, month, day, hour, minute);
-}
-
-function roundToNextKstQuarterHour(date: Date) {
-  const parts = getKstParts(date);
-  const nextMinute = Math.ceil((parts.minute + 1) / 15) * 15;
-  const minute = nextMinute >= 60 ? 0 : nextMinute;
-  const hour = nextMinute >= 60 ? parts.hour + 1 : parts.hour;
-  return fromKstParts(parts.year, parts.month, parts.day, hour, minute);
 }
 
 function toKstDateInput(date: Date) {

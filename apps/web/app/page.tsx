@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Inbox, Plus, Send, Sparkles } from "lucide-react";
+import { Heart, Inbox, Send, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { LetterThumb } from "@/components/ui";
+import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -32,20 +32,17 @@ type InboxMessage = {
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
+  readAt?: string | null;
   thumbnail?: MessageThumbnail | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  attachmentCount?: number;
 };
 
 type MessageThumbnail = {
   source: "ATTACHMENT" | "DEFAULT";
   url: string;
 };
-
-const homeRecentThumbnails = [
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-35 001.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 002.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 003.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 004.png",
-];
 
 export default function HomePage() {
   const router = useRouter();
@@ -125,14 +122,14 @@ export default function HomePage() {
               매 순간 아껴둔 마음의 소리
             </p>
             <h1 className="maeari-display-title max-w-[465px] break-keep text-[34px] leading-[1.24] text-[#FFE1EE] drop-shadow-[0_3px_12px_rgba(32,20,78,0.34)] sm:text-[43px] sm:leading-[1.3]">
-              오늘, 당신의 마음은
+              잊고 있었던 글이,
               <br />
-              어떤 모습인가요?
+              기억하지 못하는 순간에 찾아옵니다.
             </h1>
             <p className="mt-5 max-w-[360px] break-keep text-[15px] leading-[24px] text-[#FFF7FB] drop-shadow-[0_2px_8px_rgba(32,20,78,0.32)] sm:text-base sm:leading-[25px]">
-              지금의 마음을 미래의 누군가에게,
+              내가 지금 이 순간 느끼는 감정을 시차 없이,
               <br />
-              또는 미래의 나에게 전해보세요.
+              누군가에게 또는 미래의 나에게 전해주세요.
             </p>
 
             <div className="mt-7 flex w-full max-w-[342px] items-center gap-3 rounded-[8px] border border-white/22 bg-white/18 px-4 py-3 text-white shadow-[0_14px_30px_rgba(22,16,58,0.18)] backdrop-blur">
@@ -204,29 +201,23 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid gap-[10px] sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {recentLetterItems.map((letter) => (
-                <Link
+                <MessageAlbumCard
                   key={letter.id}
                   href={`/messages/${letter.id}`}
-                  className="focus-ring maeari-letter-surface relative h-[193px] p-4 transition hover:-translate-y-0.5 hover:border-[#CBBBFA]"
-                >
-                  <div className="flex gap-[9px]">
-                    <LetterThumb src={letter.thumbnailUrl} className="h-[84px] w-[63px] shrink-0" />
-                    <div className="pt-1">
-                      <p className="text-[15px] font-medium text-[#797A94]">{letter.title}</p>
-                      <p className="mt-1 line-clamp-2 text-[15px] font-medium text-[#7B7D97]">{letter.body}</p>
-                      <p className="mt-2 text-[11px] text-[#B3B5C5]">{letter.meta}</p>
-                    </div>
-                  </div>
-                  <span className="absolute bottom-[51px] left-4 rounded-[8px] bg-[#EEE8FD] px-3 py-1 text-[11px] text-[#9A85E1]">
-                    {letter.tag}
-                  </span>
-                  <span className="absolute bottom-5 right-4 grid h-[30px] w-[30px] place-items-center rounded-[8px] border border-[#EEE8FD] text-[#6D48DB]">
-                    <Plus size={14} />
-                  </span>
-                  <span className="absolute bottom-[25px] left-[73px] text-[10px] text-[#ADB0C2]">{letter.date}</span>
-                </Link>
+                  message={{
+                    id: letter.id,
+                    title: letter.title,
+                    coverUrl: letter.coverUrl,
+                    coverAlt: letter.coverAlt,
+                    senderName: letter.senderName,
+                    arrivedAtLabel: letter.date,
+                    emotionLabel: letter.tag,
+                    unread: letter.unread,
+                    attachmentCount: letter.attachmentCount,
+                  }}
+                />
               ))}
             </div>
           ) : (
@@ -272,17 +263,14 @@ function formatRecentMessage(message: InboxMessage) {
   return {
     id: message.id,
     title: message.title,
-    body: message.preview || "도착한 마음을 열어보세요.",
-    meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
+    senderName: message.isSenderHidden ? "누군가의 마음" : message.senderName,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
-    thumbnailUrl: homeRecentThumbnailFor(message.id),
+    coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
+    coverAlt: message.coverImageAlt ?? message.title,
+    unread: !message.readAt,
+    attachmentCount: message.attachmentCount,
   };
-}
-
-function homeRecentThumbnailFor(id: string) {
-  const hash = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return homeRecentThumbnails[hash % homeRecentThumbnails.length];
 }
 
 function formatShortDate(value: string) {

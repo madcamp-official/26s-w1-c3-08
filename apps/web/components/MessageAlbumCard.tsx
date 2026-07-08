@@ -24,7 +24,7 @@ export function MessageAlbumCard({
 }: {
   message: MessageAlbumCardData;
   href: string;
-  actions: ReactNode;
+  actions?: ReactNode;
 }) {
   const coverUrl = message.coverUrl ?? fallbackCover;
 
@@ -70,9 +70,11 @@ export function MessageAlbumCard({
         </div>
       </div>
 
-      <div className="absolute left-3 top-3 z-10 flex gap-2 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
-        {actions}
-      </div>
+      {actions ? (
+        <div className="absolute left-3 top-3 z-10 flex gap-2 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+          {actions}
+        </div>
+      ) : null}
     </article>
   );
 }

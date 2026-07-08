@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import type { PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Bell, BellOff, Clock3, Gift, LogIn, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
@@ -43,6 +44,12 @@ type ArrivalGate = {
 
 type SuppressionChannel = "EMAIL" | "SMS";
 
+type Meteor = {
+  id: number;
+  x: number;
+  y: number;
+};
+
 export default function ArrivalPage() {
   const params = useParams<{ token: string }>();
   const [message, setMessage] = useState<PublicMessage | null>(null);
@@ -57,6 +64,9 @@ export default function ArrivalPage() {
     title: string;
     tone: "success" | "danger";
   }>>>({});
+  const [meteors, setMeteors] = useState<Meteor[]>([]);
+  const meteorIdRef = useRef(0);
+  const lastMeteorAtRef = useRef(0);
 
   useEffect(() => {
     sessionStorage.setItem(PENDING_TOKEN_KEY, params.token);
@@ -175,9 +185,39 @@ export default function ArrivalPage() {
     }
   }
 
+  function handlePointerMove(event: PointerEvent<HTMLElement>) {
+    if (event.pointerType === "touch") {
+      return;
+    }
+
+    const now = window.performance.now();
+    if (now - lastMeteorAtRef.current < 70) {
+      return;
+    }
+
+    lastMeteorAtRef.current = now;
+    const id = meteorIdRef.current + 1;
+    meteorIdRef.current = id;
+    setMeteors((current) => [...current.slice(-14), { id, x: event.clientX, y: event.clientY }]);
+    window.setTimeout(() => {
+      setMeteors((current) => current.filter((meteor) => meteor.id !== id));
+    }, 950);
+  }
+
+  const arrivalCoverUrl = message ? getFirstImageAttachment(message)?.publicUrl ?? null : null;
+
   return (
-    <main className="maeari-public-stage text-[#4E536B]">
-      <header className="h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
+    <main className="maeari-public-stage text-[#4E536B]" onPointerMove={handlePointerMove}>
+      <div className="maeari-arrival-meteor-layer" aria-hidden="true">
+        {meteors.map((meteor) => (
+          <span
+            key={meteor.id}
+            className="maeari-arrival-meteor"
+            style={{ left: `${meteor.x}px`, top: `${meteor.y}px` }}
+          />
+        ))}
+      </div>
+      <header className="relative z-20 h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">
           <Link href="/" className="focus-ring flex items-center rounded-[8px]">
           <Image
@@ -193,7 +233,7 @@ export default function ArrivalPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[760px] px-4 py-10">
+      <div className="relative z-10 mx-auto max-w-[760px] px-4 py-10">
 
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error && !gate ? <p className="text-sm text-[#A2A6BF]">도착한 마음을 확인하고 있어요.</p> : null}
@@ -226,26 +266,26 @@ export default function ArrivalPage() {
         </section>
       ) : null}
       {message && !opened ? (
-        <section className="figma-panel p-6 text-center">
-          <div className="relative mx-auto mb-5 aspect-square w-36 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
-            <Image
-              src="/images/maeari-heart-letter.png"
-              alt="도착한 마음 봉투"
-              fill
-              sizes="144px"
-              className="object-cover"
-              priority
-            />
+        <section className="maeari-arrival-gate-card figma-panel relative overflow-hidden p-6 text-center">
+          {arrivalCoverUrl ? (
+            <>
+              <img src={arrivalCoverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.42]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.70)_0%,rgba(255,255,255,0.86)_58%,rgba(248,244,253,0.94)_100%)]" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(218,201,255,0.34),transparent_42%)]" />
+          )}
+          <div className="relative z-10">
+            <Gift className="mx-auto mb-4 text-brand-accent" size={32} />
+            <h1 className="maeari-page-title">오늘, 누군가의 마음이 도착했어요.</h1>
+            <button
+              type="button"
+              onClick={() => setOpened(true)}
+              className="focus-ring maeari-action maeari-action-primary mt-6 h-11 px-5"
+            >
+              열어보기
+            </button>
           </div>
-          <Gift className="mx-auto mb-4 text-brand-accent" size={32} />
-          <h1 className="maeari-page-title">오늘, 누군가의 마음이 도착했어요.</h1>
-          <button
-            type="button"
-            onClick={() => setOpened(true)}
-            className="focus-ring maeari-action maeari-action-primary mt-6 h-11 px-5"
-          >
-            열어보기
-          </button>
         </section>
       ) : null}
       {message && opened ? (
@@ -368,6 +408,10 @@ export default function ArrivalPage() {
       </div>
     </main>
   );
+}
+
+function getFirstImageAttachment(message: PublicMessage) {
+  return message.attachments?.find((attachment) => attachment.mimeType.startsWith("image/")) ?? null;
 }
 
 function themeClass(theme?: string | null) {
