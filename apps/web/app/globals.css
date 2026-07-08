@@ -251,8 +251,6 @@ a {
 .maeari-polaroid-frame {
   display: block;
   box-sizing: border-box;
-  width: 100px;
-  height: 180px;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid rgba(227, 222, 240, 0.92);
@@ -264,6 +262,16 @@ a {
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
+}
+
+.maeari-polaroid-frame-landscape {
+  width: 300px;
+  height: 240px;
+}
+
+.maeari-polaroid-frame-portrait {
+  width: 240px;
+  height: 300px;
 }
 
 .maeari-polaroid-frame:hover {
@@ -687,8 +695,8 @@ a {
   inset: 0;
   z-index: 120;
   min-height: 100dvh;
-  background: transparent;
-  backdrop-filter: none;
+  background: rgba(246, 242, 255, 0.18);
+  backdrop-filter: blur(2px);
 }
 
 .maeari-loading-scene {

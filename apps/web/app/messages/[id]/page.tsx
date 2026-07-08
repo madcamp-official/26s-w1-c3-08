@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Copy, QrCode, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { AttachmentPolaroid } from "@/components/AttachmentPolaroid";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -294,17 +295,7 @@ export default function MessageDetailPage() {
           {message.attachments && message.attachments.length > 0 ? (
             <div className="relative z-[1] mt-5 grid gap-4 md:grid-cols-2">
               {message.attachments.map((attachment) => (
-                <a
-                  key={attachment.id}
-                  href={attachment.publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="focus-ring maeari-polaroid-frame"
-                >
-                  <span className="maeari-polaroid-photo">
-                    <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} />
-                  </span>
-                </a>
+                <AttachmentPolaroid key={attachment.id} publicUrl={attachment.publicUrl} alt={attachment.originalName} />
               ))}
             </div>
           ) : null}
