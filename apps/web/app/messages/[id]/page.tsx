@@ -438,14 +438,14 @@ function getFirstImageAttachment(message: MessageDetail) {
 
 function envelopeImageByTheme(theme?: string | null) {
   const images: Record<string, string> = {
-    LAVENDER: "/images/maeari-heart-letter.png",
-    MOSS: "/images/maeari-card-letter.png",
-    SUNSET: "/images/maeari-glow-envelope.png",
-    MIDNIGHT: "/images/maeari-moon-letter.png",
-    PAPER: "/images/maeari-star-letter.png",
+    LAVENDER: "/images/maeari-envelope-theme-lavender.png",
+    MOSS: "/images/maeari-envelope-theme-moss.png",
+    SUNSET: "/images/maeari-envelope-theme-sunset.png",
+    MIDNIGHT: "/images/maeari-envelope-theme-midnight.png",
+    PAPER: "/images/maeari-envelope-theme-paper.png",
   };
 
-  return theme ? images[theme] ?? "/images/maeari-card-letter.png" : "/images/maeari-card-letter.png";
+  return theme ? images[theme] ?? "/images/maeari-envelope-theme-lavender.png" : "/images/maeari-envelope-theme-lavender.png";
 }
 
 function toBrowserPublicUrl(publicUrl: string) {

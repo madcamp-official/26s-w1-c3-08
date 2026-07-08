@@ -340,7 +340,7 @@ export default function ArrivalPage() {
         <section className="figma-panel p-6 text-center">
           <div className="relative mx-auto mb-5 aspect-square w-28 overflow-hidden rounded-[8px] bg-[#fbf7ff]">
             <Image
-              src="/images/maeari-moon-letter.png"
+              src="/images/maeari-envelope-theme-lavender.png"
               alt="보관 중인 마음 봉투"
               fill
               sizes="112px"

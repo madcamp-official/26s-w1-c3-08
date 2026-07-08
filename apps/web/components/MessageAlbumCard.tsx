@@ -15,7 +15,7 @@ export type MessageAlbumCardData = {
   attachmentCount?: number;
 };
 
-const fallbackCover = "/images/maeari-card-letter.png";
+const fallbackCover = "/images/maeari-envelope-theme-lavender.png";
 
 export function MessageAlbumCard({
   message,
