@@ -367,6 +367,9 @@
 - 마음나무는 `MessageCollection`과 `MessageCollectionSubmission`으로 구현했습니다.
 - 마음나무 owner는 verified strict PHONE이 필요하고, 비회원 제출은 텍스트만 허용합니다.
 - scheduler는 도착 시점이 지난 ACTIVE collection을 DELIVERED로 바꾸고, visible submissions를 owner에게 공개합니다.
+- 공개 마음나무 URL은 `ACTIVE && scheduledAt > now`일 때만 조회/제출할 수 있고, 도착 이후에는 `410 COLLECTION_LINK_EXPIRED`와 `도착시간이 지나 만료된 링크입니다.`를 반환합니다.
+- owner는 `PATCH /api/message-collections/:id/close`로 예정 시각 전에도 즉시 DELIVERED 처리할 수 있고, `DELETE /api/message-collections/:id/permanent`로 collection과 제출물/알림을 완전 삭제할 수 있습니다.
+- 기존 `DELETE /api/message-collections/:id`는 legacy cancel route로 남기며 새 frontend는 사용하지 않습니다.
 
 ### 0.2.5.7 Figma UI 리디자인 적용 원칙
 
@@ -3421,6 +3424,8 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - 마음나무 생성자는 verified PHONE 보유가 필요합니다.
 - 비회원 제출은 기존 텍스트 guardrail을 즉시 통과해야 저장됩니다.
 - scheduler는 `DELIVERY_CRON` 주기로 `ACTIVE` 마음나무 중 `scheduledAt`이 지난 항목을 `DELIVERED`로 전환하고 제출물을 일괄 공개합니다.
+- 도착 시각이 지난 공개 링크는 더 이상 조회/제출할 수 없으며 frontend는 `COLLECTION_LINK_EXPIRED`를 만료 페이지로 표시합니다.
+- `PATCH /api/message-collections/:id/close`는 즉시 도착 처리, `DELETE /api/message-collections/:id/permanent`는 완전 삭제입니다.
 
 ### 22.6 운영 DB migration 상태
 
