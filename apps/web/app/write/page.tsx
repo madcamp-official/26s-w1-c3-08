@@ -608,12 +608,12 @@ export default function WritePage() {
 
   return (
     <AppShell>
-      <div className="relative max-w-[1190px]">
-        <div className="pointer-events-none absolute left-[434px] top-[-86px] hidden h-[263px] w-[395px] overflow-hidden lg:block">
+      <div className="relative isolate max-w-[1190px]">
+        <div className="pointer-events-none absolute left-[434px] top-[-86px] z-0 hidden h-[263px] w-[395px] overflow-hidden lg:block">
           <Image src="/images/maeari-cloud-envelope.png" alt="" fill sizes="395px" className="object-cover" />
         </div>
 
-        <div className="mb-[14px] pl-[5px]">
+        <div className="relative z-10 mb-[14px] pl-[5px]">
           <h1 className="maeari-page-title">새로운 마음 보내기</h1>
           <p className="maeari-page-copy mt-2">당신의 마음이 가장 필요한 순간에 도착해요.</p>
         </div>
@@ -629,7 +629,7 @@ export default function WritePage() {
           />
         ) : null}
 
-        <form onSubmit={handleSubmit} className="grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(320px,340px)] xl:items-start">
+        <form onSubmit={handleSubmit} className="relative z-10 grid gap-[29px] xl:grid-cols-[minmax(0,1fr)_minmax(320px,340px)] xl:items-start">
           <section className="figma-panel min-h-[578px] px-[21px] py-[24px]">
             <div className="px-[1px]">
               <p className="maeari-kst-time text-sm text-[#7B7FAA]">현재 시각 (KST)</p>

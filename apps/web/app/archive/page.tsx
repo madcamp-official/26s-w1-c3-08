@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArchiveRestore, Inbox, RefreshCw, Trash2 } from "lucide-react";
+import { ArchiveRestore, Heart, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { Notice } from "@/components/Notice";
@@ -160,7 +160,7 @@ export default function ArchivePage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/inbox" className="focus-ring maeari-action">
-            <Inbox size={16} />
+            <Heart size={16} />
             받은 마음
           </Link>
           <button type="button" onClick={() => void load()} className="focus-ring maeari-action">
