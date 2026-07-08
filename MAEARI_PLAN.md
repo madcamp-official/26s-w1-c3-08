@@ -1025,7 +1025,7 @@ MODERATION_FAILED
 
 검사 실패 상태의 메시지는 미검증 콘텐츠이므로 수신자에게 공개하지 않습니다. 따라서 `MessageAccessToken`은 moderation 통과 후 `PENDING`으로 전환될 때 생성하는 것을 원칙으로 합니다.
 
-보관함 삭제는 상태별 혼합 정책을 사용합니다. 발신함에서는 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지를 hard delete하고, 이미 도착했거나 실패한 `SENT`, `FAILED` 메시지는 `Message.senderDeletedAt`으로 발신자 화면에서만 제외합니다. 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 사용자별 soft delete를 적용합니다. 이 방식은 이미 외부에 도착했거나 감사 추적이 필요한 공개 링크 token, notification log, moderation log를 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
+보관함 삭제는 상태별 혼합 정책을 사용합니다. 발신함에서는 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지를 hard delete하고, 이미 도착했거나 실패한 `SENT`, `FAILED` 메시지는 `Message.senderDeletedAt`으로 발신자 화면에서만 제외합니다. 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 사용자별 soft delete를 적용합니다. 발신자와 수신자가 같은 메시지는 `scope=recipient|sender` 또는 요청 `Referer`의 `/archive`, `/inbox`, `/sent` 경로로 mailbox 삭제 대상을 구분합니다. 이 방식은 이미 외부에 도착했거나 감사 추적이 필요한 공개 링크 token, notification log, moderation log를 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
 
 ## 7.3 receiverInfo JSON 예시
 
@@ -1354,12 +1354,12 @@ PHONE 인증 정책:
 | GET | `/api/messages/sent` | 필요 | 내가 보낸 메시지 목록 |
 | GET | `/api/messages/received` | 필요 | 내가 받은 메시지 목록 |
 | GET | `/api/messages/archived` | 필요 | 내가 아카이브한 받은 메시지 목록 |
-| POST | `/api/messages/bulk-delete` | 필요 | 여러 메시지를 내 보관함에서 일괄 제거 |
+| POST | `/api/messages/bulk-delete` | 필요 | 여러 메시지를 내 보관함에서 일괄 제거. optional `scope=sender\|recipient` |
 | GET | `/api/messages/:id` | 필요 | 메시지 상세 조회 |
 | PATCH | `/api/messages/:id/cancel` | 필요 | 예약 메시지 취소 |
 | PATCH | `/api/messages/:id/archive` | 필요 | 받은 메시지 아카이브 |
 | PATCH | `/api/messages/:id/unarchive` | 필요 | 받은 메시지 아카이브 복구 |
-| DELETE | `/api/messages/:id` | 필요 | 보낸/받은 마음을 내 보관함에서 제거. 발신자는 상태별 hard/soft delete 정책 적용 |
+| DELETE | `/api/messages/:id` | 필요 | 보낸/받은 마음을 내 보관함에서 제거. optional `scope=sender\|recipient` |
 
 ## 9.3 Public API
 

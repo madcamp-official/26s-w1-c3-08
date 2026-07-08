@@ -275,7 +275,7 @@
 | GET | `/api/messages/replies/received` | 내가 보낸 마음에 받은 답장 목록 | 세션 쿠키 | `{ replies }` |
 | GET | `/api/messages/received` | 받은 마음 목록. 각 message에 `thumbnail`, `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount` 포함 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/archived` | 아카이브한 받은 마음 목록. 각 message에 `thumbnail`, `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount` 포함 | 세션 쿠키 | `{ messages }` |
-| POST | `/api/messages/bulk-delete` | 여러 보낸/받은 마음을 내 보관함에서 제거 | `{ messageIds }` | `{ deletedCount, failedCount, results }` |
+| POST | `/api/messages/bulk-delete` | 여러 보낸/받은 마음을 내 보관함에서 제거. optional `scope=sender\|recipient` | `{ messageIds, scope? }` | `{ deletedCount, failedCount, results }` |
 | PATCH | `/api/messages/replies/:id/read` | 보낸 마음 답장 읽음 처리 | 세션 쿠키, reply id | `{ read: true }` |
 | DELETE | `/api/messages/replies/:id` | 보낸 마음 답장을 발신자 화면에서 삭제 | 세션 쿠키, reply id | `{ deleted: true }` |
 | POST | `/api/messages/:id/replies` | 로그인 수신자가 받은 마음에 답장 작성 | `{ content, senderDisplayName?, isAnonymous? }` | `{ reply }` |
@@ -284,7 +284,7 @@
 | PATCH | `/api/messages/:id/cancel` | 예약 메시지 취소 | 세션 쿠키, message id | `{ canceled: true }` |
 | PATCH | `/api/messages/:id/archive` | 받은 마음 아카이브 | 세션 쿠키, message id | `{ archived: true }` |
 | PATCH | `/api/messages/:id/unarchive` | 받은 마음 아카이브 복구 | 세션 쿠키, message id | `{ archived: false }` |
-| DELETE | `/api/messages/:id` | 보낸/받은 마음을 내 보관함에서 제거 | 세션 쿠키, message id | `{ deleted: true }` |
+| DELETE | `/api/messages/:id` | 보낸/받은 마음을 내 보관함에서 제거. optional query `scope=sender\|recipient` | 세션 쿠키, message id | `{ deleted: true }` |
 | GET | `/api/reports/emotions` | 월별 감정 리포트 | 세션 쿠키, `month=YYYY-MM` | `{ report }` |
 | GET | `/api/admin/overview` | 관리자 운영 요약 | 관리자 세션 | `{ overview }` |
 | GET | `/api/admin/moderation-logs` | 관리자 moderation 로그 | 관리자 세션 | `{ logs }` |
@@ -624,6 +624,7 @@ Frontend 연동 포인트:
 - `PENDING`, `MODERATION_FAILED`, `CANCELED` 보낸 마음은 `DELETE /api/messages/:id`로 hard delete합니다.
 - `SENT`, `FAILED` 보낸 마음은 `DELETE /api/messages/:id`로 `Message.senderDeletedAt`을 기록해 발신함에서만 제외합니다.
 - 받은 마음은 같은 `DELETE /api/messages/:id`로 현재 사용자의 `MessageRecipient.receiverDeletedAt`을 기록해 수신함에서 제외합니다.
+- 자기 자신에게 보낸 마음처럼 발신자와 수신자가 같은 경우를 위해 `DELETE /api/messages/:id?scope=recipient|sender`와 `/messages/bulk-delete`의 optional `scope`를 지원합니다. 기존 frontend 호출은 `Referer`가 `/archive` 또는 `/inbox`이면 recipient 삭제, `/sent`이면 sender 삭제로 보정합니다.
 - 이미 도착했거나 실패한 메시지와 받은 메시지는 발송 이력, 공개 token, notification log, 감사 추적을 보존하기 위해 사용자별 soft delete를 사용합니다.
 - `/sent`, `/inbox`, 메시지 상세 화면은 삭제 가능 상태일 때 `삭제` 버튼을 보여주고, 삭제된 항목은 목록에서 다시 노출하지 않습니다.
 - 받은 마음은 `PATCH /api/messages/:id/archive`로 아카이브할 수 있고 `/archive`에서 복구 또는 삭제할 수 있습니다.

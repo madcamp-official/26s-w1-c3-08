@@ -21,6 +21,7 @@ import {
   reportMessage,
   unarchiveReceivedMessage,
 } from "./message.service.js";
+import type { MessageMailboxDeleteScope } from "./message.service.js";
 
 export const createMessageController = asyncHandler(async (request: Request, response: Response) => {
   if (!request.user) {
@@ -174,7 +175,13 @@ export const deleteMessageFromMailboxController = asyncHandler(async (request: R
     throw new AppError("MESSAGE_ID_REQUIRED", "메시지 정보를 찾을 수 없어요.", 400);
   }
 
-  response.json(await deleteMessageFromMailbox(request.user.id, messageId));
+  response.json(
+    await deleteMessageFromMailbox(
+      request.user.id,
+      messageId,
+      resolveMessageMailboxDeleteScope(request, request.query.scope),
+    ),
+  );
 });
 
 export const bulkDeleteMessagesFromMailboxController = asyncHandler(async (request: Request, response: Response) => {
@@ -190,7 +197,13 @@ export const bulkDeleteMessagesFromMailboxController = asyncHandler(async (reque
     throw new AppError("MESSAGE_IDS_REQUIRED", "삭제할 메시지를 선택해 주세요.", 400);
   }
 
-  response.json(await bulkDeleteMessagesFromMailbox(request.user.id, messageIds));
+  response.json(
+    await bulkDeleteMessagesFromMailbox(
+      request.user.id,
+      messageIds,
+      resolveMessageMailboxDeleteScope(request, request.body?.scope),
+    ),
+  );
 });
 
 export const archiveReceivedMessageController = asyncHandler(async (request: Request, response: Response) => {
@@ -239,3 +252,62 @@ export const reportMessageController = asyncHandler(async (request: Request, res
     }),
   );
 });
+
+function resolveMessageMailboxDeleteScope(request: Request, explicitScope: unknown): MessageMailboxDeleteScope {
+  const parsedScope = parseMessageMailboxDeleteScope(explicitScope);
+
+  if (parsedScope) {
+    return parsedScope;
+  }
+
+  if (explicitScope !== undefined) {
+    throw new AppError("MESSAGE_DELETE_SCOPE_INVALID", "삭제 범위가 올바르지 않아요.", 400);
+  }
+
+  return resolveMessageMailboxDeleteScopeFromReferer(request.get("referer")) ?? "auto";
+}
+
+function parseMessageMailboxDeleteScope(value: unknown): MessageMailboxDeleteScope | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "sender" || normalized === "recipient" || normalized === "auto") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function resolveMessageMailboxDeleteScopeFromReferer(referer?: string) {
+  if (!referer) {
+    return null;
+  }
+
+  try {
+    const pathname = new URL(referer, "http://localhost").pathname;
+
+    if (
+      pathname === "/archive" ||
+      pathname.startsWith("/archive/") ||
+      pathname === "/inbox" ||
+      pathname.startsWith("/inbox/")
+    ) {
+      return "recipient" as const;
+    }
+
+    if (pathname === "/sent" || pathname.startsWith("/sent/")) {
+      return "sender" as const;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}

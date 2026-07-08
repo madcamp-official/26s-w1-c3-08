@@ -48,6 +48,8 @@ import type { CreateMessageInput, CreateMessageReplyInput } from "./message.vali
 import { getDisplayCustomEmotionTag, resolveMessageEmotionTags } from "./emotion-tags.js";
 import { getMessageThemeEnvelope, mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
+export type MessageMailboxDeleteScope = "auto" | "sender" | "recipient";
+
 export async function createMessage(userId: string, input: CreateMessageInput) {
   const messageId = crypto.randomUUID();
   const schedule = resolveSchedule(input);
@@ -616,13 +618,15 @@ export async function getMessageDetail(userId: string, messageId: string) {
 
   const isSender = message.senderId === userId;
   const recipient = message.recipients.find((item) => item.receiverUserId === userId && !item.receiverDeletedAt);
+  const canViewAsSender = isSender && !message.senderDeletedAt;
+  const canViewAsRecipient = Boolean(recipient) && message.status === MessageStatus.SENT;
 
-  if ((isSender && message.senderDeletedAt) || (!isSender && !recipient)) {
-    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 볼 권한이 없어요.", 403);
+  if (!canViewAsSender && recipient && message.status !== MessageStatus.SENT) {
+    throw new AppError("MESSAGE_NOT_ARRIVED", "아직 도착하지 않은 마음이에요.", 403);
   }
 
-  if (!isSender && message.status !== MessageStatus.SENT) {
-    throw new AppError("MESSAGE_NOT_ARRIVED", "아직 도착하지 않은 마음이에요.", 403);
+  if (!canViewAsSender && !canViewAsRecipient) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 볼 권한이 없어요.", 403);
   }
 
   if (recipient && !recipient.readAt && message.status === MessageStatus.SENT) {
@@ -642,7 +646,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
     });
   }
 
-  if (isSender) {
+  if (canViewAsSender) {
     const readAt = new Date();
     await prisma.messageReply.updateMany({
       where: {
@@ -683,14 +687,14 @@ export async function getMessageDetail(userId: string, messageId: string) {
     hintAt: message.hintAt,
     hintSentAt: message.hintSentAt,
     isReplyEnabled: message.isReplyEnabled,
-    scheduledAt: isSender || !message.isDateHidden ? message.scheduledAt : null,
-    sentAt: isSender || !message.isDateHidden ? message.sentAt : null,
+    scheduledAt: canViewAsSender || !message.isDateHidden ? message.scheduledAt : null,
+    sentAt: canViewAsSender || !message.isDateHidden ? message.sentAt : null,
     status: message.status,
-    viewerRole: isSender ? "SENDER" : "RECIPIENT",
+    viewerRole: canViewAsSender ? "SENDER" : "RECIPIENT",
     canCancel:
-      isSender &&
+      canViewAsSender &&
       (message.status === MessageStatus.PENDING || message.status === MessageStatus.MODERATION_FAILED),
-    canDeleteFromMailbox: isSender ? isSenderDeletableStatus(message.status) : Boolean(recipient),
+    canDeleteFromMailbox: canViewAsSender ? isSenderDeletableStatus(message.status) : Boolean(recipient),
     isSenderHidden: message.isSenderHidden,
     isDateHidden: message.isDateHidden,
     senderName: message.isSenderHidden ? null : message.senderDisplayName ?? message.sender.nickname,
@@ -701,7 +705,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
     })),
-    replies: (isSender
+    replies: (canViewAsSender
       ? message.replies.filter((reply) => !reply.senderDeletedAt)
       : message.replies.filter((reply) => reply.messageRecipientId === recipient?.id)
     ).map((reply) => ({
@@ -713,7 +717,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
         senderReadAt: reply.senderReadAt,
         createdAt: reply.createdAt,
       })),
-    recipients: isSender
+    recipients: canViewAsSender
       ? message.recipients.map((item) => ({
           id: item.id,
           name: item.receiverName,
@@ -821,7 +825,11 @@ export async function cancelMessage(userId: string, messageId: string) {
   return { canceled: true };
 }
 
-export async function deleteMessageFromMailbox(userId: string, messageId: string) {
+export async function deleteMessageFromMailbox(
+  userId: string,
+  messageId: string,
+  scope: MessageMailboxDeleteScope = "auto",
+) {
   const message = await prisma.message.findUnique({
     where: { id: messageId },
     include: {
@@ -839,35 +847,77 @@ export async function deleteMessageFromMailbox(userId: string, messageId: string
     throw new AppError("MESSAGE_NOT_FOUND", "메시지를 찾을 수 없어요.", 404);
   }
 
-  if (message.senderId === userId) {
-    if (
-      message.status === MessageStatus.PENDING ||
-      message.status === MessageStatus.MODERATION_FAILED ||
-      message.status === MessageStatus.CANCELED
-    ) {
-      await prisma.message.delete({
-        where: { id: message.id },
-      });
+  const userRecipient = message.recipients.find((item) => item.receiverUserId === userId);
+  const activeRecipient = userRecipient && !userRecipient.receiverDeletedAt ? userRecipient : null;
 
-      return { deleted: true };
-    }
-
-    if (message.status === MessageStatus.SENT || message.status === MessageStatus.FAILED) {
-      if (!message.senderDeletedAt) {
-        await prisma.message.update({
-          where: { id: message.id },
-          data: { senderDeletedAt: new Date() },
-        });
-      }
-
-      return { deleted: true };
-    }
-
-    throw new AppError("MESSAGE_NOT_DELETABLE", "이 상태의 메시지는 보낸 마음에서 삭제할 수 없어요.", 409);
+  if (scope === "recipient") {
+    return deleteMessageFromRecipientMailbox(userRecipient);
   }
 
-  const recipient = message.recipients.find((item) => item.receiverUserId === userId);
+  if (scope === "sender") {
+    return deleteMessageFromSenderMailbox(userId, message);
+  }
 
+  if (message.senderDeletedAt && activeRecipient) {
+    return deleteMessageFromRecipientMailbox(activeRecipient);
+  }
+
+  if (message.senderId === userId) {
+    return deleteMessageFromSenderMailbox(userId, message);
+  }
+
+  if (userRecipient) {
+    return deleteMessageFromRecipientMailbox(userRecipient);
+  }
+
+  throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 삭제할 권한이 없어요.", 403);
+}
+
+async function deleteMessageFromSenderMailbox(
+  userId: string,
+  message: {
+    id: string;
+    senderId: string;
+    senderDeletedAt: Date | null;
+    status: MessageStatus;
+  },
+) {
+  if (message.senderId !== userId) {
+    throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 삭제할 권한이 없어요.", 403);
+  }
+
+  if (
+    message.status === MessageStatus.PENDING ||
+    message.status === MessageStatus.MODERATION_FAILED ||
+    message.status === MessageStatus.CANCELED
+  ) {
+    await prisma.message.delete({
+      where: { id: message.id },
+    });
+
+    return { deleted: true };
+  }
+
+  if (message.status === MessageStatus.SENT || message.status === MessageStatus.FAILED) {
+    if (!message.senderDeletedAt) {
+      await prisma.message.update({
+        where: { id: message.id },
+        data: { senderDeletedAt: new Date() },
+      });
+    }
+
+    return { deleted: true };
+  }
+
+  throw new AppError("MESSAGE_NOT_DELETABLE", "이 상태의 메시지는 보낸 마음에서 삭제할 수 없어요.", 409);
+}
+
+async function deleteMessageFromRecipientMailbox(
+  recipient?: {
+    id: string;
+    receiverDeletedAt: Date | null;
+  } | null,
+) {
   if (!recipient) {
     throw new AppError("MESSAGE_FORBIDDEN", "이 메시지를 삭제할 권한이 없어요.", 403);
   }
@@ -882,13 +932,17 @@ export async function deleteMessageFromMailbox(userId: string, messageId: string
   return { deleted: true };
 }
 
-export async function bulkDeleteMessagesFromMailbox(userId: string, messageIds: string[]) {
+export async function bulkDeleteMessagesFromMailbox(
+  userId: string,
+  messageIds: string[],
+  scope: MessageMailboxDeleteScope = "auto",
+) {
   const uniqueIds = [...new Set(messageIds)].filter(Boolean).slice(0, 100);
   const results = [];
 
   for (const messageId of uniqueIds) {
     try {
-      await deleteMessageFromMailbox(userId, messageId);
+      await deleteMessageFromMailbox(userId, messageId, scope);
       results.push({ id: messageId, deleted: true });
     } catch (error) {
       results.push({
