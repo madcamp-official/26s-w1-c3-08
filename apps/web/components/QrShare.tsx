@@ -8,9 +8,11 @@ type QrShareProps = {
   value: string;
   title?: string;
   fileName?: string;
+  size?: number;
+  compact?: boolean;
 };
 
-export function QrShare({ value, title = "QR로 공유하기", fileName = "maeari-qr.png" }: QrShareProps) {
+export function QrShare({ value, title = "QR로 공유하기", fileName = "maeari-qr.png", size = 176, compact = false }: QrShareProps) {
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -34,13 +36,13 @@ export function QrShare({ value, title = "QR로 공유하기", fileName = "maear
   }
 
   return (
-    <div className="figma-panel p-4 text-center">
+    <div className={`figma-panel text-center ${compact ? "p-3" : "p-4"}`}>
       <p className="text-sm font-semibold text-[#4E536B]">{title}</p>
-      <div ref={qrRef} className="mt-3 inline-flex rounded-[8px] border border-[#E4DBF4] bg-white p-3 shadow-sm">
-        <QRCodeCanvas value={value} size={176} includeMargin />
+      <div ref={qrRef} className={`inline-flex rounded-[8px] border border-[#E4DBF4] bg-white shadow-sm ${compact ? "mt-2 p-2" : "mt-3 p-3"}`}>
+        <QRCodeCanvas value={value} size={size} includeMargin />
       </div>
-      <p className="mt-3 break-all text-xs leading-5 text-[#8588A1]">{value}</p>
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
+      <p className={`break-all text-xs leading-5 text-[#8588A1] ${compact ? "mt-2" : "mt-3"}`}>{value}</p>
+      <div className={`flex flex-wrap justify-center gap-2 ${compact ? "mt-2" : "mt-3"}`}>
         <button
           type="button"
           onClick={() => void copyLink()}
