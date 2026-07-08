@@ -360,10 +360,6 @@ a {
   background: #d8cdf4;
 }
 
-.maeari-recipient-message-meta p:nth-of-type(2) {
-  display: none;
-}
-
 .maeari-loading-stage {
   display: grid;
   min-height: 100vh;

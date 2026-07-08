@@ -245,9 +245,9 @@ export default function MessageDetailPage() {
             ) : null}
           </div>
           <h1 className="relative z-[1] maeari-page-title">{message.title}</h1>
-          <div className={`relative z-[1] mt-3 grid gap-1 text-sm text-[#A2A6BF] ${message.viewerRole === "RECIPIENT" ? "maeari-recipient-message-meta" : ""}`}>
+          <div className="relative z-[1] mt-3 grid gap-1 text-sm text-[#A2A6BF]">
             <p>보낸 사람: {message.senderName ?? "익명 발신"}</p>
-            <p>예약 시간: {formatDateTime(message.scheduledAt)}</p>
+            {message.viewerRole === "SENDER" ? <p>예약 시간: {formatDateTime(message.scheduledAt)}</p> : null}
             <p>도착 시간: {formatDateTime(message.sentAt)}</p>
             {message.status === "MODERATION_FAILED" ? (
               <p className="text-brand-accent">다음 검사: {formatDateTime(message.moderationNextRetryAt)}</p>
