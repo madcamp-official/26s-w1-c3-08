@@ -10,7 +10,7 @@
 
 - 현재 DB 이름: `maeari`
 - 현재 DB 사용자: `maeari`
-- 현재 적용된 최신 migration: `20260706150000_ocr_replies_qr_collections`
+- 현재 Prisma 기준 최신 migration: `20260708120000_communication_blocks`
 - Docker Postgres healthcheck 기준 DB/USER도 `maeari`로 전환 완료
 - 2026-07-07 현재 주요 row count:
   - `User`: 6
@@ -19,6 +19,7 @@
   - `MessageAccessToken`: 43
   - `NotificationLog`: 25
   - `ContactSuppression`: 1
+  - `CommunicationBlock`: migration 추가, 배포 전 row count 미측정
   - `FriendRequest`: 1
   - `Friendship`: 1
   - `UserContact`: 5
@@ -74,6 +75,9 @@ NotificationLog
 ContactSuppression
   -> EMAIL/SMS 수신거부 연락처 HMAC hash
 
+CommunicationBlock
+  -> 마이페이지 송수신 거부. 회원/EMAIL/PHONE 대상, 방향별 차단
+
 MessageCollection / MessageCollectionSubmission
   -> 마음나무 공개 수집 링크와 비회원 제출 편지
 
@@ -85,7 +89,7 @@ DailyLine / DailyLineSelection
 
 - 공개 링크 raw token은 DB에 저장하지 않습니다.
 - `MessageAccessToken.tokenHash`에는 `PUBLIC_TOKEN_PEPPER` 기반 HMAC-SHA256만 저장합니다.
-- 수신거부 테이블에는 raw 이메일/전화번호를 저장하지 않습니다.
+- 수신거부/송수신 거부 테이블에는 raw 이메일/전화번호를 저장하지 않습니다.
 - `UserContact.value`에는 사용자가 인증한 연락처 원문을 저장하지만, 메시지 snapshot에는 `maskedValue`와 `contactHash`만 저장합니다.
 - 이메일/SMS 알림 본문에는 사용자가 작성한 편지 본문을 넣지 않고 열람 링크만 보냅니다.
 
@@ -145,6 +149,10 @@ NotificationLog
 
 ContactSuppression
 └── channel + contactHash unique
+
+CommunicationBlock
+├── owner: User
+└── targetUser: User?
 
 FriendRequest
 ├── requester: User
@@ -467,6 +475,28 @@ OpenAI moderation 검사 이력을 저장합니다.
 - `DELETE /api/public/notification-suppressions`: row delete, 재구독.
 - 이메일 수신거부는 EMAIL만 막고, 문자 수신거부는 SMS만 막습니다.
 - EMAIL은 trim + lowercase, SMS는 숫자만 남긴 국내 번호를 정규화한 뒤 `PUBLIC_TOKEN_PEPPER` HMAC hash로 저장합니다.
+
+## 3.12.1 CommunicationBlock
+
+로그인 사용자의 마이페이지 송수신 거부 설정을 저장합니다.
+
+주요 필드:
+
+- `ownerUserId`: 설정을 만든 사용자
+- `direction`: `SEND_TO` 또는 `RECEIVE_FROM`
+- `targetType`: `USER`, `EMAIL`, `PHONE`
+- `targetUserId`: 회원 대상일 때만 사용
+- `targetContactHash`: EMAIL/PHONE 대상일 때만 사용
+- `targetMaskedValue`, `targetLabel`, `targetDisplayName`
+- `createdAt`
+
+정책:
+
+- `GET /api/me/communication-blocks`: 내 송수신 거부 목록 조회.
+- `POST /api/me/communication-blocks`: 회원/EMAIL/PHONE 대상 등록. 중복 등록은 기존 row를 반환합니다.
+- `DELETE /api/me/communication-blocks/:id`: 내 설정만 삭제합니다.
+- raw 이메일/전화번호는 저장하지 않고 `PUBLIC_TOKEN_PEPPER` HMAC hash와 masked value만 저장합니다.
+- 새 마음쓰기, 로그인 답장, 친구 요청/초대 claim/수락에만 적용하며 과거 마음/답장/친구관계는 변경하지 않습니다.
 
 ## 3.12 MessageReport
 
@@ -861,6 +891,11 @@ AI 재검사 scheduler
 
 수신거부
   ContactSuppression @@unique([channel, contactHash])
+
+송수신 거부
+  CommunicationBlock @@unique([ownerUserId, direction, targetType, targetUserId])
+  CommunicationBlock @@unique([ownerUserId, direction, targetType, targetContactHash])
+  CommunicationBlock @@index([ownerUserId, direction, createdAt])
 
 사용자 인증 연락처
   UserContact @@unique([type, contactHash])

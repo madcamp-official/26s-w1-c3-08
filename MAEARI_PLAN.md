@@ -344,6 +344,8 @@
 - 발신인 숨김이 켜진 메시지는 provider payload에도 sender nickname을 넣지 않습니다.
 - `ContactSuppression`은 EMAIL/SMS별 HMAC contact hash를 저장하며, 수신거부와 재구독을 모두 지원합니다.
 - suppression 때문에 모든 외부 알림이 최종 skip되면 recipient와 message 상태를 실패로 동기화해 “도착 완료와 실패가 동시에 보이는” 상태를 막습니다.
+- 마이페이지 송수신 거부는 `CommunicationBlock`에 회원/이메일/전화번호 대상을 `SEND_TO` 또는 `RECEIVE_FROM` 방향으로 저장합니다.
+- 새 마음쓰기, 로그인 답장, 친구 요청/초대 claim/수락은 `CommunicationBlock`을 검사해 `409 *_COMMUNICATION_BLOCKED`로 차단하고, 과거 마음/답장/친구관계는 변경하지 않습니다.
 
 ### 0.2.5.5 첨부와 OCR moderation
 
@@ -949,6 +951,7 @@ maeari/
 | `ModerationLog` | OpenAI Moderation 및 guardrail 검사 이력 |
 | `NotificationLog` | IN_APP/Gmail SMTP/Solapi 발송 이력, 답장/마음나무 알림, retry, idempotency |
 | `ContactSuppression` | EMAIL/SMS 수신거부 연락처 HMAC hash |
+| `CommunicationBlock` | 마이페이지 송수신 거부. 회원/EMAIL/PHONE 대상, 방향별 차단 |
 | `MessageReport` | 공개 링크/상세 화면 신고와 관리자 검토 상태 |
 | `MessageCollection` | 마음나무 공개 수집 링크, owner, 도착 시각, 상태 |
 | `MessageCollectionSubmission` | 비회원 마음나무 제출 편지, moderation, IP hash, owner 열람 상태 |
@@ -1318,6 +1321,9 @@ MVP에서는 두 가지 선택지가 있습니다.
 | POST | `/api/me/contacts/:id/verify` | 필요 | OTP 인증 코드 검증 |
 | PATCH | `/api/me/contacts/:id` | 필요 | 연락처 label 수정. `isPrimary`는 active PHONE 교체/내부 우선순위 관리에 사용 |
 | DELETE | `/api/me/contacts/:id` | 필요 | 연락처 soft delete. verified PHONE은 삭제 불가, 새 번호 인증으로만 변경 |
+| GET | `/api/me/communication-blocks` | 필요 | 마이페이지 송수신 거부 목록. optional `direction=SEND_TO\|RECEIVE_FROM` |
+| POST | `/api/me/communication-blocks` | 필요 | `{ direction, target }`로 회원/EMAIL/PHONE 송수신 거부 등록 |
+| DELETE | `/api/me/communication-blocks/:id` | 필요 | 송수신 거부 설정 해제 |
 
 PHONE 인증 정책:
 
@@ -2266,7 +2272,7 @@ export async function retryFailedModerationMessages() {
 | 친구 | `/friends` | 친구 코드 확인, 친구 초대 링크, 친구 요청, 요청 수락/거절, 친구 삭제 |
 | 친구 초대 | `/friends/invite/[token]` | 초대 링크 미리보기와 로그인 후 친구 연결 |
 | 공개 열람 | `/arrival/[token]` | 비회원 메시지 확인 |
-| 마이페이지 | `/my` | 내 정보, 연락처 인증 상태, 전화번호 변경, 로그아웃 |
+| 마이페이지 | `/my` | 내 정보, 연락처 인증 상태, 전화번호 변경, 송수신 거부 관리, 로그아웃 |
 
 ## 12.2 메시지 작성 화면 구성
 

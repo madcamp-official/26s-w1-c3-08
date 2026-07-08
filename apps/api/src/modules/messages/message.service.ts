@@ -1,5 +1,6 @@
 import {
   AttachmentOcrStatus,
+  CommunicationBlockDirection,
   MessageArrivalMode,
   MessageReplyStatus,
   ModerationAttemptStatus,
@@ -34,6 +35,15 @@ import {
 } from "../moderation/image-ocr.service.js";
 import { assertActiveFriendship } from "../friends/friend.service.js";
 import { assertVerifiedSenderPhoneContact } from "../contacts/contact.service.js";
+import {
+  assertCommunicationAllowedBetweenUsers,
+  findCommunicationBlock,
+  getCommunicationBlockDetails,
+  getContactCommunicationTargets,
+  getUserCommunicationTarget,
+  mergeCommunicationTargets,
+  type CommunicationTargetReference,
+} from "../communication-blocks/communication-block.service.js";
 import type { CreateMessageInput, CreateMessageReplyInput } from "./message.validation.js";
 import { getMessageThemeEnvelope, mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
@@ -45,6 +55,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
   const senderContact = await assertVerifiedSenderPhoneContact(userId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
+  await assertMessageReceiversCommunicationAllowed(userId, receivers);
   const attachmentOcrResults = await analyzeDraftAttachmentsForOcr(input.attachments ?? []);
   const attachmentOcrText = buildAttachmentOcrText(attachmentOcrResults);
   const moderationInput = {
@@ -312,6 +323,7 @@ export async function createAuthenticatedMessageReply(
       message: {
         select: {
           id: true,
+          senderId: true,
           isReplyEnabled: true,
         },
       },
@@ -325,6 +337,15 @@ export async function createAuthenticatedMessageReply(
   if (!recipient.message.isReplyEnabled) {
     throw new AppError("REPLY_DISABLED", "이 마음에는 답장을 보낼 수 없어요.", 409);
   }
+
+  await assertCommunicationAllowedBetweenUsers(
+    userId,
+    recipient.message.senderId,
+    {
+      errorCode: "REPLY_COMMUNICATION_BLOCKED",
+      message: "송수신 거부 설정으로 답장을 보낼 수 없어요.",
+    },
+  );
 
   const moderationInput = {
     title: "답장",
@@ -1057,6 +1078,78 @@ function isSenderDeletableStatus(status: MessageStatus) {
     status === MessageStatus.SENT ||
     status === MessageStatus.FAILED
   );
+}
+
+type NormalizedReceiver = Awaited<ReturnType<typeof normalizeReceiver>>;
+
+async function assertMessageReceiversCommunicationAllowed(senderUserId: string, receivers: NormalizedReceiver[]) {
+  const senderTarget = await getUserCommunicationTarget(senderUserId);
+  const blockedReceivers = [];
+
+  for (const receiver of receivers) {
+    if (receiver.receiverUserId === senderUserId) {
+      continue;
+    }
+
+    const receiverTarget = await getReceiverCommunicationTarget(receiver);
+    const senderBlock = await findCommunicationBlock(
+      senderUserId,
+      CommunicationBlockDirection.SEND_TO,
+      receiverTarget,
+    );
+
+    if (senderBlock) {
+      blockedReceivers.push({
+        receiverName: receiver.receiverName,
+        receiverType: receiver.receiverType,
+        receiverUserId: receiver.receiverUserId,
+        blockedBy: "SENDER_SEND_TO",
+        block: getCommunicationBlockDetails(senderBlock),
+      });
+      continue;
+    }
+
+    if (!receiverTarget.userId) {
+      continue;
+    }
+
+    const receiverBlock = await findCommunicationBlock(
+      receiverTarget.userId,
+      CommunicationBlockDirection.RECEIVE_FROM,
+      senderTarget,
+    );
+
+    if (receiverBlock) {
+      blockedReceivers.push({
+        receiverName: receiver.receiverName,
+        receiverType: receiver.receiverType,
+        receiverUserId: receiver.receiverUserId,
+        blockedBy: "RECEIVER_RECEIVE_FROM",
+        block: getCommunicationBlockDetails(receiverBlock),
+      });
+    }
+  }
+
+  if (blockedReceivers.length > 0) {
+    throw new AppError("MESSAGE_COMMUNICATION_BLOCKED", "송수신 거부 설정으로 마음을 보낼 수 없어요.", 409, {
+      blockedReceivers,
+    });
+  }
+}
+
+async function getReceiverCommunicationTarget(receiver: NormalizedReceiver): Promise<CommunicationTargetReference> {
+  const explicitContacts = getContactCommunicationTargets({
+    email: receiver.receiverEmail,
+    phone: receiver.receiverPhone,
+  });
+
+  if (!receiver.receiverUserId) {
+    return {
+      contacts: explicitContacts,
+    };
+  }
+
+  return mergeCommunicationTargets(await getUserCommunicationTarget(receiver.receiverUserId), explicitContacts);
 }
 
 async function normalizeReceiver(receiverInfo: NonNullable<CreateMessageInput["receiverInfo"]>, userId: string) {
