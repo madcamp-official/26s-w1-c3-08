@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+.home-recent-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 430px));
+  gap: 1rem;
+}
+
+@media (min-width: 1536px) {
+  .home-recent-album-grid {
+    grid-template-columns: repeat(auto-fit, minmax(340px, 440px));
+  }
+}
+
 @font-face {
   font-family: "SchoolSafe Universe";
   src: url("/fonts/HakgyoansimWoojuR.woff2") format("woff2");

@@ -213,7 +213,7 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="home-recent-album-grid">
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}
