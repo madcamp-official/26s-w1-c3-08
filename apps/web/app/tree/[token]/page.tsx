@@ -93,7 +93,7 @@ export default function PublicTreePage() {
           <section className="figma-panel p-5">
             <SproutPot count={collection.submissionCount ?? 0} />
             <p className="mb-5 text-center text-sm font-semibold text-[#8D79D6]">
-              마음나무 수집할 때 달아준 마음만큼 마음나무가 성장해요.
+              달아준 마음만큼 나무가 성장해요!
             </p>
             <div className="mb-5">
               <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
