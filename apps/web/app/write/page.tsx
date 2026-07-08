@@ -1243,12 +1243,12 @@ function WriteNoticeDialog({
         : "bg-[#6D48DB] text-white";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6D48DB]/28 px-4 py-6 backdrop-blur-sm" role="presentation">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-[#6D48DB]/28 px-4 py-20 backdrop-blur-sm sm:items-center sm:py-8" role="presentation">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="write-notice-title"
-        className={`w-full max-w-lg rounded-[8px] border p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)] ${accentClass}`}
+        className={`max-h-[calc(100vh-96px)] w-full max-w-lg overflow-y-auto rounded-[8px] border p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)] ${accentClass}`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -1294,7 +1294,7 @@ function WriteNoticeDialog({
               <button
                 type="button"
                 onClick={onViewSent}
-                className="focus-ring rounded-[8px] border border-[#D9C8FF] bg-white px-3 py-2 text-sm font-semibold text-[#6D48DB]"
+                className="hidden"
               >
                 보낸 마음 보기
               </button>

@@ -266,7 +266,7 @@ export default function InboxPage() {
               coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
               coverAlt: message.coverImageAlt ?? message.title,
               senderName: message.isSenderHidden ? "익명" : message.senderName,
-              arrivedAtLabel: message.isDateHidden ? "숨겨진 도착일" : formatDateTime(message.arrivedAt),
+              arrivedAtLabel: formatDateTime(message.arrivedAt),
               emotionLabel: emotionLabel(message.emotionTag, message.customEmotionTag),
               unread: !message.readAt,
               attachmentCount: message.attachmentCount,
