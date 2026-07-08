@@ -107,6 +107,26 @@ export type DailyLineResponse = {
   };
 };
 
+export type AccountSetupStatus = {
+  hasVerifiedStrictPhone: boolean;
+  requiresSignupPhoneVerification: boolean;
+  hasCompletedOnboarding: boolean;
+};
+
+export type MeResponse = {
+  user: {
+    id: string;
+    kakaoId: string;
+    nickname: string;
+    email?: string | null;
+    friendCode: string;
+    onboardingNote?: string | null;
+    suspendedAt?: string | null;
+    isAdmin: boolean;
+  };
+  accountSetup: AccountSetupStatus;
+};
+
 export type MessageThumbnailSource = "ATTACHMENT" | "THEME" | "DEFAULT";
 
 export type MessageThumbnail = {
