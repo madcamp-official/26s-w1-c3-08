@@ -279,7 +279,7 @@ export default function TreePage() {
                         <Trash2 size={16} />
                         삭제
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 </div>
 
