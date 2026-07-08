@@ -301,16 +301,19 @@ export default function MessageDetailPage() {
             {message.content}
           </div>
           {message.attachments && message.attachments.length > 0 ? (
-            <div className="relative z-[1] mt-5 grid gap-3 md:grid-cols-2">
+            <div className="relative z-[1] mt-5 grid gap-4 md:grid-cols-2">
               {message.attachments.map((attachment) => (
                 <a
                   key={attachment.id}
                   href={attachment.publicUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="focus-ring block overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-white"
+                  className="focus-ring maeari-polaroid-frame"
                 >
-                  <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} className="w-full object-cover" />
+                  <span className="maeari-polaroid-photo">
+                    <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} />
+                  </span>
+                  <span className="maeari-polaroid-caption">{attachment.originalName ?? "첨부 사진"}</span>
                 </a>
               ))}
             </div>
