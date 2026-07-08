@@ -3,8 +3,10 @@ import { AppError } from "../../lib/app-error.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import {
   cancelMessageCollection,
+  closeMessageCollectionNow,
   createMessageCollection,
   createPublicMessageCollectionSubmission,
+  deleteMessageCollectionPermanently,
   getMessageCollection,
   getPublicMessageCollection,
   listMessageCollections,
@@ -42,6 +44,24 @@ export const cancelMessageCollectionController = asyncHandler(async (request: Re
 
   const collectionId = requireParam(request.params.id, "COLLECTION_ID_REQUIRED");
   response.json(await cancelMessageCollection(request.user.id, collectionId));
+});
+
+export const closeMessageCollectionController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const collectionId = requireParam(request.params.id, "COLLECTION_ID_REQUIRED");
+  response.json(await closeMessageCollectionNow(request.user.id, collectionId));
+});
+
+export const deleteMessageCollectionPermanentlyController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  const collectionId = requireParam(request.params.id, "COLLECTION_ID_REQUIRED");
+  response.json(await deleteMessageCollectionPermanently(request.user.id, collectionId));
 });
 
 export const getPublicMessageCollectionController = asyncHandler(async (request: Request, response: Response) => {
