@@ -185,19 +185,19 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           })}
         </nav>
 
-        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_16px_34px_rgba(122,90,184,0.12)]">
+        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#DCCCF3] bg-[#B989DC] shadow-[0_16px_34px_rgba(83,45,128,0.18)]">
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
-          <div className="absolute inset-0 bg-white/8" />
-          <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#4B405E]">
-            <p className="maeari-sidebar-quote-title text-[17px] text-[#4B405E]">오늘의 한 줄🌙</p>
-            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(11px,1.38vh,14px)] leading-[1.35] text-[#636363]">
+          <div className="absolute inset-0 bg-gradient-to-b from-[#6F3DB0]/38 via-[#B077D3]/32 to-[#D8A9EA]/28" />
+          <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#FBF3FF] drop-shadow-[0_1px_7px_rgba(57,31,88,0.22)]">
+            <p className="maeari-sidebar-quote-title text-[17px] text-[#FFF6FF]">오늘의 한 줄🌙</p>
+            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(11px,1.38vh,14px)] leading-[1.35] text-[#FFF0FF]">
               {dailyLine?.text ?? ""}
             </p>
             {dailyLineCredit ? (
-              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(11px,1.26vh,13px)] text-[#636363]">/ {dailyLineCredit}</p>
+              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(11px,1.26vh,13px)] text-[#FFF0FF]">/ {dailyLineCredit}</p>
             ) : null}
             {dailyLineDate ? (
-              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(10px,1.14vh,12px)] text-[#636363]">/ {dailyLineDate}</p>
+              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(10px,1.14vh,12px)] text-[#FFF0FF]">/ {dailyLineDate}</p>
             ) : null}
           </div>
         </div>

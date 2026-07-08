@@ -287,15 +287,15 @@ function formatRecentMessage(message: InboxMessage) {
 }
 
 function getResponsiveRecentLimit(width: number) {
-  if (width < 640) {
-    return 1;
+  if (width < 768) {
+    return 3;
   }
 
-  if (width < 1280) {
-    return 2;
+  if (width < 1800) {
+    return 4;
   }
 
-  return 3;
+  return 5;
 }
 
 function formatShortDate(value: string) {
