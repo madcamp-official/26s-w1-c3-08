@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -213,7 +213,7 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="home-recent-album-grid">
+            <div className="home-recent-album-grid" style={{ "--recent-columns": recentLetterItems.length } as CSSProperties}>
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}
@@ -287,11 +287,11 @@ function formatRecentMessage(message: InboxMessage) {
 }
 
 function getResponsiveRecentLimit(width: number) {
-  if (width < 768) {
+  if (width < 1280) {
     return 3;
   }
 
-  if (width < 1800) {
+  if (width < 1920) {
     return 4;
   }
 

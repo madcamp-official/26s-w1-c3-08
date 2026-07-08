@@ -4,20 +4,9 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: clamp(320px, 30vw, 430px);
-  gap: 1rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.35rem;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-}
-
-@media (min-width: 1536px) {
-  .home-recent-album-grid {
-    grid-auto-columns: clamp(340px, 24vw, 440px);
-  }
+  grid-template-columns: repeat(var(--recent-columns, 3), minmax(0, 1fr));
+  gap: clamp(0.65rem, 1.4vw, 1rem);
+  width: 100%;
 }
 
 @font-face {
@@ -697,13 +686,7 @@ a {
   display: grid;
   justify-items: center;
   gap: 1.25rem;
-  border-radius: 8px;
-  background: rgba(255, 252, 255, 0.94);
-  padding: 2.25rem 2.5rem;
-  color: #4e3b91;
-  box-shadow:
-    0 28px 74px rgba(55, 43, 96, 0.18),
-    0 8px 22px rgba(86, 67, 130, 0.1);
+  color: #15121f;
 }
 
 .maeari-loading-envelope {
@@ -720,13 +703,10 @@ a {
   z-index: 1;
   overflow: hidden;
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(234, 227, 248, 0.12)),
-    linear-gradient(135deg, #f5f0ff 0%, #ede7fb 56%, #e5dcf6 100%);
+  background: #f4efff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 -10px 20px rgba(178, 157, 222, 0.14),
-    0 8px 18px rgba(23, 18, 40, 0.14);
+    0 10px 18px rgba(23, 18, 40, 0.13);
   opacity: 0;
   transform: translateY(12px) scaleX(0.82);
   animation: maeari-envelope-body-build 2.8s cubic-bezier(0.2, 0.78, 0.2, 1) infinite;
@@ -739,8 +719,8 @@ a {
   bottom: 0;
   width: 56%;
   height: 92%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(223, 212, 245, 0.72));
-  opacity: 0.68;
+  background: rgba(255, 255, 255, 0.34);
+  opacity: 0.58;
 }
 
 .maeari-loading-envelope-body::before {
@@ -762,13 +742,13 @@ a {
   height: 92px;
   border-radius: 8px 8px 16px 16px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.82), transparent 34%),
-    linear-gradient(180deg, #fbf8ff 0%, #eee8fb 58%, #ded3f3 100%);
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.9), transparent 32%),
+    linear-gradient(180deg, #fffaff 0%, #d8c9ff 42%, #a98af1 100%);
   clip-path: polygon(0 0, 100% 0, 50% 80%);
   opacity: 0;
   transform: translateY(-24px) scaleX(0.92);
   filter:
-    drop-shadow(0 6px 6px rgba(49, 39, 78, 0.22))
+    drop-shadow(0 7px 7px rgba(49, 39, 78, 0.28))
     drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
   animation: maeari-envelope-flap-build 2.8s cubic-bezier(0.2, 0.78, 0.2, 1) infinite;
 }
@@ -778,18 +758,13 @@ a {
   left: 50%;
   top: 78px;
   z-index: 5;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   opacity: 0;
   transform: translate(-50%, 8px) scale(0.62);
-  background:
-    radial-gradient(circle at 34% 28%, rgba(218, 207, 255, 0.88), transparent 18%),
-    linear-gradient(145deg, #8d72ea 0%, #6543d3 58%, #4f33b7 100%);
-  clip-path: polygon(50% 0, 62% 34%, 98% 38%, 70% 60%, 79% 96%, 50% 76%, 21% 96%, 30% 60%, 2% 38%, 38% 34%);
-  box-shadow:
-    0 0 0 2px rgba(218, 207, 255, 0.32),
-    0 4px 8px rgba(49, 35, 123, 0.24),
-    0 0 16px rgba(117, 78, 224, 0.48);
+  filter:
+    drop-shadow(0 5px 7px rgba(49, 35, 123, 0.24))
+    drop-shadow(0 0 14px rgba(117, 78, 224, 0.46));
   animation: maeari-wax-star-build 2.8s cubic-bezier(0.18, 0.82, 0.2, 1) infinite;
 }
 
@@ -804,11 +779,18 @@ a {
 }
 
 .maeari-loading-wax-star::before {
-  content: "";
+  content: "★";
   position: absolute;
-  inset: 9px;
-  background: rgba(238, 232, 255, 0.52);
-  clip-path: polygon(50% 0, 62% 34%, 98% 38%, 70% 60%, 79% 96%, 50% 76%, 21% 96%, 30% 60%, 2% 38%, 38% 34%);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #9c83f1 0%, #6d48db 58%, #5230bb 100%);
+  background-clip: text;
+  color: transparent;
+  font-size: 48px;
+  line-height: 1;
+  -webkit-background-clip: text;
+  -webkit-text-stroke: 1px rgba(86, 54, 194, 0.2);
 }
 
 .maeari-loading-sparkle {
@@ -878,12 +860,12 @@ a {
 .maeari-loading-copy {
   margin: 0;
   max-width: min(82vw, 420px);
-  color: #f5efff;
+  color: #15121f;
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.6;
   text-align: center;
-  text-shadow: 0 1px 12px rgba(20, 16, 32, 0.42);
+  text-shadow: none;
 }
 
 @keyframes maeari-envelope-float {

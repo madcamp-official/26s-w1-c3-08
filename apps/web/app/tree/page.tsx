@@ -6,6 +6,7 @@ import { Info, Plus, RefreshCw, Sprout, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
+import { SproutPot } from "@/components/SproutPot";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 
@@ -297,6 +298,10 @@ export default function TreePage() {
 
                 {isOpen ? (
                   <div className="mt-4 border-t border-[#EEE8F8] pt-4">
+                    <SproutPot count={selected.submissionCount} className="mb-4" />
+                    <p className="mb-4 text-center text-sm font-semibold text-[#8D79D6]">
+                      마음나무 수집할 때 달아준 마음만큼 마음나무가 성장해요.
+                    </p>
                     <p className="text-sm text-[#A2A6BF]">
                       {selected.status === "DELIVERED"
                         ? `${selected.submissionCount}개의 마음이 도착했어요.`
