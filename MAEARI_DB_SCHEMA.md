@@ -224,7 +224,7 @@ MessageCollectionSubmission
 - `userContactId`: 인증 대상 연락처
 - `codeHash`: 6자리 OTP 원문이 아니라 `PUBLIC_TOKEN_PEPPER` 기반 hash
 - `status`: `PENDING`, `VERIFIED`, `EXPIRED`
-- `expiresAt`: 기본 10분 만료
+- `expiresAt`: 기본 3분 만료
 - `consumedAt`: 인증 완료 시각
 - `attemptCount`: 잘못된 code 입력 횟수
 
