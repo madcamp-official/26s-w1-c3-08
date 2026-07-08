@@ -4,13 +4,19 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 430px));
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(320px, 30vw, 430px);
   gap: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.35rem;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 @media (min-width: 1536px) {
   .home-recent-album-grid {
-    grid-template-columns: repeat(auto-fit, minmax(340px, 440px));
+    grid-auto-columns: clamp(340px, 24vw, 440px);
   }
 }
 
@@ -323,6 +329,134 @@ a {
     0 8px 22px rgba(86, 67, 130, 0.08),
     0 1px 4px rgba(55, 43, 96, 0.06);
   backdrop-filter: none;
+}
+
+.maeari-tree-sprout-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0.2rem 0 1.35rem;
+}
+
+.maeari-tree-sprout {
+  position: relative;
+  width: 92px;
+  height: 86px;
+}
+
+.maeari-tree-sprout-glow {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 76px;
+  height: 28px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.26), rgba(167, 139, 250, 0));
+  transform: translateX(-50%);
+}
+
+.maeari-tree-sprout-stem {
+  position: absolute;
+  left: 50%;
+  bottom: 25px;
+  width: 6px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9be8b2 0%, #6ec989 100%);
+  box-shadow: 0 0 0 1px rgba(76, 141, 95, 0.08);
+  transform: translateX(-50%);
+}
+
+.maeari-tree-sprout-leaf {
+  position: absolute;
+  left: 50%;
+  width: 28px;
+  height: 17px;
+  border-radius: 999px 999px 999px 3px;
+  background: linear-gradient(135deg, #d9fbdc 0%, #8de2a3 48%, #64bd7f 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 8px 16px rgba(92, 151, 111, 0.16);
+  transform-origin: 3px 50%;
+}
+
+.maeari-tree-sprout-leaf-left {
+  margin-left: -28px;
+  transform: rotate(-30deg);
+}
+
+.maeari-tree-sprout-leaf-right {
+  margin-left: 0;
+  border-radius: 999px 999px 3px 999px;
+  transform: rotate(30deg);
+}
+
+.maeari-tree-sprout-leaf-1,
+.maeari-tree-sprout-leaf-2 {
+  bottom: 55px;
+}
+
+.maeari-tree-sprout-leaf-3,
+.maeari-tree-sprout-leaf-4 {
+  bottom: 45px;
+  width: 25px;
+  height: 15px;
+  opacity: 0.94;
+}
+
+.maeari-tree-sprout-leaf-5,
+.maeari-tree-sprout-leaf-6 {
+  bottom: 35px;
+  width: 23px;
+  height: 14px;
+  opacity: 0.88;
+}
+
+.maeari-tree-sprout-leaf-7,
+.maeari-tree-sprout-leaf-8 {
+  bottom: 26px;
+  width: 20px;
+  height: 13px;
+  opacity: 0.8;
+}
+
+.maeari-tree-sprout-pot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 58px;
+  height: 30px;
+  border-radius: 8px 8px 16px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 35%),
+    linear-gradient(135deg, #d8c8ff 0%, #a98df4 52%, #7a58df 100%);
+  box-shadow:
+    inset 0 -5px 12px rgba(79, 54, 155, 0.16),
+    0 12px 24px rgba(104, 76, 190, 0.18);
+  transform: translateX(-50%);
+}
+
+.maeari-tree-sprout-pot::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 68px;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f0eaff 0%, #bca8f7 100%);
+  box-shadow: 0 4px 10px rgba(93, 64, 177, 0.12);
+  transform: translateX(-50%);
+}
+
+.maeari-tree-sprout-pot span {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  transform: translateX(-50%);
 }
 
 .maeari-modal-overlay {

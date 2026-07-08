@@ -379,7 +379,7 @@ export default function ArrivalPage() {
           <div className="maeari-arrival-gate-content relative z-10 flex flex-col items-center px-5 py-7">
             <p className="maeari-arrival-gate-eyebrow">남겨둔 마음이 도착했어요</p>
             <Gift className="mt-3 text-[#CDB9FF]" size={31} />
-            <h1 className="maeari-page-title mt-6 text-[#CDB9FF]">지금, 열어볼까요?</h1>
+            <h1 className="maeari-page-title mt-6 !text-[#E6D9FF]">지금, 열어볼까요?</h1>
             <div className="flex-1" />
             <button
               type="button"
