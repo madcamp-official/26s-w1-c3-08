@@ -378,8 +378,8 @@ export default function ArrivalPage() {
           <div className="absolute inset-0 bg-white/10" />
           <div className="maeari-arrival-gate-content relative z-10 flex flex-col items-center px-5 py-7">
             <p className="maeari-arrival-gate-eyebrow">남겨둔 마음이 도착했어요</p>
-            <Gift className="mt-3 text-brand-accent" size={31} />
-            <h1 className="maeari-page-title mt-6 text-[#3D3E91]">지금, 열어볼까요?</h1>
+            <Gift className="mt-3 text-[#CDB9FF]" size={31} />
+            <h1 className="maeari-page-title mt-6 text-[#CDB9FF]">지금, 열어볼까요?</h1>
             <div className="flex-1" />
             <button
               type="button"
@@ -388,7 +388,7 @@ export default function ArrivalPage() {
             >
               마음 열어보기
             </button>
-            <p className="mt-3 text-xs font-semibold text-[#7E6BCB]">지금 바로 도착한 마음을 열어볼 수 있어요.</p>
+            <p className="mt-3 text-xs font-semibold text-[#CDB9FF]">지금 바로 도착한 마음을 열어볼 수 있어요.</p>
           </div>
         </section>
       ) : null}
