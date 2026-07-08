@@ -185,9 +185,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           })}
         </nav>
 
-        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#DCCCF3] bg-[#B989DC] shadow-[0_16px_34px_rgba(83,45,128,0.18)]">
+        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#D2B9EC] bg-[#8D55BE] shadow-[0_16px_34px_rgba(64,34,104,0.22)]">
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#6F3DB0]/38 via-[#B077D3]/32 to-[#D8A9EA]/28" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#4D247F]/62 via-[#7A3FAE]/54 to-[#B46DD0]/50" />
           <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#FBF3FF] drop-shadow-[0_1px_7px_rgba(57,31,88,0.22)]">
             <p className="maeari-sidebar-quote-title text-[17px] text-[#FFF6FF]">오늘의 한 줄🌙</p>
             <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(11px,1.38vh,14px)] leading-[1.35] text-[#FFF0FF]">
