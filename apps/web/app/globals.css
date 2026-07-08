@@ -231,8 +231,8 @@ a {
 }
 
 .maeari-modal-overlay {
-  background: rgba(25, 23, 35, 0.74);
-  backdrop-filter: blur(5px) saturate(0.78);
+  background: rgba(32, 30, 42, 0.96);
+  backdrop-filter: none;
 }
 
 .maeari-soft-panel {
