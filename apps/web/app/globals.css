@@ -127,6 +127,59 @@ a {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 76%);
 }
 
+.maeari-arrival-meteor-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.maeari-arrival-meteor {
+  position: absolute;
+  width: 92px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(216, 198, 255, 0.92), rgba(109, 72, 219, 0.02));
+  filter: drop-shadow(0 0 8px rgba(154, 133, 225, 0.42));
+  opacity: 0;
+  transform: translate(-10px, -6px) rotate(-28deg);
+  animation: maeari-arrival-meteor-fall 920ms ease-out forwards;
+}
+
+.maeari-arrival-meteor::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #f6efff;
+  box-shadow: 0 0 12px rgba(109, 72, 219, 0.62);
+  transform: translateY(-50%);
+}
+
+.maeari-arrival-gate-card {
+  min-height: 286px;
+}
+
+@keyframes maeari-arrival-meteor-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-28deg) scaleX(0.45);
+  }
+
+  16% {
+    opacity: 0.78;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(150px, 82px) rotate(-28deg) scaleX(1);
+  }
+}
+
 @media (max-width: 1023px) {
   .maeari-stage::before {
     left: 0;

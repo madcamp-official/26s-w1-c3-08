@@ -122,14 +122,14 @@ export default function HomePage() {
               매 순간 아껴둔 마음의 소리
             </p>
             <h1 className="maeari-display-title max-w-[465px] break-keep text-[34px] leading-[1.24] text-[#FFE1EE] drop-shadow-[0_3px_12px_rgba(32,20,78,0.34)] sm:text-[43px] sm:leading-[1.3]">
-              오늘, 당신의 마음은
+              잊고 있었던 글이,
               <br />
-              어떤 모습인가요?
+              기억하지 못하는 순간에 찾아옵니다.
             </h1>
             <p className="mt-5 max-w-[360px] break-keep text-[15px] leading-[24px] text-[#FFF7FB] drop-shadow-[0_2px_8px_rgba(32,20,78,0.32)] sm:text-base sm:leading-[25px]">
-              지금의 마음을 미래의 누군가에게,
+              내가 지금 이 순간 느끼는 감정을 시차 없이,
               <br />
-              또는 미래의 나에게 전해보세요.
+              누군가에게 또는 미래의 나에게 전해주세요.
             </p>
 
             <div className="mt-7 flex w-full max-w-[342px] items-center gap-3 rounded-[8px] border border-white/22 bg-white/18 px-4 py-3 text-white shadow-[0_14px_30px_rgba(22,16,58,0.18)] backdrop-blur">
