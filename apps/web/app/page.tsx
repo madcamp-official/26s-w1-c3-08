@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Inbox, Plus, Send, Sparkles } from "lucide-react";
+import { Heart, Inbox, Send, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { LetterThumb } from "@/components/ui";
+import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -32,20 +32,17 @@ type InboxMessage = {
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
+  readAt?: string | null;
   thumbnail?: MessageThumbnail | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  attachmentCount?: number;
 };
 
 type MessageThumbnail = {
   source: "ATTACHMENT" | "DEFAULT";
   url: string;
 };
-
-const homeRecentThumbnails = [
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-35 001.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 002.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 003.png",
-  "/images/KakaoTalk_Photo_2026-07-06-21-56-36 004.png",
-];
 
 export default function HomePage() {
   const router = useRouter();
@@ -204,29 +201,23 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid gap-[10px] sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {recentLetterItems.map((letter) => (
-                <Link
+                <MessageAlbumCard
                   key={letter.id}
                   href={`/messages/${letter.id}`}
-                  className="focus-ring maeari-letter-surface relative h-[193px] p-4 transition hover:-translate-y-0.5 hover:border-[#CBBBFA]"
-                >
-                  <div className="flex gap-[9px]">
-                    <LetterThumb src={letter.thumbnailUrl} className="h-[84px] w-[63px] shrink-0" />
-                    <div className="pt-1">
-                      <p className="text-[15px] font-medium text-[#797A94]">{letter.title}</p>
-                      <p className="mt-1 line-clamp-2 text-[15px] font-medium text-[#7B7D97]">{letter.body}</p>
-                      <p className="mt-2 text-[11px] text-[#B3B5C5]">{letter.meta}</p>
-                    </div>
-                  </div>
-                  <span className="absolute bottom-[51px] left-4 rounded-[8px] bg-[#EEE8FD] px-3 py-1 text-[11px] text-[#9A85E1]">
-                    {letter.tag}
-                  </span>
-                  <span className="absolute bottom-5 right-4 grid h-[30px] w-[30px] place-items-center rounded-[8px] border border-[#EEE8FD] text-[#6D48DB]">
-                    <Plus size={14} />
-                  </span>
-                  <span className="absolute bottom-[25px] left-[73px] text-[10px] text-[#ADB0C2]">{letter.date}</span>
-                </Link>
+                  message={{
+                    id: letter.id,
+                    title: letter.title,
+                    coverUrl: letter.coverUrl,
+                    coverAlt: letter.coverAlt,
+                    senderName: letter.senderName,
+                    arrivedAtLabel: letter.date,
+                    emotionLabel: letter.tag,
+                    unread: letter.unread,
+                    attachmentCount: letter.attachmentCount,
+                  }}
+                />
               ))}
             </div>
           ) : (
@@ -272,17 +263,14 @@ function formatRecentMessage(message: InboxMessage) {
   return {
     id: message.id,
     title: message.title,
-    body: message.preview || "도착한 마음을 열어보세요.",
-    meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
+    senderName: message.isSenderHidden ? "누군가의 마음" : message.senderName,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
-    thumbnailUrl: homeRecentThumbnailFor(message.id),
+    coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
+    coverAlt: message.coverImageAlt ?? message.title,
+    unread: !message.readAt,
+    attachmentCount: message.attachmentCount,
   };
-}
-
-function homeRecentThumbnailFor(id: string) {
-  const hash = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return homeRecentThumbnails[hash % homeRecentThumbnails.length];
 }
 
 function formatShortDate(value: string) {
