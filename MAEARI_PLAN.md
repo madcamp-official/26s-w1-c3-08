@@ -413,6 +413,16 @@
 - frontend는 메인/수신함/발신함/아카이브 card의 `LetterThumb` 또는 앨범 card 배경에 `thumbnail.url`을 넣으면 되고, 앨범 UI에서 첨부 우선 규칙을 직접 제어하려면 `coverImageUrl ?? themeEnvelope.imageUrl`을 사용합니다.
 - 이 변경은 목록 응답 파생 필드와 정적 asset 추가이므로 DB migration은 만들지 않습니다.
 
+### 0.2.5.10 직접 입력 감정 태그 backend 계약
+
+- `EmotionTag.CUSTOM`은 직접 입력 태그이자 목록/리포트의 “기타” 그룹으로 사용합니다. 별도 DB enum이나 migration은 만들지 않습니다.
+- `POST /api/messages`는 `emotionTag=CUSTOM`일 때만 `customEmotionTag`를 저장하고, 그 외 태그에서는 payload에 값이 와도 `null`로 저장합니다.
+- 서버는 직접 입력 태그의 앞쪽 공백/기호/문장부호를 제거하고 내부 연속 공백을 한 칸으로 줄인 뒤 최대 40자로 저장합니다. 정리 후 비어 있으면 `customEmotionTag=null`입니다.
+- moderation input은 사용자가 보낸 원문이 아니라 정규화된 직접 입력 태그를 사용합니다.
+- `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`와 `/api/reports/emotions`는 직접 입력 태그를 모두 `emotionTag=CUSTOM`, `customEmotionTag=null`로 반환해 “기타” 하나로 묶습니다.
+- `/api/messages/:id`와 `/api/public/messages/:token`은 상세 표시를 위해 정제된 `customEmotionTag`를 반환합니다.
+- frontend는 목록/필터/리포트에서 `CUSTOM && !customEmotionTag`를 “기타”로 표시하고, 상세/public에서는 `CUSTOM && customEmotionTag`를 `… {customEmotionTag}` 형식으로 표시합니다.
+
 ---
 
 ## 0.3 구현 원칙

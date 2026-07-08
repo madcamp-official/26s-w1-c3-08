@@ -45,6 +45,7 @@ import {
   type CommunicationTargetReference,
 } from "../communication-blocks/communication-block.service.js";
 import type { CreateMessageInput, CreateMessageReplyInput } from "./message.validation.js";
+import { getDisplayCustomEmotionTag, resolveMessageEmotionTags } from "./emotion-tags.js";
 import { getMessageThemeEnvelope, mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
@@ -52,6 +53,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
   const schedule = resolveSchedule(input);
   const sender = await getMessageSender(userId);
   const senderDisplayName = normalizeDisplayName(input.senderDisplayName, sender.nickname);
+  const emotionTags = resolveMessageEmotionTags(input.emotionTag, input.customEmotionTag);
   const senderContact = await assertVerifiedSenderPhoneContact(userId);
   const receiverInputs = getReceiverInputs(input);
   const receivers = await Promise.all(receiverInputs.map((receiverInput) => normalizeReceiver(receiverInput, userId)));
@@ -61,7 +63,7 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
   const moderationInput = {
     title: input.title,
     content: mergeContentWithOcrText(input.content, attachmentOcrText),
-    emotionTag: input.customEmotionTag ?? input.emotionTag,
+    emotionTag: emotionTags.customEmotionTag ?? emotionTags.emotionTag,
   };
   const moderation = hasFailedOcr(attachmentOcrResults)
     ? createOcrUnavailableResult(attachmentOcrResults)
@@ -90,8 +92,8 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
         senderDisplayName,
         title: input.title,
         content: input.content,
-        emotionTag: input.emotionTag,
-        customEmotionTag: input.customEmotionTag,
+        emotionTag: emotionTags.emotionTag,
+        customEmotionTag: emotionTags.customEmotionTag,
         scheduledAt: schedule.scheduledAt,
         arrivalMode: schedule.arrivalMode,
         arrivalWindowStartAt: schedule.arrivalWindowStartAt,
@@ -137,8 +139,8 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
       senderDisplayName,
       title: input.title,
       content: input.content,
-      emotionTag: input.emotionTag,
-      customEmotionTag: input.customEmotionTag,
+      emotionTag: emotionTags.emotionTag,
+      customEmotionTag: emotionTags.customEmotionTag,
       scheduledAt: schedule.scheduledAt,
       arrivalMode: schedule.arrivalMode,
       arrivalWindowStartAt: schedule.arrivalWindowStartAt,
@@ -672,7 +674,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
     title: message.title,
     content: message.content,
     emotionTag: message.emotionTag,
-    customEmotionTag: message.customEmotionTag,
+    customEmotionTag: getDisplayCustomEmotionTag(message.emotionTag, message.customEmotionTag),
     theme: message.theme,
     themeEnvelope: getMessageThemeEnvelope(message.theme),
     arrivalMode: message.arrivalMode,

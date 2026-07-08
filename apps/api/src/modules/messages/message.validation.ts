@@ -47,7 +47,7 @@ export const createMessageSchema = z
     emotionTag: z
       .enum(["THANKS", "CHEER", "CELEBRATION", "COMFORT", "LONGING", "LOVE", "CUSTOM"])
       .optional(),
-    customEmotionTag: z.string().trim().max(40).optional(),
+    customEmotionTag: z.string().trim().max(120).optional(),
     scheduledAt: z.string().datetime().optional(),
     arrivalMode: z.enum(["FIXED", "RANDOM_WINDOW"]).default("FIXED").optional(),
     arrivalWindowStartAt: z.string().datetime().optional(),

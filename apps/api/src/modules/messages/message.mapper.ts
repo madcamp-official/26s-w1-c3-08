@@ -1,6 +1,7 @@
 import type { Message, MessageAccessToken, MessageAttachment, MessageRecipient, User } from "@maeari/database";
 import { messageThemeEnvelopeByTheme, type MessageTheme as SharedMessageTheme } from "@maeari/shared";
 import { config } from "../../config/env.js";
+import { getListCustomEmotionTag } from "./emotion-tags.js";
 
 type RecipientWithAccessToken = MessageRecipient & {
   accessTokens?: MessageAccessToken[];
@@ -30,7 +31,7 @@ export function mapMessageListItem(
     id: message.id,
     title: message.title,
     emotionTag: message.emotionTag,
-    customEmotionTag: message.customEmotionTag,
+    customEmotionTag: getListCustomEmotionTag(message.emotionTag, message.customEmotionTag),
     theme: message.theme,
     arrivalMode: message.arrivalMode,
     arrivalWindowStartAt: message.arrivalWindowStartAt,
@@ -95,7 +96,7 @@ export function mapReceivedItem(
     title: message.title,
     preview: message.content.slice(0, 120),
     emotionTag: message.emotionTag,
-    customEmotionTag: message.customEmotionTag,
+    customEmotionTag: getListCustomEmotionTag(message.emotionTag, message.customEmotionTag),
     theme: message.theme,
     coverImageUrl: coverAttachment?.publicUrl ?? null,
     coverImageAlt: coverAttachment?.originalName ?? null,

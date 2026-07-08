@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { getListCustomEmotionTag } from "../messages/emotion-tags.js";
 
 export async function getEmotionReport(userId: string, month?: string) {
   const range = resolveMonthRange(month);
@@ -81,7 +82,8 @@ function countEmotions(items: Array<{ emotionTag?: string | null; customEmotionT
   const counts = new Map<string, { emotionTag: string | null; customEmotionTag: string | null; count: number }>();
 
   for (const item of items) {
-    const key = `${item.emotionTag ?? "NONE"}:${item.customEmotionTag ?? ""}`;
+    const customEmotionTag = getListCustomEmotionTag(item.emotionTag, item.customEmotionTag);
+    const key = `${item.emotionTag ?? "NONE"}:${customEmotionTag ?? ""}`;
     const previous = counts.get(key);
 
     if (previous) {
@@ -91,7 +93,7 @@ function countEmotions(items: Array<{ emotionTag?: string | null; customEmotionT
 
     counts.set(key, {
       emotionTag: item.emotionTag ?? null,
-      customEmotionTag: item.customEmotionTag ?? null,
+      customEmotionTag,
       count: 1,
     });
   }
