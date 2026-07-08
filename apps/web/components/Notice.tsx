@@ -15,7 +15,7 @@ export function Notice({ title, body, tone = "default" }: NoticeProps) {
           : "border-[#E4DBF4] bg-white/90 text-[#4E536B]";
 
   return (
-    <div className={`rounded-[8px] border px-4 py-3 shadow-[0_12px_28px_rgba(76,63,119,0.06)] backdrop-blur ${toneClass}`}>
+    <div className={`rounded-[8px] border px-4 py-3 shadow-[0_18px_38px_rgba(76,63,119,0.12)] ${toneClass}`}>
       <p className="text-sm font-semibold">{title}</p>
       {body ? <p className="mt-1 text-sm opacity-85">{body}</p> : null}
     </div>

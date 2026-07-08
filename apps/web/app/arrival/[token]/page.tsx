@@ -228,7 +228,7 @@ export default function ArrivalPage() {
     const dy = event.clientY - previous.y;
     const length = Math.hypot(dx, dy);
 
-    if (length < 16 || now - lastTrailSampleAtRef.current < 95) {
+    if (length < 10 || now - lastTrailSampleAtRef.current < 58) {
       return;
     }
 
@@ -248,11 +248,11 @@ export default function ArrivalPage() {
 
     const trailId = activeTrailIdRef.current;
     setMeteorTrail((current) => {
-      const points = current?.id === trailId ? current.points : [previous];
+      const points = current?.id === trailId && !current.settled ? current.points : [previous];
 
       return {
         id: trailId,
-        points: [...points.slice(-34), nextPoint],
+        points: [...points.slice(-13), nextPoint],
         settled: false,
       };
     });
@@ -266,8 +266,8 @@ export default function ArrivalPage() {
           lastPointerRef.current = null;
           lastTrailSampleAtRef.current = 0;
         }
-      }, 2200);
-    }, 240);
+      }, 1150);
+    }, 120);
   }
 
   const arrivalCoverUrl = message ? getFirstImageAttachment(message)?.publicUrl ?? null : null;
@@ -301,7 +301,7 @@ export default function ArrivalPage() {
                 x2={segment.x2}
                 y2={segment.y2}
                 style={{
-                  animationDelay: meteorTrail.settled ? `${index * 70}ms` : "0ms",
+                  animationDelay: meteorTrail.settled ? `${index * 36}ms` : "0ms",
                   opacity: Math.min(1, 0.35 + index / Math.max(trailSegments.length, 1)),
                 }}
               />
@@ -332,7 +332,7 @@ export default function ArrivalPage() {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto max-w-[760px] px-4 py-10">
+      <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 py-10 lg:w-[70vw]">
 
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error && !gate ? <p className="text-sm text-[#A2A6BF]">도착한 마음을 확인하고 있어요.</p> : null}
@@ -376,7 +376,7 @@ export default function ArrivalPage() {
           />
           {arrivalCoverUrl ? <img src={arrivalCoverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.12]" /> : null}
           <div className="absolute inset-0 bg-white/10" />
-          <div className="relative z-10 flex min-h-[310px] flex-col items-center px-5 py-7 sm:min-h-[340px]">
+          <div className="maeari-arrival-gate-content relative z-10 flex flex-col items-center px-5 py-7">
             <p className="maeari-arrival-gate-eyebrow">남겨둔 마음이 도착했어요</p>
             <Gift className="mt-3 text-brand-accent" size={31} />
             <h1 className="maeari-page-title mt-6 text-[#3D3E91]">지금, 열어볼까요?</h1>

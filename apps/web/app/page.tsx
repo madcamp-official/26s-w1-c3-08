@@ -50,6 +50,7 @@ export default function HomePage() {
   const [receivedMessages, setReceivedMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [kstNow, setKstNow] = useState(() => formatKstClock(new Date()));
+  const [recentLimit, setRecentLimit] = useState(3);
 
   useEffect(() => {
     let mounted = true;
@@ -93,6 +94,17 @@ export default function HomePage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    function updateRecentLimit() {
+      setRecentLimit(getResponsiveRecentLimit(window.innerWidth));
+    }
+
+    updateRecentLimit();
+    window.addEventListener("resize", updateRecentLimit);
+
+    return () => window.removeEventListener("resize", updateRecentLimit);
+  }, []);
+
   const upcomingLetters = useMemo(
     () =>
       sentMessages
@@ -101,7 +113,7 @@ export default function HomePage() {
         .slice(0, 4),
     [sentMessages],
   );
-  const recentLetters = useMemo(() => receivedMessages.slice(0, 4), [receivedMessages]);
+  const recentLetters = useMemo(() => receivedMessages.slice(0, recentLimit), [receivedMessages, recentLimit]);
   const timelineItems = useMemo(
     () => (upcomingLetters.length ? upcomingLetters.map(formatUpcomingMessage) : createTimelineFallback()),
     [upcomingLetters],
@@ -201,7 +213,7 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}
@@ -272,6 +284,18 @@ function formatRecentMessage(message: InboxMessage) {
     unread: !message.readAt,
     attachmentCount: message.attachmentCount,
   };
+}
+
+function getResponsiveRecentLimit(width: number) {
+  if (width < 640) {
+    return 1;
+  }
+
+  if (width < 1280) {
+    return 2;
+  }
+
+  return 3;
 }
 
 function formatShortDate(value: string) {
