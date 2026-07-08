@@ -41,7 +41,29 @@ export function MaeariLoadingOverlay({ label, overlay = false }: MaeariLoadingOv
         <div className="maeari-loading-envelope" aria-hidden="true">
           <div className="maeari-loading-envelope-body" />
           <div className="maeari-loading-envelope-flap" />
-          <div className="maeari-loading-wax-star" />
+          <div className="maeari-loading-wax-star">
+            <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <defs>
+                <linearGradient id="maeari-loading-star-fill" x1="24" x2="24" y1="4" y2="46" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#EDE4FF" />
+                  <stop offset="0.42" stopColor="#B99CF6" />
+                  <stop offset="1" stopColor="#6842D6" />
+                </linearGradient>
+                <linearGradient id="maeari-loading-star-gloss" x1="18" x2="28" y1="9" y2="25" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.88" />
+                  <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="url(#maeari-loading-star-fill)"
+                d="M24 4.2c1.4 0 2.6.8 3.1 2.1l3.8 9.5 10.2.8c1.4.1 2.6 1 3 2.3.4 1.4-.1 2.8-1.2 3.6l-8.1 6.4c-1.1.9-1.5 2.3-1.2 3.6l2.5 10c.4 1.4-.2 2.8-1.3 3.7-1.2.8-2.7.8-3.8 0l-8.4-5.7c-1.1-.8-2.6-.8-3.8 0l-8.4 5.7c-1.1.8-2.7.8-3.8 0-1.1-.8-1.7-2.3-1.3-3.7l2.5-10c.3-1.3-.1-2.7-1.2-3.6l-8.1-6.4c-1.1-.9-1.6-2.3-1.2-3.6.4-1.4 1.6-2.3 3-2.3l10.2-.8 3.8-9.5c.5-1.3 1.7-2.1 3.1-2.1Z"
+              />
+              <path
+                fill="url(#maeari-loading-star-gloss)"
+                d="M24.6 7.6c.6 0 1.1.4 1.4 1l2.2 5.5c.4 1-.1 2-1 2.4l-8.1 3.8c-1.6.8-3.2-.9-2.5-2.5L20.9 9c.7-1 2-1.4 3.7-1.4Z"
+              />
+            </svg>
+          </div>
           <div className="maeari-loading-sparkle maeari-loading-sparkle-one" />
           <div className="maeari-loading-sparkle maeari-loading-sparkle-two" />
           <div className="maeari-loading-sparkle maeari-loading-sparkle-three" />

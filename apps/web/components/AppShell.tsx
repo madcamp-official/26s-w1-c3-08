@@ -145,7 +145,12 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               className="h-[42px] w-[42px] rounded-[8px] object-cover shadow-[0_6px_14px_rgba(109,72,219,0.14)]"
               priority
             />
-            <span className="maeari-logo-text text-[24px] text-[#6D48DB] sm:text-[25px]">매아리</span>
+            <span className="flex items-end gap-2">
+              <span className="maeari-logo-text text-[24px] text-[#6D48DB] sm:text-[25px]">매아리</span>
+              <span className="hidden pb-[3px] text-[12px] font-medium text-[#A0A4B9] sm:inline">
+                매 순간 아껴둔 마음의 소리
+              </span>
+            </span>
           </Link>
 
           <button

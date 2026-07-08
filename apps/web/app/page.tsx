@@ -1,10 +1,10 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Inbox, Send, Sparkles } from "lucide-react";
+import { Archive, Inbox, Send, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { ApiError, apiFetch } from "@/lib/api";
@@ -50,7 +50,6 @@ export default function HomePage() {
   const [receivedMessages, setReceivedMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [kstNow, setKstNow] = useState(() => formatKstClock(new Date()));
-  const [recentLimit, setRecentLimit] = useState(3);
 
   useEffect(() => {
     let mounted = true;
@@ -94,17 +93,6 @@ export default function HomePage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    function updateRecentLimit() {
-      setRecentLimit(getResponsiveRecentLimit(window.innerWidth));
-    }
-
-    updateRecentLimit();
-    window.addEventListener("resize", updateRecentLimit);
-
-    return () => window.removeEventListener("resize", updateRecentLimit);
-  }, []);
-
   const upcomingLetters = useMemo(
     () =>
       sentMessages
@@ -113,7 +101,7 @@ export default function HomePage() {
         .slice(0, 4),
     [sentMessages],
   );
-  const recentLetters = useMemo(() => receivedMessages.slice(0, recentLimit), [receivedMessages, recentLimit]);
+  const recentLetters = useMemo(() => receivedMessages, [receivedMessages]);
   const timelineItems = useMemo(
     () => (upcomingLetters.length ? upcomingLetters.map(formatUpcomingMessage) : createTimelineFallback()),
     [upcomingLetters],
@@ -163,11 +151,11 @@ export default function HomePage() {
                 마음 보내기
               </Link>
               <Link
-                href="/inbox"
+                href="/archive"
                 className="focus-ring maeari-action h-[49px] w-full border-white/70 bg-white/92 text-sm text-[#6D48DB] shadow-[0_14px_30px_rgba(35,24,84,0.22)] sm:w-[167px]"
               >
-                <Heart size={17} />
-                받은 마음 보기
+                <Archive size={17} />
+                마음 보관함
               </Link>
             </div>
           </div>
@@ -213,7 +201,7 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="home-recent-album-grid" style={{ "--recent-columns": recentLetterItems.length } as CSSProperties}>
+            <div className="home-recent-album-grid">
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}
@@ -284,18 +272,6 @@ function formatRecentMessage(message: InboxMessage) {
     unread: !message.readAt,
     attachmentCount: message.attachmentCount,
   };
-}
-
-function getResponsiveRecentLimit(width: number) {
-  if (width < 1280) {
-    return 3;
-  }
-
-  if (width < 1920) {
-    return 4;
-  }
-
-  return 5;
 }
 
 function formatShortDate(value: string) {
