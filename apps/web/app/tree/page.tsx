@@ -2,12 +2,14 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Info, Plus, RefreshCw, Sprout, Trash2 } from "lucide-react";
+import { Info, Plus, RefreshCw, Sprout, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
 import { ApiError, apiFetch } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+
+const COLLECTION_URL_CACHE_KEY = "maeari.collectionUrls.v1";
 
 type Collection = {
   id: string;
@@ -19,6 +21,9 @@ type Collection = {
   createdAt: string;
   submissionCount: number;
   collectionUrl?: string | null;
+  publicUrl?: string | null;
+  shareUrl?: string | null;
+  url?: string | null;
   submissions?: Array<{
     id: string;
     senderDisplayName?: string | null;
@@ -49,7 +54,7 @@ export default function TreePage() {
   async function loadCollections() {
     try {
       const response = await apiFetch<{ collections: Collection[] }>("/message-collections");
-      setCollections(response.collections);
+      setCollections(response.collections.map(withCachedCollectionUrl));
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         router.replace("/login");
@@ -79,7 +84,11 @@ export default function TreePage() {
       setTitle("");
       setDescription("");
       setScheduledAt(defaultDatetimeLocal());
-      setCreatedUrl(toBrowserPublicUrl(response.collection.collectionUrl ?? ""));
+      const createdPublicUrl = toBrowserPublicUrl(getCollectionPublicUrl(response.collection));
+      if (createdPublicUrl) {
+        rememberCollectionUrl(response.collection.id, createdPublicUrl);
+      }
+      setCreatedUrl(createdPublicUrl);
       setNotice({ title: "마음나무 링크를 만들었어요.", tone: "success" });
       await loadCollections();
     } catch (caught) {
@@ -108,14 +117,14 @@ export default function TreePage() {
       return;
     }
 
-    if (collection.collectionUrl) {
+    if (getCollectionPublicUrl(collection)) {
       setDetailCollectionId(collection.id);
       return;
     }
 
     try {
       const response = await apiFetch<{ collection: Collection }>(`/message-collections/${collection.id}`);
-      setCollections((current) => current.map((item) => (item.id === collection.id ? { ...item, ...response.collection } : item)));
+      setCollections((current) => current.map((item) => (item.id === collection.id ? withCachedCollectionUrl({ ...item, ...response.collection }) : item)));
       setDetailCollectionId(collection.id);
     } catch (caught) {
       setNotice({ title: caught instanceof ApiError ? caught.message : "마음나무 상세정보를 불러오지 못했어요.", tone: "danger" });
@@ -213,7 +222,7 @@ export default function TreePage() {
           {collections.map((collection) => {
             const isOpen = selected?.id === collection.id;
             const showDetail = detailCollectionId === collection.id;
-            const detailUrl = toBrowserPublicUrl(collection.collectionUrl ?? "");
+            const detailUrl = toBrowserPublicUrl(getCollectionPublicUrl(collection));
 
             return (
               <article key={collection.id} className="maeari-letter-surface p-4">
@@ -237,7 +246,7 @@ export default function TreePage() {
                     </button>
                     {collection.status === "ACTIVE" ? (
                       <button type="button" onClick={() => setPendingCancel(collection)} className="focus-ring maeari-action maeari-action-danger">
-                        <Trash2 size={16} />
+                        <X size={16} />
                         닫기
                       </button>
                     ) : null}
@@ -247,6 +256,12 @@ export default function TreePage() {
                 {showDetail && detailUrl ? (
                   <div className="mt-4 border-t border-[#EEE8F8] pt-4">
                     <QrShare value={detailUrl} title="마음나무 QR" fileName={`maeari-tree-${collection.id}.png`} />
+                  </div>
+                ) : null}
+                {showDetail && !detailUrl ? (
+                  <div className="mt-4 rounded-[8px] border border-[#E6DDF3] bg-[#FBF8FF] p-4 text-sm leading-6 text-[#8588A1]">
+                    마음나무 링크 정보를 아직 불러오지 못했어요. QR과 URL을 다시 보려면 백엔드 상세 응답에
+                    collectionUrl이 필요합니다.
                   </div>
                 ) : null}
 
@@ -318,6 +333,48 @@ function collectionStatusLabel(status: string) {
   };
 
   return labels[status] ?? status;
+}
+
+function withCachedCollectionUrl(collection: Collection) {
+  const publicUrl = getCollectionPublicUrl(collection);
+  return publicUrl && !collection.collectionUrl ? { ...collection, collectionUrl: publicUrl } : collection;
+}
+
+function getCollectionPublicUrl(collection: Collection) {
+  return collection.collectionUrl ?? collection.publicUrl ?? collection.shareUrl ?? collection.url ?? getCachedCollectionUrl(collection.id) ?? "";
+}
+
+function getCachedCollectionUrl(collectionId: string) {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    const stored = window.localStorage.getItem(COLLECTION_URL_CACHE_KEY);
+    if (!stored) {
+      return "";
+    }
+
+    const urls = JSON.parse(stored) as Record<string, string>;
+    return urls[collectionId] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberCollectionUrl(collectionId: string, publicUrl: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(COLLECTION_URL_CACHE_KEY);
+    const urls = stored ? (JSON.parse(stored) as Record<string, string>) : {};
+    urls[collectionId] = publicUrl;
+    window.localStorage.setItem(COLLECTION_URL_CACHE_KEY, JSON.stringify(urls));
+  } catch {
+    // URL 캐시는 보조 기능이라 저장에 실패해도 화면 동작을 막지 않는다.
+  }
 }
 
 function toBrowserPublicUrl(publicUrl: string) {
