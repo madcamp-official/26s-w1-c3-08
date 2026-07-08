@@ -540,7 +540,7 @@ export default function SentPage() {
         </div>
       )}
       {qrUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+        <div className="maeari-modal-overlay fixed inset-0 z-[500] flex items-center justify-center px-4">
           <div className="figma-panel w-full max-w-sm p-4 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold text-[#4E536B]">공개 도착 QR</p>

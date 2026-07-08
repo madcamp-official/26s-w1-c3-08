@@ -369,7 +369,7 @@ export default function MyPage() {
         </section>
 
         {activeVerificationContact ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-[#3A2D62]/28 px-4 backdrop-blur-sm">
+          <div className="maeari-modal-overlay fixed inset-0 z-[500] grid place-items-center px-4">
             <section className="figma-panel w-full max-w-[420px] p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>

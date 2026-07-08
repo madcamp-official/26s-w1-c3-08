@@ -993,7 +993,10 @@ export default function WritePage() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => applyPreset(key)}
+                  onClick={(event) => {
+                    applyPreset(key);
+                    event.currentTarget.blur();
+                  }}
                   className="focus-ring maeari-chip min-w-0 break-keep px-2 py-2 text-[11px] !font-normal leading-4"
                 >
                   {label}
@@ -1232,7 +1235,7 @@ function WriteNoticeDialog({
         : "bg-[#6D48DB] text-white";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#252036]/45 px-4 py-4 backdrop-blur-sm" role="presentation">
+    <div className="maeari-modal-overlay fixed inset-0 z-[500] flex items-center justify-center overflow-hidden px-4 py-4" role="presentation">
       <section
         role="dialog"
         aria-modal="true"
