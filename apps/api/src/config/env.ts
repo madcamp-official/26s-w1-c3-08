@@ -35,6 +35,8 @@ const maxAttachmentCount = optionalNumberEnv("MAX_ATTACHMENT_COUNT", 3);
 const maxAttachmentBytes = optionalNumberEnv("MAX_ATTACHMENT_BYTES", 2 * 1024 * 1024);
 const maxAttachmentTotalBytes = optionalNumberEnv("MAX_ATTACHMENT_TOTAL_BYTES", maxAttachmentCount * maxAttachmentBytes);
 const imageOcrModerationEnabled = optionalBooleanEnv("IMAGE_OCR_MODERATION_ENABLED") ?? true;
+const publicTokenPepper = requireEnv("PUBLIC_TOKEN_PEPPER");
+const publicTokenEncryptionKey = optionalEnv("PUBLIC_TOKEN_ENCRYPTION_KEY") ?? publicTokenPepper;
 
 export const config = {
   nodeEnv: requireEnv("NODE_ENV"),
@@ -55,7 +57,8 @@ export const config = {
   openaiModerationModel: requireEnv("OPENAI_MODERATION_MODEL"),
   openaiGuardrailModel: optionalEnv("OPENAI_GUARDRAIL_MODEL") ?? "gpt-5.4-mini",
   dailyLineOpenaiModel: optionalEnv("DAILY_LINE_OPENAI_MODEL") ?? optionalEnv("OPENAI_GUARDRAIL_MODEL") ?? "gpt-5.4-mini",
-  publicTokenPepper: requireEnv("PUBLIC_TOKEN_PEPPER"),
+  publicTokenPepper,
+  publicTokenEncryptionKey,
   uploadDir: optionalEnv("UPLOAD_DIR") ?? path.resolve(process.cwd(), "uploads"),
   uploadPublicPath: optionalEnv("UPLOAD_PUBLIC_PATH") ?? "/api/uploads",
   maxAttachmentCount,

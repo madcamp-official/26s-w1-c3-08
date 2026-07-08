@@ -302,6 +302,7 @@
 | POST | `/api/message-collections` | 마음나무 생성 | 세션 쿠키, `{ title, description?, scheduledAt }` | `{ collection }` |
 | GET | `/api/message-collections` | 내 마음나무 목록 | 세션 쿠키 | `{ collections }` |
 | GET | `/api/message-collections/:id` | 내 마음나무 상세와 도착 후 제출물 조회 | 세션 쿠키, collection id | `{ collection }` |
+| POST | `/api/message-collections/:id/share-link` | 도착 전 마음나무 URL/QR 재확인용 공유 링크 조회 | 세션 쿠키, collection id | `{ collectionUrl, tokenPreview, expiresAt }` |
 | PATCH | `/api/message-collections/:id/close` | 마음나무 즉시 도착 처리 | 세션 쿠키, collection id | `{ closed: true, collection }` |
 | DELETE | `/api/message-collections/:id/permanent` | 마음나무 완전 삭제 | 세션 쿠키, collection id | `{ deleted: true }` |
 | DELETE | `/api/message-collections/:id` | 마음나무 취소. deprecated legacy route | 세션 쿠키, collection id | `{ canceled: true }` |
@@ -362,6 +363,7 @@ OPENAI_MODERATION_MODEL=omni-moderation-latest
 OPENAI_GUARDRAIL_MODEL=gpt-5.4-mini
 
 PUBLIC_TOKEN_PEPPER=
+PUBLIC_TOKEN_ENCRYPTION_KEY=
 UPLOAD_DIR=uploads
 UPLOAD_PUBLIC_PATH=/api/uploads
 MAX_ATTACHMENT_COUNT=3
@@ -960,6 +962,7 @@ curl -s http://127.0.0.1:3000/login \
 - 앱의 `DATABASE_URL`은 `postgresql://maeari:...@127.0.0.1:5432/maeari?schema=public` 형태를 기준으로 합니다.
 - 기존 데이터는 final dump 후 새 DB에 복원했고, 기존 MVP DB와 dry-run DB는 정리했습니다.
 - `PUBLIC_TOKEN_PEPPER`는 공개 링크, 연락처 hash, OTP hash, 수신거부 hash에 모두 연결되므로 새 DB에서도 기존 값을 유지해야 합니다.
+- `PUBLIC_TOKEN_ENCRYPTION_KEY`는 마음나무 share token 복호화에 사용합니다. 비어 있으면 `PUBLIC_TOKEN_PEPPER`에서 키를 파생하므로 운영에서는 두 값 중 실제 사용 중인 값을 임의 변경하지 않습니다.
 
 ### 2. 현재 핵심 사용자 기능
 
@@ -1303,6 +1306,7 @@ QR 흐름:
 - 공개 도착 URL과 마음나무 URL은 DB에 별도 QR 값으로 저장하지 않습니다.
 - 기존 URL을 클라이언트에서 `QRCodeCanvas`로 렌더링합니다.
 - 링크 복사와 QR PNG 저장을 함께 제공합니다.
+- 마음나무는 생성 시 raw token을 AES-GCM으로 암호화한 `shareTokenEncrypted`를 저장합니다. `POST /api/message-collections/:id/share-link`는 도착 전 같은 URL을 다시 반환하므로 QR이 계속 바뀌지 않습니다.
 
 마음나무 흐름:
 
@@ -1321,6 +1325,10 @@ QR 흐름:
 ```txt
 PATCH /api/message-collections/:id/close
   -> ACTIVE 마음나무를 즉시 DELIVERED로 전환하고 현재까지의 VISIBLE submission을 공개
+
+POST /api/message-collections/:id/share-link
+  -> ACTIVE && scheduledAt > now인 마음나무의 기존 public token을 복호화해 collectionUrl/tokenPreview/expiresAt 반환
+  -> migration 이전 row처럼 암호화 token이 없는 경우 최초 1회 stable token을 생성해 저장
 
 DELETE /api/message-collections/:id/permanent
   -> MessageCollection hard delete, submissions/collection notifications는 FK cascade로 함께 삭제

@@ -313,6 +313,7 @@
 - `POSTGRES_DB`, `POSTGRES_USER`, `DATABASE_URL`은 `maeari` 기준입니다.
 - 이전 DB와 dry-run DB는 final dump 검증 후 제거했습니다.
 - `PUBLIC_TOKEN_PEPPER`는 token hash, 수신거부 hash, OTP hash, IP/contact hash에 모두 영향을 주므로 유지해야 합니다.
+- `PUBLIC_TOKEN_ENCRYPTION_KEY`는 마음나무 share token 복호화에 사용하며, 비어 있으면 `PUBLIC_TOKEN_PEPPER` 기반 키를 사용합니다.
 
 ### 0.2.5.2 메시지 작성과 발신 권한
 
@@ -370,6 +371,7 @@
 - 마음나무 owner는 verified strict PHONE이 필요하고, 비회원 제출은 텍스트만 허용합니다.
 - scheduler는 도착 시점이 지난 ACTIVE collection을 DELIVERED로 바꾸고, visible submissions를 owner에게 공개합니다.
 - 공개 마음나무 URL은 `ACTIVE && scheduledAt > now`일 때만 조회/제출할 수 있고, 도착 이후에는 `410 COLLECTION_LINK_EXPIRED`와 `도착시간이 지나 만료된 링크입니다.`를 반환합니다.
+- 마음나무는 생성 시 raw token을 암호화한 `shareTokenEncrypted`를 저장하며, `POST /api/message-collections/:id/share-link`는 도착 전 같은 URL/QR을 다시 확인할 수 있게 기존 token을 복호화해 반환합니다.
 - owner는 `PATCH /api/message-collections/:id/close`로 예정 시각 전에도 즉시 DELIVERED 처리할 수 있고, `DELETE /api/message-collections/:id/permanent`로 collection과 제출물/알림을 완전 삭제할 수 있습니다.
 - 기존 `DELETE /api/message-collections/:id`는 legacy cancel route로 남기며 새 frontend는 사용하지 않습니다.
 
@@ -754,6 +756,8 @@ node-cron 실행
   -> POST /api/message-collections
   -> raw token이 포함된 collectionUrl 반환
   -> Web에서 QR/링크 공유
+  -> 도착 전 URL/QR 재확인이 필요하면 POST /api/message-collections/:id/share-link
+  -> 암호화 저장된 token에서 같은 collectionUrl 반환
 
 비회원
   -> /tree/[token]
@@ -1002,7 +1006,7 @@ ContactSuppression
 
 MessageCollection
   -> MessageCollectionSubmission[]
-  -> 공개 마음나무 tokenHash와 도착 상태
+  -> 공개 마음나무 tokenHash, shareTokenEncrypted, 도착 상태
 ```
 
 ### Moderation 관련 필드 의미
@@ -3441,6 +3445,7 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - 비회원 제출은 기존 텍스트 guardrail을 즉시 통과해야 저장됩니다.
 - scheduler는 `DELIVERY_CRON` 주기로 `ACTIVE` 마음나무 중 `scheduledAt`이 지난 항목을 `DELIVERED`로 전환하고 제출물을 일괄 공개합니다.
 - 도착 시각이 지난 공개 링크는 더 이상 조회/제출할 수 없으며 frontend는 `COLLECTION_LINK_EXPIRED`를 만료 페이지로 표시합니다.
+- `POST /api/message-collections/:id/share-link`는 도착 전 같은 URL/QR을 다시 확인할 수 있도록 암호화 저장된 token을 복호화해 반환합니다.
 - `PATCH /api/message-collections/:id/close`는 즉시 도착 처리, `DELETE /api/message-collections/:id/permanent`는 완전 삭제입니다.
 
 ### 22.6 운영 DB migration 상태
