@@ -2201,3 +2201,135 @@ ModerationLog
 ```
 
 운영 cutover나 restore 뒤에는 반드시 `PUBLIC_TOKEN_PEPPER`, `JWT_SECRET`, Kakao, Gmail SMTP, Solapi, Twilio env를 기존 정책에 맞게 유지한 상태에서 API/Web/Scheduler를 재시작합니다.
+
+## 18. 2026-07-08 프론트엔드 표시 변경과 DB 영향
+
+이 장은 2026-07-08 기준 프론트엔드에서 추가로 반영된 화면 변경이 DB schema에 미치는 영향을 정리합니다. 아래 항목은 모두 기존 DB row와 API 파생 필드를 사용하는 presentation/application layer 변경이며, 별도 DB migration을 추가하지 않습니다.
+
+## 18.1 메시지 목록 앨범 카드와 thumbnail 파생 필드
+
+프론트엔드의 홈 `최근 찾아온 마음`, 받은 마음, 마음 보관함은 같은 앨범형 카드 계열을 사용합니다.
+
+API 계약:
+
+```txt
+GET /api/messages/sent
+GET /api/messages/received
+GET /api/messages/archived
+└── message.thumbnail
+    ├── source = ATTACHMENT | DEFAULT
+    └── url
+```
+
+정책:
+
+- 첫 번째 첨부 이미지가 있으면 `MessageAttachment.publicUrl`을 `thumbnail.url`로 사용하고 `thumbnail.source="ATTACHMENT"`를 반환합니다.
+- 첨부 이미지가 없으면 message id 기준으로 고정 기본 봉투 이미지를 선택하고 `thumbnail.source="DEFAULT"`를 반환합니다.
+- `/api/messages/received`와 `/api/messages/archived`는 앨범형 UI를 위해 `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`도 함께 제공합니다.
+- 프론트엔드는 `thumbnail.url`을 우선 사용하고, 필요할 때 `coverImageUrl` 또는 theme 기본 봉투를 fallback으로 사용합니다.
+
+DB 영향:
+
+- `MessageAttachment`, `Message.theme`, message id에서 파생하는 표시값입니다.
+- thumbnail 자체를 저장하는 column은 만들지 않습니다.
+- 기본 봉투 asset 선택 결과도 DB에 저장하지 않습니다.
+
+## 18.2 홈 대시보드 표시 정책
+
+홈 화면의 `최근 찾아온 마음`은 받은 마음 목록 데이터를 사용하되, 화면 폭에 따라 표시 개수만 프론트에서 조정합니다.
+
+```txt
+mobile  -> 1개
+medium  -> 2개
+desktop -> 3개
+```
+
+DB 영향:
+
+- `MessageRecipient.receiverDeletedAt IS NULL`인 받은 마음 목록 조회 결과를 프론트에서 slice합니다.
+- 표시 개수는 viewport state이므로 DB에 저장하지 않습니다.
+- `전체 보기`는 `/archive`로 이동하며, 이는 마음 보관함 UI 진입 경로입니다.
+
+## 18.3 메시지 상세 시간 표시
+
+`/messages/[id]` 상세 화면은 예약 시간과 도착 시간을 동시에 보여주지 않습니다.
+
+표시 규칙:
+
+```txt
+viewerRole = SENDER && status in (PENDING, MODERATION_FAILED)
+  -> 예약 시간(scheduledAt)
+
+그 외 전달 완료/받은 마음/마음 보관함 상세
+  -> 도착 시간(sentAt)
+```
+
+DB 영향:
+
+- `Message.scheduledAt`, `Message.sentAt`, `Message.status`, `viewerRole` 응답값을 UI에서 선택 표시합니다.
+- 기존 column 의미는 바꾸지 않습니다.
+- 수신자별 상세 시간은 여전히 필요 시 `MessageRecipient.deliveredAt`로 확인할 수 있습니다.
+
+## 18.4 오늘의 한 줄
+
+좌측 사이드바의 오늘의 한 줄은 하드코딩 문구가 아니라 `/api/daily-line` 응답을 사용합니다.
+
+응답 형식:
+
+```json
+{
+  "dailyLine": {
+    "date": "YYYY-MM-DD",
+    "text": "글귀",
+    "poemTitle": "시 제목",
+    "poet": "시인"
+  }
+}
+```
+
+프론트 표시:
+
+```txt
+text
+/ poemTitle, poet
+/ date
+```
+
+DB 영향:
+
+- 기존 `DailyLine`, `DailyLineSelection` 모델을 그대로 사용합니다.
+- API 실패 또는 로딩 전에는 이전 하드코딩 문구를 fallback으로 보여주지 않고 빈 상태로 둡니다.
+
+## 18.5 팝업, 로딩, 공개 도착 화면
+
+프론트엔드는 모든 일반 팝업/알림창을 화면 전체 dark overlay가 아니라 dialog/card shadow 중심으로 표시합니다.
+
+변경 항목:
+
+- `maeari-modal-overlay`는 투명 배경입니다.
+- `Notice`, `figma-panel`, 로딩 카드의 그림자만 강화합니다.
+- 전역 loading overlay는 화면을 어둡게 덮지 않고, 편지봉투 조립형 animation card를 표시합니다.
+- 공개 도착 `/arrival/[token]`은 `images/편지.png`를 public asset으로 복사한 `maeari-arrival-letter.png`를 도착 전 gate 배경으로 사용합니다.
+- 공개 도착 배경의 별똥별/별자리 궤적은 pointer 위치 기반 frontend-only animation입니다.
+
+DB 영향:
+
+- 팝업/로딩/별똥별 animation state는 브라우저 메모리와 CSS animation만 사용합니다.
+- 별똥별 궤적, loading 문구 index, dialog open state는 DB에 저장하지 않습니다.
+- 공개 도착 화면에서 실제 첨부 이미지가 있으면 `MessageAttachment.publicUrl`을 overlay로 사용합니다.
+
+## 18.6 명칭과 삭제/보관 UX
+
+사용자 노출 명칭:
+
+```txt
+/archive -> 마음 보관함
+unarchive action -> 보관함에서 빼기
+```
+
+DB 영향:
+
+- 기존 `MessageRecipient.receiverArchivedAt`를 그대로 사용합니다.
+- `PATCH /api/messages/:id/archive`는 `receiverArchivedAt`을 채웁니다.
+- `PATCH /api/messages/:id/unarchive`는 `receiverArchivedAt`을 비웁니다.
+- 명칭 변경은 UI copy 변경이며 DB column 이름은 바꾸지 않습니다.

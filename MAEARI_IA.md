@@ -3651,3 +3651,196 @@ Functional QA
 ├── tree submit/deliver
 └── admin review
 ```
+
+## 2026-07-08 프론트엔드 IA 동기화: 현재 화면 기준
+
+이 장은 2026-07-08 기준 프론트엔드 화면에서 실제로 보이는 최신 IA를 고정합니다. 이전 장의 오래된 명칭이나 quick card 구조보다 이 장의 기준을 우선합니다.
+
+### 1. Global Navigation 최신 기준
+
+```txt
+Logged-in AppShell
+├── Top bar
+│   ├── maeari_logo.png
+│   ├── 매아리 wordmark
+│   └── 내 정보 profile shortcut
+├── Desktop sidebar
+│   ├── 홈 -> /
+│   ├── 마음 보내기 -> /write
+│   ├── 보낸 마음 -> /sent
+│   ├── 마음 보관함 -> /archive
+│   ├── 마음나무 -> /tree
+│   ├── 친구 -> /friends
+│   └── 리포트 -> /reports
+├── Today Line Panel
+│   ├── GET /api/daily-line
+│   ├── text
+│   ├── / poemTitle, poet
+│   └── / date
+└── Mobile bottom nav
+    ├── 홈 -> /
+    ├── 쓰기 -> /write
+    ├── 보낸 마음 -> /sent
+    ├── 보관함 -> /archive
+    ├── 마음나무 -> /tree
+    └── 친구 -> /friends
+```
+
+`받은 마음`은 좌측/하단 고정 메뉴에서는 제거하고, 홈 히어로 CTA나 직접 route `/inbox`에서 접근합니다.
+
+### 2. Home `/` 최신 기준
+
+```txt
+/
+├── Hero
+│   ├── background: maeari-hero-night.png
+│   ├── copy: 잊고 있던 글이, 나를 찾아오는 순간
+│   ├── 현재 KST
+│   ├── CTA: 마음 보내기
+│   └── CTA: 받은 마음 보기
+├── 곧 찾아갈 마음
+│   ├── desktop: hero 오른쪽 timeline
+│   ├── mobile/tablet: 최근 찾아온 마음 위 card
+│   └── 예정된 마음이 없으면 마음나무 fallback 1개
+└── 최근 찾아온 마음
+    ├── MessageAlbumCard
+    ├── thumbnail.url 우선
+    ├── coverImageUrl fallback
+    ├── 화면 폭별 표시 개수
+    │   ├── mobile: 1개
+    │   ├── medium: 2개
+    │   └── desktop: 3개
+    └── 전체 보기 -> /archive
+```
+
+### 3. Write `/write` 최신 기준
+
+```txt
+/write
+├── Header
+│   ├── 새로운 마음 보내기
+│   └── 현재 시각 KST
+├── Message form
+│   ├── receiver
+│   ├── title/content
+│   ├── emotion tags
+│   ├── envelope/theme
+│   └── image attachments
+├── Delivery setting
+│   ├── 전달 예정일
+│   ├── 전달 예정 시간
+│   ├── quick presets
+│   │   ├── 1분 후
+│   │   ├── 10분 후
+│   │   ├── 하루 후
+│   │   └── 일주일 후
+│   ├── 15분 quick minute
+│   ├── 고정 도착 / 랜덤 도착
+│   ├── 익명으로 보내기
+│   └── 도착 예정일 숨기기
+└── Submit result dialog
+    ├── 예약 완료 안내
+    ├── 공개 도착 QR
+    ├── 링크 복사
+    ├── QR 저장
+    ├── 예약 상세 보기
+    ├── 새 마음 쓰기
+    └── 메인
+```
+
+팝업/알림창은 화면 전체를 어둡게 덮지 않고, 카드 자체의 그림자를 강화해 떠 보이게 합니다.
+
+### 4. Inbox / Archive 최신 기준
+
+```txt
+/inbox
+├── 받은 마음
+├── album grid
+├── unread dot with white outline
+├── no star icon
+├── card preview에는 본문 미표시
+├── 수신 시간 표시
+├── 감정 태그 필터
+├── 보관
+└── 삭제
+```
+
+```txt
+/archive
+├── 마음 보관함
+├── album grid
+├── thumbnail.url / coverImageUrl 기반 카드 배경
+├── 감정 태그 필터
+├── 보관함에서 빼기
+└── 삭제
+```
+
+### 5. Message Detail `/messages/[id]` 최신 기준
+
+```txt
+/messages/[id]
+├── 상단 목록 이동 버튼 없음
+├── status/emotion/hidden badges
+├── title
+├── sender display
+├── 시간 정보는 한 종류만 표시
+│   ├── SENDER + 예약/검사 대기: 예약 시간
+│   └── 전달 완료/받은 마음/보관함: 도착 시간
+├── recipient state
+├── content
+├── attachments
+│   ├── polaroid frame
+│   └── click opens original image
+├── replies
+├── public link / QR
+├── cancel/delete/report
+└── attachment image가 있으면 상단 편지지 overlay로 표시
+```
+
+### 6. Public Arrival `/arrival/[token]` 최신 기준
+
+```txt
+/arrival/[token]
+├── public header
+├── night-sky background
+│   ├── random stars
+│   └── pointer constellation trail
+├── before-open gate
+│   ├── background: images/편지.png -> maeari-arrival-letter.png
+│   ├── card width: desktop 약 70vw
+│   ├── 남겨둔 마음이 도착했어요
+│   ├── gift icon
+│   ├── 지금, 열어볼까요?
+│   └── 마음 열어보기
+├── opened letter
+│   ├── title
+│   ├── arrivedAt only for recipient perspective
+│   ├── content
+│   ├── polaroid attachments
+│   ├── anonymous reply
+│   ├── report
+│   └── Kakao start CTA inline
+└── notification suppression
+```
+
+별똥별 궤적은 짧은 선분을 이어 그리며, 새 움직임은 새 궤적으로 시작하고 오래된 선분부터 사라집니다.
+
+### 7. Tree `/tree` 최신 기준
+
+```txt
+/tree
+├── 새 마음나무 만들기
+├── 생성 성공 notice
+├── QR / link share
+├── 마음나무 card
+│   ├── 상세정보
+│   │   ├── QR
+│   │   └── URL
+│   ├── 열기
+│   │   └── card 내부에서 제출물 펼침
+│   └── 닫기
+│       ├── X icon
+│       └── confirm popup
+```
+
+마음나무 confirm popup도 전체 화면을 어둡게 덮지 않고 dialog shadow 중심으로 표시합니다.

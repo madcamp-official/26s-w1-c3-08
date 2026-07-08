@@ -33,7 +33,7 @@
   - 예약 메시지 작성 및 보관
   - 그룹 수신자, 이미지 첨부, 랜덤 도착, 도착 전 힌트, 메시지 테마
   - 메시지 작성 화면의 KST 기준 현재 시각 확인
-  - 빠른 프리셋, 날짜 입력, 1분 단위 시간 입력, 15분 단위 quick minute 선택
+  - 현재 시각 기준 빠른 프리셋, 날짜 입력, 1분 단위 시간 입력, 15분 단위 quick minute 선택
   - OpenAI Moderation, 서비스 정책 guardrail prompt, 한국어 욕설/비하 표현 보강 검사
   - Tesseract OCR 기반 이미지 텍스트 추출 후 기존 유해성 검사에 병합
   - 예약 시간 도래 시 메시지 도착 처리
@@ -48,7 +48,7 @@
   - 공개 링크/마음쓰기 완료 링크 QR 표시, 링크 복사, QR 이미지 저장
   - 마음나무: 회원이 공개 수집 링크/QR을 만들고 비회원이 도착 시점 전까지 편지를 남기는 기능
   - 공개 링크 열람 후 가입 시 수신함 자동 귀속
-  - 발신함, 수신함, 아카이브, 미래의 나, 감정 리포트, 메시지 상세 화면
+  - 발신함, 수신함, 마음 보관함, 미래의 나, 감정 리포트, 메시지 상세 화면
 - **예상 사용자:**
   - 미래의 나에게 편지를 남기고 싶은 사용자
   - 가족, 연인, 친구에게 특정 날짜에 마음을 전하고 싶은 사용자
@@ -77,9 +77,10 @@
 - [x] 친구 관계 soft delete
 - [x] 메시지 작성 시 친구 수신자 선택
 - [x] 메시지 작성 및 예약
-- [x] 마음 쓰기 성공/오류 결과를 화면 중앙 팝업으로 표시하고, 성공 팝업에서 예약 상세/발신함/새 마음 쓰기/메인 이동 제공
+- [x] 마음 쓰기 성공/오류 결과를 화면 중앙 팝업으로 표시하고, 성공 팝업에서 예약 상세/새 마음 쓰기/메인 이동 제공
 - [x] 메시지 작성 화면 상단 KST 현재 시각 초 단위 표시
 - [x] 도착 날짜와 시간을 분리하고 시/분은 1분 단위 직접 입력
+- [x] `1분 후`, `10분 후`, `하루 후`, `일주일 후`처럼 현재 시각 기준 빠른 도착 프리셋 제공
 - [x] 15분 단위 quick minute 버튼 제공
 - [x] 타인 수신자 이메일/전화번호 중 하나 필수 검증
 - [x] 신규 가입 직후 strict 010 휴대전화 인증 필수화, 기존 사용자는 메시지 작성 전 gate 유지
@@ -127,9 +128,9 @@
 - [x] 기간 랜덤 발송
 - [x] 도착 전 힌트 알림
 - [x] 메시지 봉투/테마 선택
-- [x] 받은 마음 아카이브, 복구, 일괄 삭제
+- [x] 받은 마음 아카이브, 마음 보관함에서 빼기, 일괄 삭제
 - [x] 미래의 나에게 쓴 편지 모아보기
-- [x] 보낸 마음, 받은 마음, 아카이브, 미래의 나 감정 태그 필터
+- [x] 보낸 마음, 받은 마음, 마음 보관함, 미래의 나 감정 태그 필터
 - [x] 신고 기능
 - [x] 계정 정지 정책
 - [x] NotificationLog 재시도 및 발송 통계 대시보드
@@ -147,14 +148,14 @@
 
 ### 주요 페이지
 
-- `/`: Figma 톤의 메인 대시보드, 브랜드 히어로, 곧 찾아갈 마음 timeline, 최근 보관한 마음, 주요 기능 quick card
+- `/`: Figma 톤의 메인 대시보드, 브랜드 히어로, 곧 찾아갈 마음 timeline, 최근 찾아온 마음 앨범 카드
 - `/login`: 카카오 로그인 진입
 - `/auth/callback`: 로그인 완료 후 공개 링크 메시지 귀속 및 친구 초대 링크 claim 처리
 - `/onboarding`: 첫 메시지 작성 유도
-- `/write`: 전화번호 인증 여부 확인, 예약 메시지 작성, 수신자 선택, KST 현재 시각 확인, 서버 기준 +24시간 기본 도착 시각, 1분 단위 시간 설정, 작성 결과 팝업
+- `/write`: 전화번호 인증 여부 확인, 예약 메시지 작성, 수신자 선택, KST 현재 시각 확인, 서버 기준 기본 도착 시각, 현재 시각 기준 빠른 프리셋, 1분 단위 시간 설정, 작성 결과 팝업
 - `/sent`: 보낸 마음 목록
 - `/inbox`: 받은 마음 목록
-- `/archive`: 받은 마음 아카이브
+- `/archive`: 마음 보관함
 - `/future`: 미래의 나에게 쓴 편지 모음
 - `/reports`: 감정 리포트
 - `/tree`: 마음나무 생성, 목록, QR/링크 공유, 도착 후 제출물 열람
@@ -283,7 +284,7 @@
 | POST | `/api/messages/:id/public-link` | 공개 링크 새로 생성 | 세션 쿠키, message id | `{ publicUrl }` |
 | PATCH | `/api/messages/:id/cancel` | 예약 메시지 취소 | 세션 쿠키, message id | `{ canceled: true }` |
 | PATCH | `/api/messages/:id/archive` | 받은 마음 아카이브 | 세션 쿠키, message id | `{ archived: true }` |
-| PATCH | `/api/messages/:id/unarchive` | 받은 마음 아카이브 복구 | 세션 쿠키, message id | `{ archived: false }` |
+| PATCH | `/api/messages/:id/unarchive` | 받은 마음을 마음 보관함에서 빼기 | 세션 쿠키, message id | `{ archived: false }` |
 | DELETE | `/api/messages/:id` | 보낸/받은 마음을 내 보관함에서 제거. optional query `scope=sender\|recipient` | 세션 쿠키, message id | `{ deleted: true }` |
 | GET | `/api/reports/emotions` | 월별 감정 리포트 | 세션 쿠키, `month=YYYY-MM` | `{ report }` |
 | GET | `/api/admin/overview` | 관리자 운영 요약 | 관리자 세션 | `{ overview }` |
@@ -468,7 +469,7 @@ guardrail 응답은 `allowed`, `categories`, `severity`, `feedback`, `rationale`
 - `apps/web/app/icon.png`: 브라우저 탭 favicon/app icon
 - `apps/web/app/apple-icon.png`: Apple touch icon
 - `apps/web/public/images/maeari-mark.png`: 헤더/공개 열람 브랜드 아이콘
-- `apps/web/public/images/maeari-hero-floral.png`: 현재 메인 대시보드와 로그인 화면의 밝은 라벤더 히어로 이미지
+- `apps/web/public/images/maeari-hero-night.png`: 현재 메인 대시보드의 밤하늘 편지 히어로 이미지
 - `apps/web/public/images/maeari-hero-night.png`: 어두운 야간 봉투 히어로. 필요 시 시즌/이벤트 화면에 재사용 가능
 - `apps/web/public/images/maeari-sidebar-sky.png`: 로그인 사용자 AppShell 좌측 하단 감성 패널 이미지
 - `apps/web/public/images/maeari-card-letter.png`: 최근 마음 card thumbnail
@@ -509,7 +510,7 @@ guardrail 응답은 `allowed`, `categories`, `severity`, `feedback`, `rationale`
   - `Button`, `LinkButton`, `TextInput`, `TextArea`, `SelectInput`, `PageHeader`, `SectionPanel`, `StatusPill`, `EmotionPill`, `EmptyState`, `LetterThumb`를 공통 primitive로 제공합니다.
   - route별 화면은 이 primitive와 `figma-panel` class를 조합해 같은 radius, focus, shadow, label 위계를 유지합니다.
 - `apps/web/app/page.tsx`
-  - `maeari-hero-floral.png` hero, 곧 찾아갈 마음 timeline, 최근 보관한 마음 card, 마음 쓰기/받은 마음/친구/마음나무 quick card를 Figma 톤으로 재구성했습니다.
+  - `maeari-hero-night.png` hero, 곧 찾아갈 마음 timeline, 최근 찾아온 마음 앨범 card를 Figma 톤으로 재구성했습니다.
   - `/messages/sent`와 `/messages/received`를 함께 조회해 홈 대시보드에 실제 예약 대기 메시지와 최근 받은 마음을 표시합니다.
   - 로그인 세션이 없으면 `/login`으로 이동하고, 데이터가 없거나 일시적으로 불러오지 못하면 감성 fallback card를 보여줍니다.
 - `apps/web/components/Notice.tsx`
@@ -527,10 +528,10 @@ route별 반영 상태:
   - `/friends/invite/[token]`: 초대자 미리보기, 만료/폐기/claim 상태, 로그인 CTA를 새 public card로 정리했습니다.
   - `/tree/[token]`: 비회원 마음나무 제출 화면을 public stage와 단일 제출 panel 중심으로 정리했습니다.
 - Authenticated 화면
-  - `/`: `maeari-hero-floral.png` hero, 곧 찾아갈 마음 timeline, 최근 보관한 마음, 마음 쓰기/받은 마음/친구/마음나무 quick card를 Figma 톤으로 재구성했습니다. 보낸 마음/받은 마음 API 데이터를 읽어 실제 사용자의 대시보드로 동작합니다.
+  - `/`: `maeari-hero-night.png` hero, 곧 찾아갈 마음 timeline, 최근 찾아온 마음 앨범 card를 Figma 톤으로 재구성했습니다. 보낸 마음/받은 마음 API 데이터를 읽어 실제 사용자의 대시보드로 동작하며, 최근 찾아온 마음은 화면 폭에 따라 한 줄에 들어가는 개수만 표시합니다.
   - `/write`: 전화번호 인증 gate, 수신자 선택, 그룹 수신자, 첨부, OCR 대상 이미지, 도착 설정, 테마, 익명 답장, 제출/결과 dialog를 기존 기능 그대로 새 form/panel 스타일로 정리했습니다.
   - `/sent`: 보낸 마음과 답장함 탭, 상태/감정 필터, 삭제/취소/QR/링크 복사 액션을 새 chip/action/button 체계로 정리했습니다.
-  - `/inbox`, `/archive`, `/future`: 받은 마음, 아카이브, 미래의 나 목록의 필터/일괄 삭제/복구/상세 액션을 같은 `MessageCard` 계열 시각 언어로 맞췄습니다.
+  - `/inbox`, `/archive`, `/future`: 받은 마음, 마음 보관함, 미래의 나 목록의 필터/일괄 삭제/보관함에서 빼기/상세 액션을 같은 `MessageCard` 계열 시각 언어로 맞췄습니다.
   - `/messages/[id]`: 메시지 상세, 수신자 상태, 첨부, 답장, 신고, QR 공유, 취소/삭제 버튼을 새 detail panel로 정리했습니다.
   - `/friends`: 친구 코드, 친구 검색, 친구 요청, 초대 링크, 친구 목록을 Figma `Desktop_friends`의 panel 배치에 맞춰 재구성했습니다.
   - `/phone-verification`: 전화번호 입력, OTP 발송/재발송, 6자리 검증, 완료 상태를 독립 인증 화면으로 분리했습니다.
@@ -629,7 +630,7 @@ Frontend 연동 포인트:
 - 자기 자신에게 보낸 마음처럼 발신자와 수신자가 같은 경우를 위해 `DELETE /api/messages/:id?scope=recipient|sender`와 `/messages/bulk-delete`의 optional `scope`를 지원합니다. 기존 frontend 호출은 `Referer`가 `/archive` 또는 `/inbox`이면 recipient 삭제, `/sent`이면 sender 삭제로 보정합니다.
 - 이미 도착했거나 실패한 메시지와 받은 메시지는 발송 이력, 공개 token, notification log, 감사 추적을 보존하기 위해 사용자별 soft delete를 사용합니다.
 - `/sent`, `/inbox`, 메시지 상세 화면은 삭제 가능 상태일 때 `삭제` 버튼을 보여주고, 삭제된 항목은 목록에서 다시 노출하지 않습니다.
-- 받은 마음은 `PATCH /api/messages/:id/archive`로 아카이브할 수 있고 `/archive`에서 복구 또는 삭제할 수 있습니다.
+- 받은 마음은 `PATCH /api/messages/:id/archive`로 마음 보관함에 보관할 수 있고 `/archive`에서 보관함에서 빼기 또는 삭제할 수 있습니다.
 - `/messages/bulk-delete`와 받은 마음/아카이브 화면의 `일괄 삭제` 버튼으로 현재 보이는 여러 항목을 한 번에 보관함에서 제거할 수 있습니다.
 - v1 오래된 메시지 정리 정책은 자동 hard delete가 아니라 사용자 직접 아카이브/삭제와 soft delete입니다. 발송 이력, 공개 token, moderation/notification log는 감사 추적을 위해 보존합니다.
 
@@ -640,7 +641,7 @@ Frontend 연동 포인트:
 - 그룹 전송: `POST /api/messages`가 `recipients` 배열을 받아 하나의 `Message`에 여러 `MessageRecipient`와 공개 token을 생성합니다.
 - 이미지 첨부: `/write`에서 최대 3개의 이미지를 multipart `attachments`로 전송하고, JSON payload는 multipart field `payload`에 담습니다. 허용 형식은 `.jpg`, `.jpeg`, `.png`, `.webp`이며 MIME type은 `image/jpeg`, `image/png`, `image/webp`만 허용합니다. API는 multer memory storage에서 MIME/확장자/개수/개별 용량/총 용량을 1차 검증하고, 저장 직전 파일 매직바이트를 다시 검사해 실제 파일 내용이 JPEG/PNG/WEBP인지 확인합니다. 통과한 파일은 `UPLOAD_DIR/messages/{messageId}`에 저장하고 `/api/uploads/*`로 제공합니다. multipart parser는 `payload + 이미지 3개` 요청이 정상 통과하도록 file/field limit은 유지하면서 parts limit에 여유를 둡니다. JSON data URL payload도 service 레벨에서 처리 가능하지만, 현재 web UI의 기본 경로는 multipart입니다.
 - 봉투 테마 계약: `packages/shared`의 `messageThemeOptions`와 `messageThemeEnvelopeByTheme`가 `theme -> label/imageUrl/alt` 매핑을 제공합니다. API는 `POST /api/messages`, 목록, 상세, 공개 도착 응답에 `themeEnvelope`을 포함합니다.
-- 목록 thumbnail: `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`의 각 message는 `thumbnail: { url, source, attachmentId, alt }`를 포함합니다. 첫 번째 첨부 이미지가 있으면 `source="ATTACHMENT"`와 첨부 `publicUrl`을 사용하고, 첨부가 없으면 선택된 봉투 테마 이미지로 `source="THEME"`를 반환합니다. 받은 마음/아카이브 앨범 UI를 위해 `/api/messages/received`와 `/api/messages/archived`는 추가로 `theme`, `themeEnvelope`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`를 제공합니다.
+- 목록 thumbnail: `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`의 각 message는 `thumbnail` 객체를 포함합니다. 첫 번째 첨부 이미지가 있으면 `thumbnail.source="ATTACHMENT"`와 첨부 `publicUrl`을 `thumbnail.url`로 사용하고, 첨부가 없으면 message id 기준 고정 기본 봉투 이미지가 `thumbnail.source="DEFAULT"`로 내려옵니다. 받은 마음/마음 보관함 앨범 UI를 위해 `/api/messages/received`와 `/api/messages/archived`는 추가로 `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`를 제공합니다.
 - 직접 입력 감정 태그: `POST /api/messages`에서 `emotionTag=CUSTOM`일 때만 `customEmotionTag`를 저장합니다. 서버는 앞쪽 공백/기호/문장부호를 제거하고 내부 공백을 한 칸으로 줄인 뒤 최대 40자로 저장하며, 정리 후 비어 있으면 `null`로 저장합니다. 보낸 마음/받은 마음/아카이브 목록과 `GET /api/reports/emotions`는 직접 입력 태그를 모두 `emotionTag=CUSTOM`, `customEmotionTag=null`로 내려 “기타” 그룹 하나로 묶고, 메시지 상세와 공개 도착 링크에서만 정제된 직접 입력 문구를 제공합니다.
 - 랜덤 도착/힌트/테마: `arrivalMode=RANDOM_WINDOW`, 도착 구간, `hintAt`, `theme`, `isReplyEnabled`를 메시지에 저장합니다.
 - 도착 전 힌트: scheduler의 `sendArrivalHints` job이 `ARRIVAL_HINT` notification log를 생성하고 이메일/SMS/인앱 힌트를 보냅니다.
@@ -648,14 +649,14 @@ Frontend 연동 포인트:
 - 감정 리포트: `/reports`와 `GET /api/reports/emotions`에서 월별 보낸/받은 마음, 감정 분포, 상태 분포를 확인합니다.
 - 관리자 검수/통계: `ADMIN_KAKAO_IDS` 기반 `/admin` 화면과 `/api/admin/*` API로 moderation log, notification log, 재시도 대상, 채널/provider별 발송 통계, 익명 답장 검수를 제공합니다.
 - 신고/정지: 공개 링크와 로그인 상세 화면에서 메시지를 신고할 수 있고, 관리자는 신고를 검토하거나 발신자 계정을 정지/해제할 수 있습니다.
-- 보관함 고도화: `/sent`, `/inbox`, `/archive`, `/future`에 감정 태그 필터를 적용했고, 아카이브 복구, 일괄 삭제, 미래의 나에게 쓴 편지 모음을 추가했습니다.
+- 보관함 고도화: `/sent`, `/inbox`, `/archive`, `/future`에 감정 태그 필터를 적용했고, 보관함에서 빼기, 일괄 삭제, 미래의 나에게 쓴 편지 모음을 추가했습니다.
 
 ### 2026-07-04 코드 반영 요약
 
 오늘 반영된 주요 변경은 다음 파일군에 걸쳐 있습니다.
 
 - 메인/브랜드 UI: `apps/web/app/page.tsx`, `apps/web/components/AppShell.tsx`, `apps/web/app/icon.png`, `apps/web/app/apple-icon.png`, `apps/web/public/images/*`
-- 메시지 작성 UX: `apps/web/app/write/page.tsx`에서 KST 현재 시각, 날짜/시간 분리 입력, 15분 quick minute, 작성 결과 팝업, 공개 링크 설명을 처리합니다.
+- 메시지 작성 UX: `apps/web/app/write/page.tsx`에서 KST 현재 시각, 날짜/시간 분리 입력, 현재 시각 기준 빠른 프리셋, 15분 quick minute, 작성 결과 팝업, 공개 링크 설명을 처리합니다.
 - 친구 기능: `packages/database/prisma/schema.prisma`, `apps/api/src/modules/friends/*`, `apps/web/app/friends/page.tsx`에 친구 코드, 요청, 수락/거절/취소, 친구 삭제, 친구 수신자 선택 흐름을 추가했습니다.
 - 친구 찾기: `GET /api/friends/search`와 `/friends` 검색 UI에서 닉네임 또는 친구 코드로 아직 친구가 아니고 요청 중도 아닌 사용자를 찾을 수 있습니다.
 - 외부 수신/발송: `apps/api/src/processors/notification-provider.ts`, `apps/api/src/processors/notification.processor.ts`, `apps/api/src/jobs/retry-pending-notifications.job.ts`에서 Gmail SMTP, Solapi SMS, idempotency, retry, provider 미설정 실패 처리를 담당합니다.
@@ -673,7 +674,7 @@ Frontend 연동 포인트:
 - 연락처 선택 UI 제거: `/write`에서 연락처 select와 masked value 노출을 제거하고, 서버가 인증 PHONE을 직접 선택하도록 `POST /api/messages` 정책을 바꿨습니다.
 - 친구 초대 링크: `FriendInviteLink`, `/api/friends/invites/*`, `/friends/invite/[token]`, `/auth/callback`의 pending invite token 처리로 로그인 후 즉시 친구 연결이 가능해졌습니다.
 - 첨부 업로드: `multer` 기반 multipart parser와 `MAX_ATTACHMENT_TOTAL_BYTES`를 추가해 이미지 첨부 실패 원인을 구체적인 error code로 반환합니다. `payload + 이미지 3개` multipart 요청은 허용하고, 이미지 4개 이상은 `TOO_MANY_ATTACHMENTS`로 차단합니다. 업로드 allowlist는 `.jpg`, `.jpeg`, `.png`, `.webp`로 고정했고, 프론트 `accept`, 클라이언트 검증, API MIME/확장자 검증, service 매직바이트 검증을 모두 같은 정책으로 맞췄습니다.
-- 작성 결과 팝업: `/write`의 성공/오류 notice를 화면 상단 인라인 알림 대신 `WriteNoticeDialog` 중앙 팝업으로 띄웁니다. 성공 시 제목, 수신자, 도착 예정 시각, 공개 링크, 예약 상세/보낸 마음/새 마음 쓰기/메인 이동 액션을 팝업 안에서 제공합니다.
+- 작성 결과 팝업: `/write`의 성공/오류 notice를 화면 상단 인라인 알림 대신 `WriteNoticeDialog` 중앙 팝업으로 띄웁니다. 성공 시 제목, 수신자, 도착 예정 시각, 공개 링크, 예약 상세/새 마음 쓰기/메인 이동 액션을 팝업 안에서 제공합니다.
 - 운영 DB 전환: Docker Postgres의 운영 DB/USER를 `maeari`로 전환하고, 기존 `maeum_arrival` 데이터는 final dump 후 새 DB에 복원했습니다.
 - 문서 보호: 운영 dump가 git에 올라가지 않도록 `backups/`를 `.gitignore`에 추가했습니다.
 
@@ -831,7 +832,7 @@ curl -I https://maeari.madcamp-kaist.org/api/health
 - 기존 둥근 card/텍스트 링크 중심 UI를 `figma-panel`, `maeari-chip`, `maeari-action`, `maeari-input`, `maeari-stage`, `maeari-public-stage` 중심으로 정리했습니다.
 - `AppShell`은 로그인 사용자 route를 감싸는 공통 구조로, 상단 bar와 sidebar/mobile bottom nav를 제공합니다.
 - public route는 sidebar 없이 `maeari-public-stage`를 사용해 로그인/공개 도착/친구 초대/공개 마음나무 화면이 같은 브랜드 톤을 유지합니다.
-- 모바일 하단 nav는 화면 폭을 고려해 5개 핵심 동선만 유지합니다. 리포트와 마음나무는 데스크톱 sidebar, 홈 quick card, 직접 route 접근으로 사용할 수 있습니다.
+- 모바일 하단 nav는 좌측 메뉴와 맞춰 홈, 쓰기, 보낸 마음, 보관함, 마음나무, 친구 동선을 제공합니다. 리포트는 데스크톱 sidebar 또는 직접 route 접근으로 사용할 수 있습니다.
 - `/`, `/write`, `/sent`, `/inbox`, `/archive`, `/future`, `/messages/[id]`, `/arrival/[token]`, `/friends`, `/friends/invite/[token]`, `/phone-verification`, `/my`, `/tree`, `/tree/[token]`, `/reports`, `/admin`, `/login`, `/auth/callback`, `/arrival/link-failed`의 화면 스타일을 새 토큰 기준으로 정리했습니다.
 - 이 변경은 프론트엔드 presentation layer 변경이며, DB migration이나 API contract 변경은 없습니다.
 - 남은 QA는 Figma MCP call limit 해제 후 주요 frame screenshot과 실제 화면을 재대조하는 것입니다.
@@ -856,7 +857,7 @@ UI 구성 기준:
 | 공통 UI primitive | `apps/web/components/ui.tsx` | Button, input, section panel, status/emotion pill, empty state, letter thumbnail |
 | QR 공유 | `apps/web/components/QrShare.tsx` | 공개 URL/마음나무 URL QR 렌더링, 링크 복사, PNG 저장 |
 | 알림/notice | `apps/web/components/Notice.tsx` | 성공/경고/오류/일반 notice tone 통일 |
-| 홈 | `apps/web/app/page.tsx` | Figma `Desktop_main` 방향의 hero, timeline, 최근 마음, quick card |
+| 홈 | `apps/web/app/page.tsx` | Figma 방향의 hero, timeline, 최근 찾아온 마음 앨범 카드 |
 | 작성 | `apps/web/app/write/page.tsx` | Figma `Desktop_Writing` 방향의 전화번호 gate, 본문/수신자/첨부/도착 설정 form |
 | 친구 | `apps/web/app/friends/page.tsx` | Figma `Desktop_friends` 방향의 친구 코드, 검색, 요청, 초대 링크 |
 | 내 정보 | `apps/web/app/my/page.tsx` | Figma `Desktop_my` 방향의 계정 정보와 연락처 인증 상태 |
@@ -867,7 +868,7 @@ UI 구성 기준:
 - `/` 홈의 hero/timeline grid는 `minmax(0, 1fr)` 기반으로 줄어들 수 있게 해 1280px 화면에서 오른쪽 timeline이 잘리지 않게 했습니다.
 - `/write`의 form grid도 `minmax(0, 1fr)` + `minmax(292px, 312px)`로 조정해 우측 전달 설정 panel이 화면 밖으로 밀리지 않게 했습니다.
 - mobile hero는 이미지와 H1/CTA가 겹치지 않도록 높이를 별도로 확보하고, 긴 한국어 문장은 `break-keep`으로 단어 단위 줄바꿈을 우선합니다.
-- 모바일 하단 nav는 5개 핵심 route만 고정합니다. `/tree`와 `/reports`는 홈 quick card, desktop sidebar, 직접 URL로 접근합니다.
+- 모바일 하단 nav는 6개 핵심 route를 고정합니다. `/reports`는 desktop sidebar 또는 직접 URL로 접근합니다.
 
 운영 web 정적 asset 주의사항:
 
@@ -969,7 +970,7 @@ curl -s http://127.0.0.1:3000/login \
 | 영역 | 현재 구현 상태 |
 | --- | --- |
 | 로그인 | 카카오 OAuth, HttpOnly cookie session, 로그인 후 pending 공개 링크/친구 초대 claim 처리 |
-| 메인 | Figma 톤의 dashboard, 최근 받은 마음, 곧 찾아갈 마음, quick card, KST 현재 시각 |
+| 메인 | Figma 톤의 dashboard, 최근 찾아온 마음 앨범, 곧 찾아갈 마음, KST 현재 시각 |
 | 마음쓰기 | SELF/FRIEND/OTHER, 그룹 수신자, 이메일/SMS/AUTO, 제목/본문/감정 태그, 이미지 첨부, 고정/랜덤 도착, 힌트, 테마, 익명 답장 허용 |
 | 마음쓰기 권한 | 이메일 인증이 아니라 verified strict `010` PHONE 보유 여부로 판단 |
 | 전화번호 인증 | `/phone-verification`, Solapi OTP, Twilio Lookup v2, IP/contact rate limit, lock, lookup cache |
@@ -980,7 +981,7 @@ curl -s http://127.0.0.1:3000/login \
 | 답장함 | `/sent` 안의 보낸 마음/답장함 탭, 읽음 처리, 발신자 화면 삭제 |
 | QR | 공개 URL과 마음나무 URL을 QR로 표시, 링크 복사, QR PNG 저장 |
 | 마음나무 | 회원이 공개 수집 링크/QR 생성, 비회원 제출, 예약 시각 이후 일괄 공개 |
-| 보관함 | 보낸 마음 취소/삭제/숨김, 받은 마음 삭제, 아카이브/복구, 미래의 나 모음 |
+| 보관함 | 보낸 마음 취소/삭제/숨김, 받은 마음 삭제, 마음 보관함/보관함에서 빼기, 미래의 나 모음 |
 | 리포트/관리 | 감정 리포트, moderation log, notification log, 신고/답장 검수, 계정 정지 |
 
 ### 3. 이미지 첨부와 OCR 안전 검사
@@ -1060,10 +1061,10 @@ Message service
 
 화면 반영:
 
-- `/`: hero, timeline, recent card, quick card
+- `/`: hero, timeline, responsive recent album cards
 - `/write`: 전화번호 인증 gate, 수신자/본문/첨부/도착 설정 form, 성공 dialog
 - `/sent`: 보낸 마음/답장함 탭, QR, 삭제/취소 액션
-- `/inbox`, `/archive`, `/future`: 새 message card와 필터/삭제/복구 액션
+- `/inbox`, `/archive`, `/future`: 새 message card와 필터/삭제/보관함에서 빼기 액션
 - `/messages/[id]`: 상세, 첨부, 수신자 상태, QR, 답장/신고/삭제
 - `/arrival/[token]`: public stage, 도착 gate, 본문/첨부, 답장, 수신거부
 - `/friends`: 친구 코드, 검색, 요청, 초대 링크
@@ -1165,10 +1166,10 @@ CSS 요청이 `200 OK`, `Content-Type: text/css`여야 합니다.
 
 화면별 반영:
 
-- `/`: dashboard hero, 현재 KST 초 단위 clock, 곧 찾아갈 마음 timeline, 최근 보관한 마음, quick card.
+- `/`: dashboard hero, 현재 KST 초 단위 clock, 곧 찾아갈 마음 timeline, 최근 찾아온 마음 앨범 card.
 - `/write`: 전화번호 인증 gate, 서버 기준 +24시간 기본 도착, 수신자/본문/첨부/전달 설정, 성공 dialog와 QR.
 - `/sent`: 보낸 마음과 답장함 탭, 취소/삭제/QR/링크 복사.
-- `/inbox`, `/archive`, `/future`: 새 letter card, 상태 badge, 삭제/보관/복구/일괄 액션.
+- `/inbox`, `/archive`, `/future`: 새 letter card, 상태 badge, 삭제/보관/보관함에서 빼기/일괄 액션.
 - `/messages/[id]`: 상세 본문, 첨부, 수신자 상태, 답장 목록, QR, 신고/삭제/취소.
 - `/arrival/[token]`: 공개 열람 stage, 도착 전 gate, 첨부/답장/신고/수신거부/재구독.
 - `/friends`, `/friends/invite/[token]`: 친구 코드, 요청, 임시 초대 링크, 로그인 후 claim.
@@ -1394,3 +1395,49 @@ curl -s http://127.0.0.1:3000/login \
 ```
 
 응답이 `200 OK`이고 `Content-Type: text/css`이면 CSS asset serving이 정상입니다.
+
+## 2026-07-08 프론트엔드 최신 반영 로그
+
+이 섹션은 2026-07-08 기준 `frontend` branch에서 반영된 최신 화면/UX 변경을 README 기준으로 요약합니다. 대부분 `apps/web` presentation layer 변경이며, 별도 DB migration은 추가하지 않습니다.
+
+### 1. 홈과 공통 Shell
+
+- 상단 로고는 `maeari_logo.png`를 사용하며, 공개 마음나무/공개 도착 오류 화면에서도 로고 클릭 시 홈으로 이동합니다.
+- 좌측 메뉴는 홈, 마음 보내기, 보낸 마음, 마음 보관함, 마음나무, 친구, 리포트 중심으로 정리했습니다.
+- 모바일 하단 메뉴는 홈, 쓰기, 보낸 마음, 보관함, 마음나무, 친구를 제공합니다.
+- 좌측 `오늘의 한 줄`은 `/api/daily-line`의 `{ dailyLine: { date, text, poemTitle, poet } }` 응답을 사용하며, 실패 시 기존 하드코딩 문구를 fallback으로 보여주지 않습니다.
+- 홈 히어로는 밤하늘 편지 이미지와 `잊고 있던 글이, 나를 찾아오는 순간` 카피를 사용합니다.
+- 홈의 `최근 찾아온 마음`은 받은 마음/마음 보관함과 같은 앨범형 카드로 표시하고, 화면 폭에 따라 1개/2개/3개만 한 줄에 보여줍니다.
+
+### 2. 메시지 작성과 완료 팝업
+
+- 전달 설정의 빠른 시간 선택은 `1분 후`, `10분 후`, `하루 후`, `일주일 후`처럼 현재 시각 기준 옵션입니다.
+- 전달 예정일과 전달 예정 시간 직접 입력은 유지합니다.
+- 마음 보내기 완료 팝업에서는 `보낸 마음 보기` 버튼을 제거하고, 예약 상세 보기, 새 마음 쓰기, 메인 이동 중심으로 정리했습니다.
+- 팝업/알림창은 전체 화면을 어둡게 덮지 않고, 팝업 카드와 알림 자체의 그림자를 강화해 떠 보이도록 표시합니다.
+- 전역 loading overlay도 화면 전체 dark overlay 대신 편지봉투 조립형 animation card와 대기 문구를 표시합니다.
+
+### 3. 받은 마음, 마음 보관함, 메시지 상세
+
+- 받은 마음과 마음 보관함은 `MessageAlbumCard` 기반 앨범형 UI를 사용합니다.
+- 카드 배경은 `thumbnail.url`을 우선 사용하고, 필요 시 `coverImageUrl` 또는 theme 기본 봉투를 fallback으로 사용합니다.
+- 앨범 카드에서는 본문 미리보기를 제거하고, 미확인 메시지 표시 dot에는 흰색 외곽선을 둡니다.
+- 메시지 상세 상단의 `보낸 마음`/`받은 마음` 이동 버튼은 제거했습니다.
+- 메시지 상세 시간 정보는 한 종류만 보여줍니다. 보낸 마음의 예약/검사 대기 상태는 예약 시간, 전달 완료된 마음과 받은 마음/마음 보관함 상세는 도착 시간을 표시합니다.
+- 첨부 이미지는 폴라로이드 프레임 안에 4:3 비율로 잘라 보여주며, 클릭하면 원본 이미지를 새 창에서 볼 수 있습니다.
+- 받은 마음/마음 보관함 상세는 실제 첨부 이미지가 있으면 카드 상단 편지지 overlay로 표시합니다.
+
+### 4. 공개 도착과 마음나무
+
+- `/arrival/[token]` 도착 전 화면은 `images/편지.png`를 public asset으로 복사한 `maeari-arrival-letter.png`를 배경으로 사용합니다.
+- 도착 전 gate는 큰 화면에서 약 70vw까지 커지며, `남겨둔 마음이 도착했어요`와 `지금, 열어볼까요?` 문구를 표시합니다.
+- 공개 도착 화면 배경은 밤하늘 톤이며, pointer 이동에 따라 짧고 촘촘한 별자리/별똥별 궤적이 생겼다가 오래된 선분부터 사라집니다.
+- 마음나무 카드에는 상세정보 버튼을 두어 QR과 URL을 다시 확인할 수 있게 했습니다.
+- 마음나무 `열기` 결과는 별도 하단 영역이 아니라 해당 마음나무 카드 안에서 펼쳐집니다.
+- 마음나무 닫기 버튼은 X 아이콘을 사용하고, 닫기 전 예정 도착 시간을 안내하는 확인 팝업을 표시합니다.
+
+### 5. DB/API 영향
+
+- 위 변경은 `Message`, `MessageRecipient`, `MessageAttachment`, `DailyLine`, `DailyLineSelection`의 기존 데이터와 API 파생 필드를 표시하는 방식의 변경입니다.
+- `thumbnail`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`는 목록/앨범 UI를 위한 API 응답 파생 필드이며, 별도 thumbnail 저장 column은 추가하지 않습니다.
+- 팝업 open state, loading 문구, 별똥별 궤적, responsive card 표시 개수는 frontend state이므로 DB에 저장하지 않습니다.
