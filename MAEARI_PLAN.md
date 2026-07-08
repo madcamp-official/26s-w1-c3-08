@@ -1326,7 +1326,7 @@ PHONE 인증 정책:
 - `^010\d{8}$`가 아니면 `CONTACT_PHONE_INVALID`입니다.
 - 동일 연락처 10분 내 3회 초과 요청은 CONTACT 24시간 lock입니다.
 - 동일 IP에서 1시간 내 서로 다른 번호 5개 초과 요청은 IP 1시간 lock입니다.
-- OTP는 10분 만료, 60초 재발송 cooldown, 5회 실패 시 만료입니다.
+- OTP는 3분 만료, 60초 재발송 cooldown, 5회 실패 시 만료입니다.
 - Twilio Lookup provider 장애는 `PHONE_LOOKUP_UNAVAILABLE`로 fail-closed 처리합니다.
 
 ## 9.2 Message API
@@ -3783,7 +3783,7 @@ POST /api/messages
 │   └── provider 장애 fail-closed
 └── Solapi OTP
     ├── 60초 resend cooldown
-    ├── 10분 code expiry
+    ├── 3분 code expiry
     └── 5회 실패 시 만료
 ```
 
