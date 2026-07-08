@@ -625,7 +625,6 @@ export default function WritePage() {
             completedMessage={notice.tone === "success" ? completedMessage : null}
             onClose={() => setNotice(null)}
             onViewDetail={(messageId) => router.push(`/messages/${messageId}`)}
-            onViewSent={() => router.push("/sent")}
             onReset={resetForm}
             onHome={() => router.push("/")}
           />
@@ -1088,13 +1087,6 @@ export default function WritePage() {
               {submitting ? "검사 중" : "마음 보내기"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => router.push("/sent")}
-              className="focus-ring maeari-action mt-2 h-9 w-full text-xs"
-            >
-              보낸 마음 보기
-            </button>
           </aside>
         </form>
       </div>
@@ -1215,7 +1207,6 @@ function WriteNoticeDialog({
   completedMessage,
   onClose,
   onViewDetail,
-  onViewSent,
   onReset,
   onHome,
 }: {
@@ -1223,7 +1214,6 @@ function WriteNoticeDialog({
   completedMessage: CompletedMessage | null;
   onClose: () => void;
   onViewDetail: (messageId: string) => void;
-  onViewSent: () => void;
   onReset: () => void;
   onHome: () => void;
 }) {
@@ -1243,12 +1233,12 @@ function WriteNoticeDialog({
         : "bg-[#6D48DB] text-white";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-[#6D48DB]/28 px-4 py-20 backdrop-blur-sm sm:items-center sm:py-8" role="presentation">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#252036]/45 px-4 py-4 backdrop-blur-sm" role="presentation">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="write-notice-title"
-        className={`max-h-[calc(100vh-96px)] w-full max-w-lg overflow-y-auto rounded-[8px] border p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)] ${accentClass}`}
+        className={`max-h-[calc(100dvh-32px)] w-full overflow-hidden rounded-[8px] border p-4 shadow-[0_24px_60px_rgba(52,40,92,0.22)] sm:p-5 ${isSuccess ? "max-w-2xl" : "max-w-lg"} ${accentClass}`}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -1271,12 +1261,12 @@ function WriteNoticeDialog({
         </div>
 
         {isSuccess ? (
-          <div className="mt-4 grid gap-3 rounded-[8px] border border-[#D9C8FF] bg-white p-4 text-sm text-[#4E3B91]">
+          <div className="mt-3 grid gap-2 rounded-[8px] border border-[#D9C8FF] bg-white p-3 text-sm text-[#4E3B91]">
             <p>제목: {completedMessage.title}</p>
             <p>수신자: {completedMessage.receiverLabel}</p>
             <p>도착 예정: {formatKstArrival(completedMessage.scheduledAt)}</p>
             {completedMessage.publicUrl ? (
-              <QrShare value={completedMessage.publicUrl} title="공개 도착 QR" fileName={`maeari-message-${completedMessage.id}.png`} />
+              <QrShare value={completedMessage.publicUrl} title="공개 도착 QR" fileName={`maeari-message-${completedMessage.id}.png`} size={132} compact />
             ) : null}
           </div>
         ) : null}
@@ -1290,13 +1280,6 @@ function WriteNoticeDialog({
                 className={`focus-ring rounded-[8px] px-3 py-2 text-sm font-semibold ${primaryButtonClass}`}
               >
                 예약 상세 보기
-              </button>
-              <button
-                type="button"
-                onClick={onViewSent}
-                className="hidden"
-              >
-                보낸 마음 보기
               </button>
               <button
                 type="button"

@@ -279,7 +279,7 @@ export default function TreePage() {
       </div>
 
       {pendingCancel ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#252036]/55 px-4 backdrop-blur-sm">
           <div className="figma-panel w-full max-w-md p-5 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
             <p className="text-lg font-bold text-[#4E536B]">마음나무를 닫을까요?</p>
             <p className="mt-3 break-keep text-sm leading-6 text-[#6E738A]">

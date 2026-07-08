@@ -366,10 +366,21 @@ a {
   place-items: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 44%, rgba(203, 187, 250, 0.32), transparent 260px),
-    radial-gradient(circle at 18% 0%, rgba(243, 238, 253, 0.94), transparent 340px),
-    linear-gradient(180deg, #fbf9fc 0%, #f7f2fb 100%);
-  color: #6d48db;
+    radial-gradient(circle at 50% 44%, rgba(203, 187, 250, 0.24), transparent 260px),
+    radial-gradient(circle at 18% 0%, rgba(109, 72, 219, 0.18), transparent 360px),
+    linear-gradient(180deg, rgba(38, 32, 56, 0.92) 0%, rgba(27, 24, 39, 0.96) 100%);
+  color: #f2ecff;
+}
+
+.maeari-loading-stage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(203, 187, 250, 0.22), transparent 260px),
+    linear-gradient(180deg, rgba(31, 28, 42, 0.64) 0%, rgba(25, 22, 35, 0.72) 100%);
+  backdrop-filter: blur(2px);
 }
 
 .maeari-loading-scene {
@@ -526,9 +537,13 @@ a {
 
 .maeari-loading-copy {
   margin: 0;
-  color: #8d79d6;
+  max-width: min(82vw, 420px);
+  color: #f5efff;
   font-size: 0.95rem;
   font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+  text-shadow: 0 1px 12px rgba(20, 16, 32, 0.42);
 }
 
 @keyframes maeari-envelope-float {

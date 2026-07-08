@@ -30,37 +30,53 @@ export function getApiBaseUrl() {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormDataBody = typeof FormData !== "undefined" && init?.body instanceof FormData;
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: {
-      ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
-      ...(init?.headers ?? {}),
-    },
-  });
+  const shouldDispatchLoading = typeof window !== "undefined";
 
-  if (!response.ok) {
-    let body: ApiErrorBody = {};
+  if (shouldDispatchLoading) {
+    const loadingWindow = window as Window & { __maeariPendingApiRequests?: number };
+    loadingWindow.__maeariPendingApiRequests = (loadingWindow.__maeariPendingApiRequests ?? 0) + 1;
+    window.dispatchEvent(new CustomEvent("maeari:api-start"));
+  }
 
-    try {
-      body = (await response.json()) as ApiErrorBody;
-    } catch {
-      body = {};
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...init,
+      credentials: "include",
+      headers: {
+        ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
+        ...(init?.headers ?? {}),
+      },
+    });
+
+    if (!response.ok) {
+      let body: ApiErrorBody = {};
+
+      try {
+        body = (await response.json()) as ApiErrorBody;
+      } catch {
+        body = {};
+      }
+
+      throw new ApiError(
+        response.status,
+        body.error?.code ?? "API_ERROR",
+        body.error?.message ?? getFallbackErrorMessage(response.status),
+        body.error?.details,
+      );
     }
 
-    throw new ApiError(
-      response.status,
-      body.error?.code ?? "API_ERROR",
-      body.error?.message ?? getFallbackErrorMessage(response.status),
-      body.error?.details,
-    );
-  }
+    if (response.status === 204) {
+      return undefined as T;
+    }
 
-  if (response.status === 204) {
-    return undefined as T;
+    return (await response.json()) as T;
+  } finally {
+    if (shouldDispatchLoading) {
+      const loadingWindow = window as Window & { __maeariPendingApiRequests?: number };
+      loadingWindow.__maeariPendingApiRequests = Math.max(0, (loadingWindow.__maeariPendingApiRequests ?? 1) - 1);
+      window.dispatchEvent(new CustomEvent("maeari:api-end"));
+    }
   }
-
-  return (await response.json()) as T;
 }
 
 function getFallbackErrorMessage(status: number) {
