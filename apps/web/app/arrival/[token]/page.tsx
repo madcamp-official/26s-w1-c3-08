@@ -44,10 +44,12 @@ type ArrivalGate = {
 
 type SuppressionChannel = "EMAIL" | "SMS";
 
-type Meteor = {
+type MeteorTrail = {
   id: number;
   x: number;
   y: number;
+  length: number;
+  angle: number;
 };
 
 export default function ArrivalPage() {
@@ -64,9 +66,10 @@ export default function ArrivalPage() {
     title: string;
     tone: "success" | "danger";
   }>>>({});
-  const [meteors, setMeteors] = useState<Meteor[]>([]);
+  const [meteorTrail, setMeteorTrail] = useState<MeteorTrail | null>(null);
   const meteorIdRef = useRef(0);
   const lastMeteorAtRef = useRef(0);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem(PENDING_TOKEN_KEY, params.token);
@@ -191,31 +194,53 @@ export default function ArrivalPage() {
     }
 
     const now = window.performance.now();
-    if (now - lastMeteorAtRef.current < 70) {
+    const previous = lastPointerRef.current;
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+
+    if (!previous || now - lastMeteorAtRef.current < 34) {
+      return;
+    }
+
+    const dx = event.clientX - previous.x;
+    const dy = event.clientY - previous.y;
+    const length = Math.hypot(dx, dy);
+
+    if (length < 16) {
       return;
     }
 
     lastMeteorAtRef.current = now;
     const id = meteorIdRef.current + 1;
     meteorIdRef.current = id;
-    setMeteors((current) => [...current.slice(-14), { id, x: event.clientX, y: event.clientY }]);
+    setMeteorTrail({
+      id,
+      x: event.clientX,
+      y: event.clientY,
+      length: Math.min(length, 280),
+      angle: Math.atan2(dy, dx) * (180 / Math.PI),
+    });
     window.setTimeout(() => {
-      setMeteors((current) => current.filter((meteor) => meteor.id !== id));
-    }, 950);
+      setMeteorTrail((current) => (current?.id === id ? null : current));
+    }, 520);
   }
 
   const arrivalCoverUrl = message ? getFirstImageAttachment(message)?.publicUrl ?? null : null;
 
   return (
-    <main className="maeari-public-stage text-[#4E536B]" onPointerMove={handlePointerMove}>
+    <main className="maeari-public-stage maeari-arrival-night-stage text-[#4E536B]" onPointerMove={handlePointerMove}>
       <div className="maeari-arrival-meteor-layer" aria-hidden="true">
-        {meteors.map((meteor) => (
+        {meteorTrail ? (
           <span
-            key={meteor.id}
+            key={meteorTrail.id}
             className="maeari-arrival-meteor"
-            style={{ left: `${meteor.x}px`, top: `${meteor.y}px` }}
+            style={{
+              left: `${meteorTrail.x}px`,
+              top: `${meteorTrail.y}px`,
+              width: `${meteorTrail.length}px`,
+              transform: `translateX(-100%) translateY(-50%) rotate(${meteorTrail.angle}deg)`,
+            }}
           />
-        ))}
+        ) : null}
       </div>
       <header className="relative z-20 h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
         <div className="flex h-full items-center">

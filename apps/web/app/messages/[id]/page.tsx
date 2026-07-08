@@ -202,7 +202,7 @@ export default function MessageDetailPage() {
     void load();
   }, [params.id, router]);
 
-  const detailCoverUrl = message ? message.thumbnail?.url ?? message.coverImageUrl ?? envelopeImageByTheme(message.theme) : null;
+  const detailCoverUrl = message ? getDetailPaperOverlayUrl(message) : null;
   const detailCoverAlt = message?.coverImageAlt ?? `${message?.title ?? "받은 마음"} 봉투 표지`;
 
   return (
@@ -221,9 +221,10 @@ export default function MessageDetailPage() {
       {message ? (
         <article className="figma-panel relative overflow-hidden p-5">
           {message.viewerRole === "RECIPIENT" && detailCoverUrl ? (
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-[312px] overflow-hidden">
-              <img src={detailCoverUrl} alt={detailCoverAlt} className="h-full w-full object-cover object-top opacity-[0.32]" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,252,255,0.14)_0%,rgba(255,252,255,0.58)_40%,rgba(255,252,255,0.95)_74%,rgba(255,252,255,1)_100%)]" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[360px] overflow-hidden">
+              <img src={detailCoverUrl} alt={detailCoverAlt} className="h-full w-full object-cover object-top opacity-[0.36]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,252,255,0.18)_0%,rgba(255,252,255,0.50)_34%,rgba(255,252,255,0.88)_66%,rgba(255,252,255,1)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.10),transparent_56%)]" />
             </div>
           ) : null}
           <div className="relative z-[1] mb-5 flex flex-wrap gap-2">
@@ -390,7 +391,7 @@ export default function MessageDetailPage() {
         </article>
       ) : null}
       {qrUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+        <div className="maeari-modal-overlay fixed inset-0 z-[500] flex items-center justify-center px-4">
           <div className="figma-panel w-full max-w-sm p-4 shadow-[0_24px_60px_rgba(52,40,92,0.22)]">
             <div className="mb-3 flex items-center justify-between">
               <p className="font-semibold text-[#4E536B]">공개 도착 QR</p>
@@ -412,6 +413,14 @@ function senderDeleteLabel(status: string) {
   }
 
   return "보낸 마음에서 삭제";
+}
+
+function getDetailPaperOverlayUrl(message: MessageDetail) {
+  return getFirstImageAttachment(message)?.publicUrl ?? message.coverImageUrl ?? message.thumbnail?.url ?? envelopeImageByTheme(message.theme);
+}
+
+function getFirstImageAttachment(message: MessageDetail) {
+  return message.attachments?.find((attachment) => attachment.mimeType.startsWith("image/")) ?? null;
 }
 
 function envelopeImageByTheme(theme?: string | null) {
