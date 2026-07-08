@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
 import { Notice } from "@/components/Notice";
+import type { MeResponse } from "@maeari/shared";
 
 const PENDING_TOKEN_KEY = "maeari.pendingArrivalToken";
 const PENDING_FRIEND_INVITE_TOKEN_KEY = "maeari.pendingFriendInviteToken";
@@ -21,6 +22,21 @@ export default function AuthCallbackPage() {
 
     const token = sessionStorage.getItem(PENDING_TOKEN_KEY);
     const friendInviteToken = sessionStorage.getItem(PENDING_FRIEND_INVITE_TOKEN_KEY);
+
+    let meResponse: MeResponse;
+
+    try {
+      meResponse = await apiFetch<MeResponse>("/me");
+    } catch {
+      router.replace("/write");
+      return;
+    }
+
+    if (meResponse.accountSetup.requiresSignupPhoneVerification) {
+      const nextPath = token || friendInviteToken ? "/auth/callback" : "/onboarding";
+      router.replace(`/phone-verification?next=${encodeURIComponent(nextPath)}`);
+      return;
+    }
 
     if (!token) {
       if (friendInviteToken) {
@@ -43,15 +59,7 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      try {
-        const response = await apiFetch<{ user: { onboardingNote?: string | null } }>("/me");
-        const completedOnboarding =
-          response.user.onboardingNote !== null && typeof response.user.onboardingNote !== "undefined";
-
-        router.replace(completedOnboarding ? "/write" : "/onboarding");
-      } catch {
-        router.replace("/write");
-      }
+      router.replace(meResponse.accountSetup.hasCompletedOnboarding ? "/write" : "/onboarding");
       return;
     }
 

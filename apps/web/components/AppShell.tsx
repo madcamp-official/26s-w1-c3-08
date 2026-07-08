@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Archive, BarChart3, ChevronDown, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
+import type { MeResponse } from "@maeari/shared";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
@@ -25,10 +26,7 @@ const mobileNavItems = [
   { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
-type Me = {
-  nickname: string;
-  isAdmin?: boolean;
-};
+type Me = MeResponse["user"];
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
@@ -40,9 +38,20 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
     async function loadMe() {
       try {
-        const response = await apiFetch<{ user: Me }>("/me");
+        const response = await apiFetch<MeResponse>("/me");
         if (mounted) {
           setMe(response.user);
+        }
+
+        if (
+          response.accountSetup.requiresSignupPhoneVerification &&
+          pathname !== "/phone-verification"
+        ) {
+          const currentPath =
+            typeof window === "undefined"
+              ? pathname
+              : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          router.replace(`/phone-verification?next=${encodeURIComponent(currentPath || "/write")}`);
         }
       } catch (caught) {
         if (caught instanceof ApiError && caught.status === 401) {
@@ -56,7 +65,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pathname, router]);
 
   return (
     <div className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
