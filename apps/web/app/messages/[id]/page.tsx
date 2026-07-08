@@ -17,6 +17,12 @@ type MessageDetail = {
   emotionTag?: string | null;
   customEmotionTag?: string | null;
   theme?: string | null;
+  thumbnail?: {
+    source: "ATTACHMENT" | "DEFAULT";
+    url: string;
+  } | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
   arrivalMode?: string | null;
   arrivalWindowStartAt?: string | null;
   arrivalWindowEndAt?: string | null;
@@ -196,6 +202,9 @@ export default function MessageDetailPage() {
     void load();
   }, [params.id, router]);
 
+  const detailCoverUrl = message ? message.thumbnail?.url ?? message.coverImageUrl ?? envelopeImageByTheme(message.theme) : null;
+  const detailCoverAlt = message?.coverImageAlt ?? `${message?.title ?? "받은 마음"} 봉투 표지`;
+
   return (
     <AppShell>
       <div className="mb-5 flex flex-wrap gap-2">
@@ -210,8 +219,14 @@ export default function MessageDetailPage() {
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
       {message ? (
-        <article className="figma-panel p-5">
-          <div className="mb-5 flex flex-wrap gap-2">
+        <article className="figma-panel relative overflow-hidden p-5">
+          {message.viewerRole === "RECIPIENT" && detailCoverUrl ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[312px] overflow-hidden">
+              <img src={detailCoverUrl} alt={detailCoverAlt} className="h-full w-full object-cover object-top opacity-[0.32]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,252,255,0.14)_0%,rgba(255,252,255,0.58)_40%,rgba(255,252,255,0.95)_74%,rgba(255,252,255,1)_100%)]" />
+            </div>
+          ) : null}
+          <div className="relative z-[1] mb-5 flex flex-wrap gap-2">
             <span className="maeari-badge bg-brand-gray text-[#6E738A]">
               {statusLabel(message.status)}
             </span>
@@ -229,8 +244,8 @@ export default function MessageDetailPage() {
               </span>
             ) : null}
           </div>
-          <h1 className="maeari-page-title">{message.title}</h1>
-          <div className="mt-3 grid gap-1 text-sm text-[#A2A6BF]">
+          <h1 className="relative z-[1] maeari-page-title">{message.title}</h1>
+          <div className={`relative z-[1] mt-3 grid gap-1 text-sm text-[#A2A6BF] ${message.viewerRole === "RECIPIENT" ? "maeari-recipient-message-meta" : ""}`}>
             <p>보낸 사람: {message.senderName ?? "익명 발신"}</p>
             <p>예약 시간: {formatDateTime(message.scheduledAt)}</p>
             <p>도착 시간: {formatDateTime(message.sentAt)}</p>
@@ -250,7 +265,7 @@ export default function MessageDetailPage() {
             ) : null}
           </div>
           {message.recipients && message.recipients.length > 0 ? (
-            <div className="maeari-soft-panel mt-5 p-4">
+            <div className="maeari-soft-panel relative z-[1] mt-5 p-4">
               <p className="text-sm font-semibold text-[#4E536B]">수신자</p>
               <div className="mt-3 grid gap-2 text-sm text-[#A2A6BF]">
                 {message.recipients.map((recipient) => (
@@ -281,11 +296,11 @@ export default function MessageDetailPage() {
               </div>
             </div>
           ) : null}
-          <div className="mt-8 whitespace-pre-wrap rounded-[8px] border border-[#E3DEF0] bg-[#F3EFF7]/70 p-4 leading-7 text-[#4E536B]">
+          <div className="relative z-[1] mt-8 whitespace-pre-wrap rounded-[8px] border border-[#E3DEF0] bg-[rgba(243,239,247,0.78)] p-4 leading-7 text-[#4E536B] backdrop-blur-[1.5px]">
             {message.content}
           </div>
           {message.attachments && message.attachments.length > 0 ? (
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="relative z-[1] mt-5 grid gap-3 md:grid-cols-2">
               {message.attachments.map((attachment) => (
                 <a
                   key={attachment.id}
@@ -300,7 +315,7 @@ export default function MessageDetailPage() {
             </div>
           ) : null}
           {message.replies && message.replies.length > 0 ? (
-            <div className="maeari-soft-panel mt-6 p-4">
+            <div className="maeari-soft-panel relative z-[1] mt-6 p-4">
               <p className="text-sm font-semibold text-[#4E536B]">답장</p>
               <div className="mt-3 grid gap-2">
                 {message.replies.map((reply) => (
@@ -316,7 +331,7 @@ export default function MessageDetailPage() {
             </div>
           ) : null}
           {["PENDING", "SENT"].includes(message.status) || message.canDeleteFromMailbox ? (
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="relative z-[1] mt-6 flex flex-wrap gap-2">
               {["PENDING", "SENT"].includes(message.status) && message.viewerRole === "SENDER" ? (
                 <>
                 <button
@@ -397,6 +412,18 @@ function senderDeleteLabel(status: string) {
   }
 
   return "보낸 마음에서 삭제";
+}
+
+function envelopeImageByTheme(theme?: string | null) {
+  const images: Record<string, string> = {
+    LAVENDER: "/images/maeari-heart-letter.png",
+    MOSS: "/images/maeari-card-letter.png",
+    SUNSET: "/images/maeari-glow-envelope.png",
+    MIDNIGHT: "/images/maeari-moon-letter.png",
+    PAPER: "/images/maeari-star-letter.png",
+  };
+
+  return theme ? images[theme] ?? "/images/maeari-card-letter.png" : "/images/maeari-card-letter.png";
 }
 
 function toBrowserPublicUrl(publicUrl: string) {

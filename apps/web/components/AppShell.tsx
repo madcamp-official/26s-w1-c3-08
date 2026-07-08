@@ -38,10 +38,14 @@ type DailyLine = {
   poet?: string | null;
 };
 
+type DailyLineResponse = {
+  dailyLine: DailyLine;
+};
+
 type LoadingWindow = Window & { __maeariPendingApiRequests?: number };
 
 const fallbackDailyLine: DailyLine = {
-  date: "",
+  date: "2026-07-08",
   text: "꽃이 피었다고 너에게 쓰고\n꽃이 졌다고 너에게 쓴다.\n너에게 쓴 마음이 벌써 길이 되었다",
   poemTitle: "너에게 쓴다",
   poet: "천양희",
@@ -83,9 +87,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
 
     async function loadDailyLine() {
       try {
-        const response = await apiFetch<DailyLine>("/daily-line");
+        const response = await apiFetch<DailyLineResponse>("/daily-line");
         if (mounted) {
-          setDailyLine(response);
+          setDailyLine(response.dailyLine);
         }
       } catch {
         if (mounted) {
@@ -131,6 +135,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   }, [pendingApiCount]);
 
   const dailyLineCredit = [dailyLine.poemTitle, dailyLine.poet].filter(Boolean).join(", ");
+  const dailyLineDate = dailyLine.date ? formatDailyLineDate(dailyLine.date) : "";
 
   return (
     <div className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
@@ -196,6 +201,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             {dailyLineCredit ? (
               <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(9px,1.05vh,11px)] text-[#636363]">/ {dailyLineCredit}</p>
             ) : null}
+            {dailyLineDate ? (
+              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(8px,0.95vh,10px)] text-[#636363]">/ {dailyLineDate}</p>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -228,4 +236,19 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       {showGlobalLoading ? <MaeariLoadingOverlay overlay /> : null}
     </div>
   );
+}
+
+function formatDailyLineDate(value: string) {
+  const date = new Date(`${value}T00:00:00+09:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(date);
 }

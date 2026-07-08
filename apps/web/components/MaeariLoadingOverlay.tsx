@@ -39,13 +39,12 @@ export function MaeariLoadingOverlay({ label, overlay = false }: MaeariLoadingOv
     <div className={overlay ? "maeari-loading-stage maeari-loading-stage-overlay" : "maeari-loading-stage"} aria-label="처리 중">
       <div className="maeari-loading-scene" role="status" aria-live="polite">
         <div className="maeari-loading-envelope" aria-hidden="true">
-          <div className="maeari-loading-envelope-lining" />
-          <div className="maeari-loading-moon" />
+          <div className="maeari-loading-envelope-body" />
           <div className="maeari-loading-envelope-flap" />
-          <div className="maeari-loading-star maeari-loading-star-main" />
-          <div className="maeari-loading-star maeari-loading-star-one" />
-          <div className="maeari-loading-star maeari-loading-star-two" />
-          <div className="maeari-loading-envelope-front" />
+          <div className="maeari-loading-wax-star" />
+          <div className="maeari-loading-sparkle maeari-loading-sparkle-one" />
+          <div className="maeari-loading-sparkle maeari-loading-sparkle-two" />
+          <div className="maeari-loading-sparkle maeari-loading-sparkle-three" />
         </div>
         <p className="maeari-loading-copy">{message}</p>
       </div>
