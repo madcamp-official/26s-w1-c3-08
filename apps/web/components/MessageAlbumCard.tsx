@@ -21,15 +21,17 @@ export function MessageAlbumCard({
   message,
   href,
   actions,
+  className = "",
 }: {
   message: MessageAlbumCardData;
   href: string;
   actions?: ReactNode;
+  className?: string;
 }) {
   const coverUrl = message.coverUrl ?? fallbackCover;
 
   return (
-    <article className="group relative min-h-[168px] overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-[#F6F2FD] shadow-[0_14px_30px_rgba(76,63,119,0.08)] transition hover:-translate-y-0.5 hover:border-[#CBBBFA] hover:shadow-[0_18px_34px_rgba(76,63,119,0.13)]">
+    <article className={`group relative min-h-[168px] overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-[#F6F2FD] shadow-[0_14px_30px_rgba(76,63,119,0.08)] transition hover:-translate-y-0.5 hover:border-[#CBBBFA] hover:shadow-[0_18px_34px_rgba(76,63,119,0.13)] ${className}`}>
       <img
         src={coverUrl}
         alt={message.coverAlt ?? ""}
