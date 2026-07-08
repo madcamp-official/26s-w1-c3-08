@@ -16,7 +16,38 @@ type PublicCollection = {
   scheduledAt: string;
   status: string;
   canSubmit: boolean;
+  submissionCount?: number;
 };
+
+const sproutLeafClasses = [
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-left maeari-tree-sprout-leaf-1",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-right maeari-tree-sprout-leaf-2",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-left maeari-tree-sprout-leaf-3",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-right maeari-tree-sprout-leaf-4",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-left maeari-tree-sprout-leaf-5",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-right maeari-tree-sprout-leaf-6",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-left maeari-tree-sprout-leaf-7",
+  "maeari-tree-sprout-leaf maeari-tree-sprout-leaf-right maeari-tree-sprout-leaf-8",
+];
+
+function SproutPot({ count }: { count: number }) {
+  const visibleLeafCount = Math.min(sproutLeafClasses.length, Math.max(2, count + 2));
+
+  return (
+    <div className="maeari-tree-sprout-wrap" aria-label={`${count}개의 마음이 모였어요`}>
+      <div className="maeari-tree-sprout">
+        <div className="maeari-tree-sprout-glow" />
+        <div className="maeari-tree-sprout-stem" />
+        {sproutLeafClasses.slice(0, visibleLeafCount).map((className) => (
+          <span key={className} className={className} />
+        ))}
+        <div className="maeari-tree-sprout-pot">
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PublicTreePage() {
   const params = useParams<{ token: string }>();
@@ -88,6 +119,7 @@ export default function PublicTreePage() {
 
         {collection ? (
           <section className="figma-panel p-5">
+            <SproutPot count={collection.submissionCount ?? 0} />
             <div className="mb-5">
               <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
                 {collection.canSubmit ? "수집 중" : "닫힘"}
