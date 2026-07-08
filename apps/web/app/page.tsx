@@ -44,7 +44,7 @@ type MessageThumbnail = {
   url: string;
 };
 
-const RECENT_CARD_MIN_WIDTH = 320;
+const RECENT_CARD_MIN_WIDTH = 340;
 const RECENT_CARD_GAP = 16;
 
 export default function HomePage() {
@@ -54,7 +54,7 @@ export default function HomePage() {
   const [receivedMessages, setReceivedMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [kstNow, setKstNow] = useState(() => formatKstClock(new Date()));
-  const [recentLimit, setRecentLimit] = useState(3);
+  const [recentLimit, setRecentLimit] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -224,7 +224,7 @@ export default function HomePage() {
           <div className="mb-[17px] flex items-center justify-between">
             <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 찾아온 마음</h2>
             <Link
-              href="/archive"
+              href="/inbox"
               className="focus-ring group inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs font-semibold text-[#8F91A8] shadow-[0_6px_16px_rgba(109,72,219,0.04)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#B9A7F3] hover:bg-[#F3EEFD] hover:text-[#6D48DB] hover:shadow-[0_12px_24px_rgba(109,72,219,0.16)] active:translate-y-0 active:bg-[#E9E0FF]"
             >
               전체 보기
@@ -232,7 +232,11 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div ref={recentGridRef} className="home-recent-album-grid">
+            <div
+              ref={recentGridRef}
+              className="home-recent-album-grid"
+              style={{ gridTemplateColumns: `repeat(${recentLetterItems.length}, minmax(0, 1fr))` }}
+            >
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}

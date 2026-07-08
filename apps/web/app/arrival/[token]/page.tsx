@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Bell, BellOff, Clock3, Gift, LogIn, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
+import { AttachmentPolaroid } from "@/components/AttachmentPolaroid";
 import { Notice } from "@/components/Notice";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -410,17 +411,7 @@ export default function ArrivalPage() {
           {message.attachments && message.attachments.length > 0 ? (
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {message.attachments.map((attachment) => (
-                <a
-                  key={attachment.id}
-                  href={attachment.publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="focus-ring maeari-polaroid-frame"
-                >
-                  <span className="maeari-polaroid-photo">
-                    <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} />
-                  </span>
-                </a>
+                <AttachmentPolaroid key={attachment.id} publicUrl={attachment.publicUrl} alt={attachment.originalName} />
               ))}
             </div>
           ) : null}
