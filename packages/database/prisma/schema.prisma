@@ -151,6 +151,8 @@ model User {
   friendCode      String    @unique @db.VarChar(20)
   profileImageUrl String?   @db.VarChar(2048)
   onboardingNote  String?   @db.Text
+  signupPhoneVerificationRequiredAt  DateTime? @db.Timestamptz(3)
+  signupPhoneVerificationCompletedAt DateTime? @db.Timestamptz(3)
   lastLoginAt     DateTime? @db.Timestamptz(3)
   suspendedAt     DateTime? @db.Timestamptz(3)
   suspensionReason String?  @db.Text

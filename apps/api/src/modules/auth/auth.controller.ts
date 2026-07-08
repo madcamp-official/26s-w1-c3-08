@@ -17,6 +17,7 @@ import {
 import { linkMessageToUser } from "./link-message.service.js";
 import { createUniqueFriendCode } from "../friends/friend-code.js";
 import { ensureKakaoEmailContact } from "../contacts/contact.service.js";
+import { getAccountSetupStatus } from "./account-setup.service.js";
 
 const OAUTH_STATE_COOKIE = "maeari_oauth_state";
 const OAUTH_RETURN_ORIGIN_COOKIE = "maeari_oauth_return_origin";
@@ -58,6 +59,7 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
   const token = await exchangeKakaoCode(code);
   const kakaoProfile = await fetchKakaoProfile(token.access_token);
   const friendCode = await createUniqueFriendCode();
+  const now = new Date();
 
   const user = await prisma.user.upsert({
     where: { kakaoId: kakaoProfile.kakaoId },
@@ -67,13 +69,14 @@ export const kakaoCallback = asyncHandler(async (request: Request, response: Res
       email: kakaoProfile.email,
       friendCode,
       profileImageUrl: kakaoProfile.profileImageUrl,
-      lastLoginAt: new Date(),
+      signupPhoneVerificationRequiredAt: now,
+      lastLoginAt: now,
     },
     update: {
       nickname: kakaoProfile.nickname,
       email: kakaoProfile.email,
       profileImageUrl: kakaoProfile.profileImageUrl,
-      lastLoginAt: new Date(),
+      lastLoginAt: now,
     },
     select: { id: true, friendCode: true },
   });
@@ -98,7 +101,10 @@ export const getMe = asyncHandler(async (request: Request, response: Response) =
     throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
   }
 
-  response.json({ user: request.user });
+  response.json({
+    user: request.user,
+    accountSetup: await getAccountSetupStatus(request.user.id),
+  });
 });
 
 export const updateOnboardingNote = asyncHandler(async (request: Request, response: Response) => {
