@@ -277,9 +277,9 @@ export default function TreePage() {
                     ) : (
                       <button type="button" onClick={() => void deleteCollectionPermanently(collection)} className="focus-ring maeari-action maeari-action-danger">
                         <Trash2 size={16} />
-                        삭제
+                        영구 삭제
                       </button>
-                    ) : null}
+                    )}
                   </div>
                 </div>
 
