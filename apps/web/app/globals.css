@@ -4,7 +4,7 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 380px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 380px));
   gap: clamp(0.65rem, 1.4vw, 1rem);
   justify-content: start;
   width: 100%;
@@ -749,8 +749,8 @@ a {
   opacity: 0;
   transform: translateY(-24px) scaleX(0.92);
   filter:
-    drop-shadow(0 10px 7px rgba(77, 70, 154, 0.36))
-    drop-shadow(0 4px 2px rgba(95, 76, 178, 0.18))
+    drop-shadow(0 5px 4px rgba(77, 70, 154, 0.26))
+    drop-shadow(0 2px 1px rgba(95, 76, 178, 0.14))
     drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
   animation: maeari-envelope-flap-build 2.8s cubic-bezier(0.2, 0.78, 0.2, 1) infinite;
 }
@@ -758,10 +758,10 @@ a {
 .maeari-loading-wax-star {
   position: absolute;
   left: 50%;
-  top: 78px;
+  top: 82px;
   z-index: 5;
-  width: 46px;
-  height: 46px;
+  width: 36px;
+  height: 36px;
   opacity: 0;
   transform: translate(-50%, 8px) scale(0.62);
   filter:
@@ -789,9 +789,9 @@ a {
 .maeari-loading-wax-star::before {
   content: "";
   position: absolute;
-  inset: 7px 11px auto;
+  inset: 6px 8px auto;
   z-index: 1;
-  height: 12px;
+  height: 8px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
   transform: rotate(-18deg);
@@ -865,8 +865,9 @@ a {
   margin: 0;
   max-width: min(82vw, 420px);
   color: #15121f;
+  font-family: var(--font-kst-batang);
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 300;
   line-height: 1.6;
   text-align: center;
   text-shadow: none;

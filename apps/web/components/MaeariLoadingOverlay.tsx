@@ -42,25 +42,25 @@ export function MaeariLoadingOverlay({ label, overlay = false }: MaeariLoadingOv
           <div className="maeari-loading-envelope-body" />
           <div className="maeari-loading-envelope-flap" />
           <div className="maeari-loading-wax-star">
-            <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+            <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
               <defs>
-                <linearGradient id="maeari-loading-star-fill" x1="24" x2="24" y1="4" y2="46" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#EDE4FF" />
-                  <stop offset="0.42" stopColor="#B99CF6" />
-                  <stop offset="1" stopColor="#6842D6" />
+                <linearGradient id="maeari-loading-star-fill" x1="32" x2="32" y1="4" y2="61" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#F2EAFF" />
+                  <stop offset="0.45" stopColor="#A98CF2" />
+                  <stop offset="1" stopColor="#5D38C7" />
                 </linearGradient>
-                <linearGradient id="maeari-loading-star-gloss" x1="18" x2="28" y1="9" y2="25" gradientUnits="userSpaceOnUse">
+                <linearGradient id="maeari-loading-star-gloss" x1="23" x2="36" y1="10" y2="28" gradientUnits="userSpaceOnUse">
                   <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.88" />
                   <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path
                 fill="url(#maeari-loading-star-fill)"
-                d="M24 4.2c1.4 0 2.6.8 3.1 2.1l3.8 9.5 10.2.8c1.4.1 2.6 1 3 2.3.4 1.4-.1 2.8-1.2 3.6l-8.1 6.4c-1.1.9-1.5 2.3-1.2 3.6l2.5 10c.4 1.4-.2 2.8-1.3 3.7-1.2.8-2.7.8-3.8 0l-8.4-5.7c-1.1-.8-2.6-.8-3.8 0l-8.4 5.7c-1.1.8-2.7.8-3.8 0-1.1-.8-1.7-2.3-1.3-3.7l2.5-10c.3-1.3-.1-2.7-1.2-3.6l-8.1-6.4c-1.1-.9-1.6-2.3-1.2-3.6.4-1.4 1.6-2.3 3-2.3l10.2-.8 3.8-9.5c.5-1.3 1.7-2.1 3.1-2.1Z"
+                d="M32 4c2 0 3.7 1.2 4.4 3.1l4.7 12.3c0.4 1.1 1.4 1.8 2.6 1.9l13.1 0.8c2.1 0.1 3.8 1.6 4.4 3.6c0.7 2 0 4.1 -1.6 5.4L49.3 39.4c-0.9 0.7 -1.3 1.9 -1 3l3.3 12.7c0.5 2.1 -0.3 4.2 -2 5.4c-1.7 1.3 -4 1.3 -5.8 0.1l-9.9 -7c-1.1 -0.7 -2.5 -0.7 -3.6 0l-10.1 7c-1.8 1.2 -4.1 1.2 -5.8 -0.1c-1.7 -1.2 -2.5 -3.3 -2 -5.4l3.3 -12.7c0.3 -1.1 -0.1 -2.3 -1 -3L4.4 31.1c-1.6 -1.3 -2.3 -3.4 -1.6 -5.4c0.6 -2 2.3 -3.5 4.4 -3.6l13.1 -0.8c1.2 -0.1 2.2 -0.8 2.6 -1.9l4.7 -12.3C28.3 5.2 30 4 32 4Z"
               />
               <path
                 fill="url(#maeari-loading-star-gloss)"
-                d="M24.6 7.6c.6 0 1.1.4 1.4 1l2.2 5.5c.4 1-.1 2-1 2.4l-8.1 3.8c-1.6.8-3.2-.9-2.5-2.5L20.9 9c.7-1 2-1.4 3.7-1.4Z"
+                d="M32.6 8.3c0.8 0 1.5 0.5 1.8 1.3l2.7 7c0.5 1.2 -0.1 2.4 -1.2 2.9l-10.6 4.9c-1.9 0.9 -3.9 -1.1 -3 -3l5.3 -10.7c0.9 -1.6 2.5 -2.4 5 -2.4Z"
               />
             </svg>
           </div>
