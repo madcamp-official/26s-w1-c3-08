@@ -163,7 +163,7 @@ export default function PhoneVerificationPage() {
       <div className="maeari-hero-card mb-6 grid min-h-[190px] overflow-hidden p-[28px] md:grid-cols-[1fr_260px] md:items-center">
         <div>
           <h1 className="maeari-page-title">전화번호 인증</h1>
-          <p className="maeari-page-copy mt-2">마음을 쓰기 전에 010 휴대전화 번호를 인증해 주세요.</p>
+          <p className="maeari-page-copy mt-2">계정 사용을 시작하려면 010 휴대전화 번호를 인증해 주세요.</p>
         </div>
         <div className="maeari-hero-visual relative mt-6 hidden h-[150px] overflow-hidden md:mt-0 md:block">
           <Image src="/images/maeari-moon-letter.png" alt="" fill sizes="260px" className="scale-[1.08] object-cover object-center" />
@@ -183,14 +183,14 @@ export default function PhoneVerificationPage() {
                   <CheckCircle2 size={20} />
                   <h2 className="text-base font-semibold">전화번호 인증 완료</h2>
                 </div>
-                <p className="mt-2 text-sm text-[#7A6BAE]">이제 마음을 예약할 수 있어요.</p>
+                <p className="mt-2 text-sm text-[#7A6BAE]">인증이 완료됐어요. 이제 매아리를 이어갈 수 있어요.</p>
               </div>
               <button
                 type="button"
                 onClick={() => router.replace(nextPath)}
                 className="focus-ring maeari-action maeari-action-primary"
               >
-                {nextPath === "/write" ? "마음 쓰러 가기" : "돌아가기"}
+                {nextPath === "/write" ? "마음 쓰러 가기" : "계속하기"}
               </button>
             </div>
           </section>
@@ -271,7 +271,10 @@ function getSafeNextPath() {
   }
 
   const value = new URLSearchParams(window.location.search).get("next") ?? "/write";
-  return /^\/(?:write|my)(?:[/?#].*)?$/.test(value) ? value : "/write";
+  const allowedPathPattern =
+    /^\/(?:$|write|my|auth\/callback|onboarding|inbox|archive|sent|friends(?:\/.*)?|tree(?:\/.*)?|reports|messages\/[^/?#]+)(?:[?#].*)?$/;
+
+  return allowedPathPattern.test(value) ? value : "/write";
 }
 
 function sanitizePhoneNumber(value: string) {

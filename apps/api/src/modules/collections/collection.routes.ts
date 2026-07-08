@@ -3,8 +3,10 @@ import { authMiddleware } from "../../middlewares/auth.middleware.js";
 import { validateBody } from "../../middlewares/validate.middleware.js";
 import {
   cancelMessageCollectionController,
+  closeMessageCollectionController,
   createMessageCollectionController,
   createPublicMessageCollectionSubmissionController,
+  deleteMessageCollectionPermanentlyController,
   getMessageCollectionController,
   getPublicMessageCollectionController,
   listMessageCollectionsController,
@@ -24,6 +26,8 @@ collectionRoutes.post(
 );
 collectionRoutes.get("/message-collections", authMiddleware, listMessageCollectionsController);
 collectionRoutes.get("/message-collections/:id", authMiddleware, getMessageCollectionController);
+collectionRoutes.patch("/message-collections/:id/close", authMiddleware, closeMessageCollectionController);
+collectionRoutes.delete("/message-collections/:id/permanent", authMiddleware, deleteMessageCollectionPermanentlyController);
 collectionRoutes.delete("/message-collections/:id", authMiddleware, cancelMessageCollectionController);
 collectionRoutes.get("/public/message-collections/:token", getPublicMessageCollectionController);
 collectionRoutes.post(

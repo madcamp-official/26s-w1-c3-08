@@ -19,6 +19,7 @@ import {
 import { prisma } from "../../lib/prisma.js";
 import { hashContact, hashOtpCode } from "../../lib/tokens.js";
 import { externalNotificationProvider } from "../../processors/notification-provider.js";
+import { completeSignupPhoneVerificationIfRequired } from "../auth/account-setup.service.js";
 import type {
   CreateUserContactInput,
   UpdateUserContactInput,
@@ -30,7 +31,7 @@ import {
   preparePhoneVerificationPreflight,
 } from "./phone-verification-guard.js";
 
-const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_TTL_MS = 3 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
@@ -223,7 +224,7 @@ export async function verifyUserContact(userId: string, contactId: string, input
         },
       });
 
-      return tx.userContact.update({
+      const updatedPhoneContact = await tx.userContact.update({
         where: { id: contact.id },
         data: {
           verifiedAt,
@@ -232,6 +233,10 @@ export async function verifyUserContact(userId: string, contactId: string, input
           isPrimary: true,
         },
       });
+
+      await completeSignupPhoneVerificationIfRequired(tx, userId, verifiedAt);
+
+      return updatedPhoneContact;
     }
 
     const hasPrimary = await tx.userContact.findFirst({
@@ -640,11 +645,11 @@ async function createAndSendVerification(contact: UserContact, context?: Request
     subject: "매아리 연락처 인증번호",
     text:
       contact.type === UserContactType.PHONE
-        ? `[매아리] 연락처 인증번호는 ${code}입니다. 10분 안에 입력해 주세요.`
-        : `매아리 연락처 인증번호는 ${code}입니다.\n10분 안에 입력해 주세요.`,
+        ? `[매아리] 연락처 인증번호는 ${code}입니다. 3분 안에 입력해 주세요.`
+        : `매아리 연락처 인증번호는 ${code}입니다.\n3분 안에 입력해 주세요.`,
     html:
       contact.type === UserContactType.EMAIL
-        ? `<p>매아리 연락처 인증번호는 <strong>${code}</strong>입니다.</p><p>10분 안에 입력해 주세요.</p>`
+        ? `<p>매아리 연락처 인증번호는 <strong>${code}</strong>입니다.</p><p>3분 안에 입력해 주세요.</p>`
         : undefined,
     idempotencyKey: `contact-verification:${verification.id}`,
   });

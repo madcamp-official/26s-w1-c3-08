@@ -131,8 +131,64 @@ export async function cancelMessageCollection(userId: string, collectionId: stri
   return { canceled: true };
 }
 
+export async function closeMessageCollectionNow(userId: string, collectionId: string) {
+  const collection = await findOwnedCollectionForDelivery(userId, collectionId);
+
+  if (collection.status !== MessageCollectionStatus.ACTIVE) {
+    throw new AppError("COLLECTION_NOT_CLOSABLE", "이미 닫힌 마음나무예요.", 409);
+  }
+
+  const delivered = await deliverMessageCollection(collection, new Date());
+
+  if (!delivered) {
+    throw new AppError("COLLECTION_NOT_CLOSABLE", "이미 닫힌 마음나무예요.", 409);
+  }
+
+  return {
+    closed: true,
+    collection: {
+      ...mapCollection(
+        {
+          ...collection,
+          status: MessageCollectionStatus.DELIVERED,
+          deliveredAt: delivered.deliveredAt,
+        },
+        {
+          collectionUrl: null,
+          submissionCount: collection.submissions.length,
+        },
+      ),
+      submissions: collection.submissions.map((submission) => ({
+        id: submission.id,
+        senderDisplayName: submission.senderDisplayName,
+        content: submission.content,
+        createdAt: submission.createdAt,
+        deliveredAt: submission.deliveredAt ?? delivered.deliveredAt,
+        ownerReadAt: submission.ownerReadAt,
+      })),
+    },
+  };
+}
+
+export async function deleteMessageCollectionPermanently(userId: string, collectionId: string) {
+  const collection = await prisma.messageCollection.findFirst({
+    where: { id: collectionId, ownerId: userId },
+    select: { id: true },
+  });
+
+  if (!collection) {
+    throw new AppError("COLLECTION_NOT_FOUND", "마음나무를 찾을 수 없어요.", 404);
+  }
+
+  await prisma.messageCollection.delete({
+    where: { id: collection.id },
+  });
+
+  return { deleted: true };
+}
+
 export async function getPublicMessageCollection(rawToken: string) {
-  const collection = await findPublicCollection(rawToken);
+  const collection = assertPublicCollectionOpen(await findPublicCollection(rawToken));
 
   return {
     id: collection.id,
@@ -149,11 +205,7 @@ export async function createPublicMessageCollectionSubmission(
   input: CreateMessageCollectionSubmissionInput,
   ipAddress: string,
 ) {
-  const collection = await findPublicCollection(rawToken);
-
-  if (collection.status !== MessageCollectionStatus.ACTIVE || collection.scheduledAt.getTime() <= Date.now()) {
-    throw new AppError("COLLECTION_CLOSED", "이 마음나무는 더 이상 편지를 받을 수 없어요.", 409);
-  }
+  const collection = assertPublicCollectionOpen(await findPublicCollection(rawToken));
 
   const ipHash = hashContact("IP", ipAddress || "unknown");
   const recentCount = await prisma.messageCollectionSubmission.count({
@@ -235,32 +287,17 @@ export async function deliverDueMessageCollections() {
     take: 50,
   });
 
+  let processed = 0;
+
   for (const collection of collections) {
-    const deliveredAt = new Date();
-    await prisma.$transaction(async (tx) => {
-      await tx.messageCollection.update({
-        where: { id: collection.id },
-        data: {
-          status: MessageCollectionStatus.DELIVERED,
-          deliveredAt,
-        },
-      });
+    const delivered = await deliverMessageCollection(collection, new Date());
 
-      await tx.messageCollectionSubmission.updateMany({
-        where: {
-          collectionId: collection.id,
-          status: MessageCollectionSubmissionStatus.VISIBLE,
-        },
-        data: { deliveredAt },
-      });
-    });
-
-    if (collection.submissions.length > 0) {
-      await notifyCollectionDelivered(collection.id, collection.owner.id, collection.owner.nickname, collection.title, deliveredAt);
+    if (delivered) {
+      processed += 1;
     }
   }
 
-  return { processed: collections.length };
+  return { processed };
 }
 
 async function findPublicCollection(rawToken: string) {
@@ -272,11 +309,91 @@ async function findPublicCollection(rawToken: string) {
     where: { tokenHash: hashPublicToken(rawToken) },
   });
 
-  if (!collection || collection.status === MessageCollectionStatus.CANCELED) {
+  if (!collection) {
     throw new AppError("COLLECTION_NOT_FOUND", "마음나무를 찾을 수 없어요.", 404);
   }
 
   return collection;
+}
+
+function assertPublicCollectionOpen<T extends {
+  status: MessageCollectionStatus;
+  scheduledAt: Date;
+}>(collection: T) {
+  if (collection.status === MessageCollectionStatus.CANCELED) {
+    throw new AppError("COLLECTION_LINK_CLOSED", "이 마음나무 링크는 닫혔어요.", 410);
+  }
+
+  if (collection.status === MessageCollectionStatus.DELIVERED || collection.scheduledAt.getTime() <= Date.now()) {
+    throw new AppError("COLLECTION_LINK_EXPIRED", "도착시간이 지나 만료된 링크입니다.", 410);
+  }
+
+  return collection;
+}
+
+async function findOwnedCollectionForDelivery(userId: string, collectionId: string) {
+  const collection = await prisma.messageCollection.findFirst({
+    where: { id: collectionId, ownerId: userId },
+    include: {
+      owner: {
+        select: {
+          id: true,
+          nickname: true,
+        },
+      },
+      submissions: {
+        where: { status: MessageCollectionSubmissionStatus.VISIBLE },
+      },
+    },
+  });
+
+  if (!collection) {
+    throw new AppError("COLLECTION_NOT_FOUND", "마음나무를 찾을 수 없어요.", 404);
+  }
+
+  return collection;
+}
+
+async function deliverMessageCollection(
+  collection: Awaited<ReturnType<typeof findOwnedCollectionForDelivery>>,
+  deliveredAt: Date,
+) {
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.messageCollection.updateMany({
+      where: {
+        id: collection.id,
+        status: MessageCollectionStatus.ACTIVE,
+      },
+      data: {
+        status: MessageCollectionStatus.DELIVERED,
+        deliveredAt,
+      },
+    });
+
+    if (updated.count === 0) {
+      return null;
+    }
+
+    await tx.messageCollectionSubmission.updateMany({
+      where: {
+        collectionId: collection.id,
+        status: MessageCollectionSubmissionStatus.VISIBLE,
+      },
+      data: { deliveredAt },
+    });
+
+    return { deliveredAt };
+  });
+
+  if (!result) {
+    return null;
+  }
+
+  if (collection.submissions.length > 0) {
+    await notifyCollectionDelivered(collection.id, collection.owner.id, collection.owner.nickname, collection.title, deliveredAt);
+  }
+
+  return result;
 }
 
 async function notifyCollectionDelivered(
