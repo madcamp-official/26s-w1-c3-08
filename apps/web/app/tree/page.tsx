@@ -193,8 +193,8 @@ export default function TreePage() {
         </div>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-        <section className="figma-panel p-5">
+      <div className="grid items-start gap-5 xl:grid-cols-[420px_1fr]">
+        <section className="figma-panel self-start p-5">
           <h2 className="text-lg font-semibold text-[#4E536B]">새 마음나무 심기</h2>
           <form className="mt-4 grid gap-3" onSubmit={(event) => void createCollection(event)}>
             <input
@@ -232,7 +232,7 @@ export default function TreePage() {
           ) : null}
         </section>
 
-        <section className="grid gap-3">
+        <section className="grid auto-rows-min gap-3">
           {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
           {!loading && collections.length === 0 ? (
             <div className="maeari-letter-surface flex min-h-[180px] items-center justify-center p-6 text-center">

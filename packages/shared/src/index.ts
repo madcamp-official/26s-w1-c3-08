@@ -34,9 +34,9 @@ export const messageThemeEnvelopeByTheme = {
   },
   SUNSET: {
     theme: "SUNSET",
-    label: "저녁 노을",
+    label: "저녁노을",
     imageUrl: "/images/maeari-envelope-theme-sunset.png",
-    alt: "저녁 노을 봉투",
+    alt: "저녁노을 봉투",
   },
   MIDNIGHT: {
     theme: "MIDNIGHT",
@@ -53,11 +53,11 @@ export const messageThemeEnvelopeByTheme = {
 } as const satisfies Record<MessageTheme, MessageThemeEnvelope>;
 
 export const messageThemeOptions = [
-  messageThemeEnvelopeByTheme.LAVENDER,
-  messageThemeEnvelopeByTheme.MOSS,
-  messageThemeEnvelopeByTheme.SUNSET,
-  messageThemeEnvelopeByTheme.MIDNIGHT,
   messageThemeEnvelopeByTheme.PAPER,
+  messageThemeEnvelopeByTheme.MIDNIGHT,
+  messageThemeEnvelopeByTheme.SUNSET,
+  messageThemeEnvelopeByTheme.MOSS,
+  messageThemeEnvelopeByTheme.LAVENDER,
 ] as const;
 
 export type ReceiverType = "SELF" | "FRIEND" | "OTHER";

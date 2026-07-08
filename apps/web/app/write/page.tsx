@@ -116,11 +116,12 @@ const maxAttachmentBytes = 2 * 1024 * 1024;
 const maxAttachmentTotalBytes = maxAttachmentCount * maxAttachmentBytes;
 const allowedAttachmentMimeTypes = ["image/jpeg", "image/png", "image/webp"];
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+const themeOptionOrder: MessageTheme[] = ["PAPER", "MIDNIGHT", "SUNSET", "MOSS", "LAVENDER"];
 
 const themeOptions: Array<[MessageTheme, string]> = [
   ["LAVENDER", "보라빛 봉투"],
   ["MOSS", "차분한 초록"],
-  ["SUNSET", "저녁 노을"],
+  ["SUNSET", "저녁노을"],
   ["MIDNIGHT", "한밤의 별"],
   ["PAPER", "종이 편지"],
 ];
@@ -830,9 +831,9 @@ export default function WritePage() {
                 onChange={(event) => setTheme(event.target.value as MessageTheme)}
                 className="focus-ring maeari-input h-9 px-3 text-xs"
               >
-                {themeOptions.map(([value, label]) => (
+                {themeOptionOrder.map((value) => (
                   <option key={value} value={value}>
-                    {label}
+                    {themeOptions.find(([optionValue]) => optionValue === value)?.[1] ?? value}
                   </option>
                 ))}
               </select>

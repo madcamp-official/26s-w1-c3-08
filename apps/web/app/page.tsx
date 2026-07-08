@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,12 +44,17 @@ type MessageThumbnail = {
   url: string;
 };
 
+const RECENT_CARD_MIN_WIDTH = 320;
+const RECENT_CARD_GAP = 16;
+
 export default function HomePage() {
   const router = useRouter();
+  const recentGridRef = useRef<HTMLDivElement | null>(null);
   const [sentMessages, setSentMessages] = useState<SentMessage[]>([]);
   const [receivedMessages, setReceivedMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [kstNow, setKstNow] = useState(() => formatKstClock(new Date()));
+  const [recentLimit, setRecentLimit] = useState(3);
 
   useEffect(() => {
     let mounted = true;
@@ -93,6 +98,32 @@ export default function HomePage() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const gridElement = recentGridRef.current;
+
+    if (!gridElement || receivedMessages.length === 0) {
+      return;
+    }
+
+    function updateRecentLimit() {
+      const width = gridElement.clientWidth;
+      const nextLimit = Math.max(1, Math.floor((width + RECENT_CARD_GAP) / (RECENT_CARD_MIN_WIDTH + RECENT_CARD_GAP)));
+      setRecentLimit(Math.min(receivedMessages.length, nextLimit));
+    }
+
+    updateRecentLimit();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateRecentLimit);
+      return () => window.removeEventListener("resize", updateRecentLimit);
+    }
+
+    const observer = new ResizeObserver(updateRecentLimit);
+    observer.observe(gridElement);
+
+    return () => observer.disconnect();
+  }, [receivedMessages.length]);
+
   const upcomingLetters = useMemo(
     () =>
       sentMessages
@@ -101,7 +132,7 @@ export default function HomePage() {
         .slice(0, 4),
     [sentMessages],
   );
-  const recentLetters = useMemo(() => receivedMessages, [receivedMessages]);
+  const recentLetters = useMemo(() => receivedMessages.slice(0, recentLimit), [receivedMessages, recentLimit]);
   const timelineItems = useMemo(
     () => (upcomingLetters.length ? upcomingLetters.map(formatUpcomingMessage) : createTimelineFallback()),
     [upcomingLetters],
@@ -201,7 +232,7 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="home-recent-album-grid">
+            <div ref={recentGridRef} className="home-recent-album-grid">
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}

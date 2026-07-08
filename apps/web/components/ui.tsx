@@ -131,10 +131,10 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
   );
 }
 
-export function LetterThumb({ className = "", src = "/images/maeari-card-letter.png" }: { className?: string; src?: string | null }) {
+export function LetterThumb({ className = "", src = "/images/maeari-envelope-theme-lavender.png" }: { className?: string; src?: string | null }) {
   return (
     <div className={`relative overflow-hidden rounded-[8px] bg-[#F3EEFD] ${className}`}>
-      <img src={src ?? "/images/maeari-card-letter.png"} alt="" loading="eager" decoding="async" className="h-full w-full object-cover" />
+      <img src={src ?? "/images/maeari-envelope-theme-lavender.png"} alt="" loading="eager" decoding="async" className="h-full w-full object-cover" />
     </div>
   );
 }
