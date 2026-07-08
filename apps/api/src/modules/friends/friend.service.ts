@@ -3,6 +3,7 @@ import { config } from "../../config/env.js";
 import { AppError } from "../../lib/app-error.js";
 import { prisma } from "../../lib/prisma.js";
 import { createPublicToken, createTokenPreview, hashPublicToken } from "../../lib/tokens.js";
+import { assertNoCommunicationBlockBetweenUsers } from "../communication-blocks/communication-block.service.js";
 import type { CreateFriendRequestInput } from "./friend.validation.js";
 
 const FRIEND_REQUEST_TTL_DAYS = 14;
@@ -234,6 +235,11 @@ export async function createFriendRequest(userId: string, input: CreateFriendReq
     throw new AppError("FRIEND_REQUEST_ALREADY_PENDING", "이미 보낸 친구 요청이 있어요.", 409);
   }
 
+  await assertNoCommunicationBlockBetweenUsers(userId, addressee.id, {
+    errorCode: "FRIEND_COMMUNICATION_BLOCKED",
+    message: "송수신 거부 설정으로 친구 요청을 보낼 수 없어요.",
+  });
+
   const request = await prisma.friendRequest.create({
     data: {
       requesterId: userId,
@@ -401,6 +407,16 @@ export async function claimFriendInviteLink(userId: string, rawToken: string) {
       };
     }
 
+    await assertNoCommunicationBlockBetweenUsers(
+      invite.inviterId,
+      userId,
+      {
+        errorCode: "FRIEND_COMMUNICATION_BLOCKED",
+        message: "송수신 거부 설정으로 친구를 추가할 수 없어요.",
+      },
+      tx,
+    );
+
     const consumed = await tx.friendInviteLink.updateMany({
       where: {
         id: invite.id,
@@ -473,6 +489,11 @@ export async function acceptFriendRequest(userId: string, requestId: string) {
     });
     throw new AppError("FRIEND_REQUEST_EXPIRED", "친구 요청의 유효 기간이 지났어요.", 410);
   }
+
+  await assertNoCommunicationBlockBetweenUsers(request.requesterId, request.addresseeId, {
+    errorCode: "FRIEND_COMMUNICATION_BLOCKED",
+    message: "송수신 거부 설정으로 친구 요청을 수락할 수 없어요.",
+  });
 
   const pair = friendshipPair(request.requesterId, request.addresseeId);
 

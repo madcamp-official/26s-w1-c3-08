@@ -130,6 +130,17 @@ enum PhoneVerificationLockScope {
   CONTACT
 }
 
+enum CommunicationBlockDirection {
+  SEND_TO
+  RECEIVE_FROM
+}
+
+enum CommunicationBlockTargetType {
+  USER
+  EMAIL
+  PHONE
+}
+
 enum MessageCollectionStatus {
   ACTIVE
   DELIVERED
@@ -174,6 +185,8 @@ model User {
   messageCollections  MessageCollection[]     @relation("MessageCollectionOwner")
   targetNotifications NotificationLog[]        @relation("NotificationTargetUser")
   authoredReplies     MessageReply[]           @relation("ReplyAuthor")
+  communicationBlocksOwned CommunicationBlock[] @relation("CommunicationBlockOwner")
+  communicationBlocksTargeted CommunicationBlock[] @relation("CommunicationBlockTargetUser")
 
   @@index([email])
   @@index([createdAt])
@@ -522,6 +535,28 @@ model ContactSuppression {
   @@index([createdAt])
 }
 
+model CommunicationBlock {
+  id                String                         @id @default(uuid()) @db.Uuid
+  ownerUserId       String                         @db.Uuid
+  direction         CommunicationBlockDirection
+  targetType        CommunicationBlockTargetType
+  targetUserId      String?                        @db.Uuid
+  targetContactHash String?                        @db.Char(64)
+  targetMaskedValue String?                        @db.VarChar(255)
+  targetLabel       String?                        @db.VarChar(80)
+  targetDisplayName String?                        @db.VarChar(80)
+  createdAt         DateTime                       @default(now()) @db.Timestamptz(3)
+
+  owner      User  @relation("CommunicationBlockOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("CommunicationBlockTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@unique([ownerUserId, direction, targetType, targetUserId], map: "CommunicationBlock_owner_user_target_key")
+  @@unique([ownerUserId, direction, targetType, targetContactHash], map: "CommunicationBlock_owner_contact_target_key")
+  @@index([ownerUserId, direction, createdAt], map: "CommunicationBlock_owner_direction_created_idx")
+  @@index([targetUserId, direction], map: "CommunicationBlock_target_user_direction_idx")
+  @@index([targetContactHash, direction, targetType], map: "CommunicationBlock_target_contact_direction_idx")
+}
+
 model FriendRequest {
   id          String              @id @default(uuid()) @db.Uuid
   requesterId String              @db.Uuid
@@ -561,18 +596,19 @@ model FriendInviteLink {
 }
 
 model MessageCollection {
-  id           String                  @id @default(uuid()) @db.Uuid
-  ownerId      String                  @db.Uuid
-  tokenHash    String                  @unique @db.Char(64)
-  tokenPreview String?                 @db.VarChar(12)
-  title        String                  @db.VarChar(120)
-  description  String?                 @db.Text
-  scheduledAt  DateTime                @db.Timestamptz(3)
-  status       MessageCollectionStatus @default(ACTIVE)
-  deliveredAt  DateTime?               @db.Timestamptz(3)
-  canceledAt   DateTime?               @db.Timestamptz(3)
-  createdAt    DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime                @updatedAt @db.Timestamptz(3)
+  id                  String                  @id @default(uuid()) @db.Uuid
+  ownerId             String                  @db.Uuid
+  tokenHash           String                  @unique @db.Char(64)
+  tokenPreview        String?                 @db.VarChar(12)
+  shareTokenEncrypted String?                 @db.Text
+  title               String                  @db.VarChar(120)
+  description         String?                 @db.Text
+  scheduledAt         DateTime                @db.Timestamptz(3)
+  status              MessageCollectionStatus @default(ACTIVE)
+  deliveredAt         DateTime?               @db.Timestamptz(3)
+  canceledAt          DateTime?               @db.Timestamptz(3)
+  createdAt           DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                @updatedAt @db.Timestamptz(3)
 
   owner         User                          @relation("MessageCollectionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   submissions   MessageCollectionSubmission[]

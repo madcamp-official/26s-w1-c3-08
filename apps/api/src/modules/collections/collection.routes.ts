@@ -8,6 +8,7 @@ import {
   createPublicMessageCollectionSubmissionController,
   deleteMessageCollectionPermanentlyController,
   getMessageCollectionController,
+  getMessageCollectionShareLinkController,
   getPublicMessageCollectionController,
   listMessageCollectionsController,
 } from "./collection.controller.js";
@@ -26,6 +27,11 @@ collectionRoutes.post(
 );
 collectionRoutes.get("/message-collections", authMiddleware, listMessageCollectionsController);
 collectionRoutes.get("/message-collections/:id", authMiddleware, getMessageCollectionController);
+collectionRoutes.post(
+  "/message-collections/:id/share-link",
+  authMiddleware,
+  getMessageCollectionShareLinkController,
+);
 collectionRoutes.patch("/message-collections/:id/close", authMiddleware, closeMessageCollectionController);
 collectionRoutes.delete("/message-collections/:id/permanent", authMiddleware, deleteMessageCollectionPermanentlyController);
 collectionRoutes.delete("/message-collections/:id", authMiddleware, cancelMessageCollectionController);

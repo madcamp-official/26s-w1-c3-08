@@ -313,6 +313,7 @@
 - `POSTGRES_DB`, `POSTGRES_USER`, `DATABASE_URL`은 `maeari` 기준입니다.
 - 이전 DB와 dry-run DB는 final dump 검증 후 제거했습니다.
 - `PUBLIC_TOKEN_PEPPER`는 token hash, 수신거부 hash, OTP hash, IP/contact hash에 모두 영향을 주므로 유지해야 합니다.
+- `PUBLIC_TOKEN_ENCRYPTION_KEY`는 마음나무 share token 복호화에 사용하며, 비어 있으면 `PUBLIC_TOKEN_PEPPER` 기반 키를 사용합니다.
 
 ### 0.2.5.2 메시지 작성과 발신 권한
 
@@ -344,6 +345,8 @@
 - 발신인 숨김이 켜진 메시지는 provider payload에도 sender nickname을 넣지 않습니다.
 - `ContactSuppression`은 EMAIL/SMS별 HMAC contact hash를 저장하며, 수신거부와 재구독을 모두 지원합니다.
 - suppression 때문에 모든 외부 알림이 최종 skip되면 recipient와 message 상태를 실패로 동기화해 “도착 완료와 실패가 동시에 보이는” 상태를 막습니다.
+- 마이페이지 송수신 거부는 `CommunicationBlock`에 회원/이메일/전화번호 대상을 `SEND_TO` 또는 `RECEIVE_FROM` 방향으로 저장합니다.
+- 새 마음쓰기, 로그인 답장, 친구 요청/초대 claim/수락은 `CommunicationBlock`을 검사해 `409 *_COMMUNICATION_BLOCKED`로 차단하고, 과거 마음/답장/친구관계는 변경하지 않습니다.
 
 ### 0.2.5.5 첨부와 OCR moderation
 
@@ -368,6 +371,7 @@
 - 마음나무 owner는 verified strict PHONE이 필요하고, 비회원 제출은 텍스트만 허용합니다.
 - scheduler는 도착 시점이 지난 ACTIVE collection을 DELIVERED로 바꾸고, visible submissions를 owner에게 공개합니다.
 - 공개 마음나무 URL은 `ACTIVE && scheduledAt > now`일 때만 조회/제출할 수 있고, 도착 이후에는 `410 COLLECTION_LINK_EXPIRED`와 `도착시간이 지나 만료된 링크입니다.`를 반환합니다.
+- 마음나무는 생성 시 raw token을 암호화한 `shareTokenEncrypted`를 저장하며, `POST /api/message-collections/:id/share-link`는 도착 전 같은 URL/QR을 다시 확인할 수 있게 기존 token을 복호화해 반환합니다.
 - owner는 `PATCH /api/message-collections/:id/close`로 예정 시각 전에도 즉시 DELIVERED 처리할 수 있고, `DELETE /api/message-collections/:id/permanent`로 collection과 제출물/알림을 완전 삭제할 수 있습니다.
 - 기존 `DELETE /api/message-collections/:id`는 legacy cancel route로 남기며 새 frontend는 사용하지 않습니다.
 
@@ -410,6 +414,16 @@
 - `/api/messages/received`와 `/api/messages/archived`는 앨범형 UI를 위해 `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`도 제공합니다.
 - frontend는 메인/수신함/발신함/아카이브 card의 `LetterThumb` 또는 앨범 card 배경에 `thumbnail.url`을 넣으면 되고, 앨범 UI에서 첨부 우선 규칙을 직접 제어하려면 `coverImageUrl ?? themeEnvelope.imageUrl`을 사용합니다.
 - 이 변경은 목록 응답 파생 필드와 정적 asset 추가이므로 DB migration은 만들지 않습니다.
+
+### 0.2.5.10 직접 입력 감정 태그 backend 계약
+
+- `EmotionTag.CUSTOM`은 직접 입력 태그이자 목록/리포트의 “기타” 그룹으로 사용합니다. 별도 DB enum이나 migration은 만들지 않습니다.
+- `POST /api/messages`는 `emotionTag=CUSTOM`일 때만 `customEmotionTag`를 저장하고, 그 외 태그에서는 payload에 값이 와도 `null`로 저장합니다.
+- 서버는 직접 입력 태그의 앞쪽 공백/기호/문장부호를 제거하고 내부 연속 공백을 한 칸으로 줄인 뒤 최대 40자로 저장합니다. 정리 후 비어 있으면 `customEmotionTag=null`입니다.
+- moderation input은 사용자가 보낸 원문이 아니라 정규화된 직접 입력 태그를 사용합니다.
+- `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`와 `/api/reports/emotions`는 직접 입력 태그를 모두 `emotionTag=CUSTOM`, `customEmotionTag=null`로 반환해 “기타” 하나로 묶습니다.
+- `/api/messages/:id`와 `/api/public/messages/:token`은 상세 표시를 위해 정제된 `customEmotionTag`를 반환합니다.
+- frontend는 목록/필터/리포트에서 `CUSTOM && !customEmotionTag`를 “기타”로 표시하고, 상세/public에서는 `CUSTOM && customEmotionTag`를 `… {customEmotionTag}` 형식으로 표시합니다.
 
 ---
 
@@ -742,6 +756,8 @@ node-cron 실행
   -> POST /api/message-collections
   -> raw token이 포함된 collectionUrl 반환
   -> Web에서 QR/링크 공유
+  -> 도착 전 URL/QR 재확인이 필요하면 POST /api/message-collections/:id/share-link
+  -> 암호화 저장된 token에서 같은 collectionUrl 반환
 
 비회원
   -> /tree/[token]
@@ -949,6 +965,7 @@ maeari/
 | `ModerationLog` | OpenAI Moderation 및 guardrail 검사 이력 |
 | `NotificationLog` | IN_APP/Gmail SMTP/Solapi 발송 이력, 답장/마음나무 알림, retry, idempotency |
 | `ContactSuppression` | EMAIL/SMS 수신거부 연락처 HMAC hash |
+| `CommunicationBlock` | 마이페이지 송수신 거부. 회원/EMAIL/PHONE 대상, 방향별 차단 |
 | `MessageReport` | 공개 링크/상세 화면 신고와 관리자 검토 상태 |
 | `MessageCollection` | 마음나무 공개 수집 링크, owner, 도착 시각, 상태 |
 | `MessageCollectionSubmission` | 비회원 마음나무 제출 편지, moderation, IP hash, owner 열람 상태 |
@@ -989,7 +1006,7 @@ ContactSuppression
 
 MessageCollection
   -> MessageCollectionSubmission[]
-  -> 공개 마음나무 tokenHash와 도착 상태
+  -> 공개 마음나무 tokenHash, shareTokenEncrypted, 도착 상태
 ```
 
 ### Moderation 관련 필드 의미
@@ -1012,7 +1029,7 @@ MODERATION_FAILED
 
 검사 실패 상태의 메시지는 미검증 콘텐츠이므로 수신자에게 공개하지 않습니다. 따라서 `MessageAccessToken`은 moderation 통과 후 `PENDING`으로 전환될 때 생성하는 것을 원칙으로 합니다.
 
-보관함 삭제는 상태별 혼합 정책을 사용합니다. 발신함에서는 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지를 hard delete하고, 이미 도착했거나 실패한 `SENT`, `FAILED` 메시지는 `Message.senderDeletedAt`으로 발신자 화면에서만 제외합니다. 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 사용자별 soft delete를 적용합니다. 이 방식은 이미 외부에 도착했거나 감사 추적이 필요한 공개 링크 token, notification log, moderation log를 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
+보관함 삭제는 상태별 혼합 정책을 사용합니다. 발신함에서는 `PENDING`, `MODERATION_FAILED`, `CANCELED` 메시지를 hard delete하고, 이미 도착했거나 실패한 `SENT`, `FAILED` 메시지는 `Message.senderDeletedAt`으로 발신자 화면에서만 제외합니다. 수신함에서는 `MessageRecipient.receiverDeletedAt`을 기준으로 사용자별 soft delete를 적용합니다. 발신자와 수신자가 같은 메시지는 `scope=recipient|sender` 또는 요청 `Referer`의 `/archive`, `/inbox`, `/sent` 경로로 mailbox 삭제 대상을 구분합니다. 이 방식은 이미 외부에 도착했거나 감사 추적이 필요한 공개 링크 token, notification log, moderation log를 보존하면서 사용자 화면에서는 삭제된 것처럼 동작하게 합니다.
 
 ## 7.3 receiverInfo JSON 예시
 
@@ -1318,6 +1335,9 @@ MVP에서는 두 가지 선택지가 있습니다.
 | POST | `/api/me/contacts/:id/verify` | 필요 | OTP 인증 코드 검증 |
 | PATCH | `/api/me/contacts/:id` | 필요 | 연락처 label 수정. `isPrimary`는 active PHONE 교체/내부 우선순위 관리에 사용 |
 | DELETE | `/api/me/contacts/:id` | 필요 | 연락처 soft delete. verified PHONE은 삭제 불가, 새 번호 인증으로만 변경 |
+| GET | `/api/me/communication-blocks` | 필요 | 마이페이지 송수신 거부 목록. optional `direction=SEND_TO\|RECEIVE_FROM` |
+| POST | `/api/me/communication-blocks` | 필요 | `{ direction, target }`로 회원/EMAIL/PHONE 송수신 거부 등록 |
+| DELETE | `/api/me/communication-blocks/:id` | 필요 | 송수신 거부 설정 해제 |
 
 PHONE 인증 정책:
 
@@ -1338,12 +1358,12 @@ PHONE 인증 정책:
 | GET | `/api/messages/sent` | 필요 | 내가 보낸 메시지 목록 |
 | GET | `/api/messages/received` | 필요 | 내가 받은 메시지 목록 |
 | GET | `/api/messages/archived` | 필요 | 내가 아카이브한 받은 메시지 목록 |
-| POST | `/api/messages/bulk-delete` | 필요 | 여러 메시지를 내 보관함에서 일괄 제거 |
+| POST | `/api/messages/bulk-delete` | 필요 | 여러 메시지를 내 보관함에서 일괄 제거. optional `scope=sender\|recipient` |
 | GET | `/api/messages/:id` | 필요 | 메시지 상세 조회 |
 | PATCH | `/api/messages/:id/cancel` | 필요 | 예약 메시지 취소 |
 | PATCH | `/api/messages/:id/archive` | 필요 | 받은 메시지 아카이브 |
 | PATCH | `/api/messages/:id/unarchive` | 필요 | 받은 메시지 아카이브 복구 |
-| DELETE | `/api/messages/:id` | 필요 | 보낸/받은 마음을 내 보관함에서 제거. 발신자는 상태별 hard/soft delete 정책 적용 |
+| DELETE | `/api/messages/:id` | 필요 | 보낸/받은 마음을 내 보관함에서 제거. optional `scope=sender\|recipient` |
 
 ## 9.3 Public API
 
@@ -2266,7 +2286,7 @@ export async function retryFailedModerationMessages() {
 | 친구 | `/friends` | 친구 코드 확인, 친구 초대 링크, 친구 요청, 요청 수락/거절, 친구 삭제 |
 | 친구 초대 | `/friends/invite/[token]` | 초대 링크 미리보기와 로그인 후 친구 연결 |
 | 공개 열람 | `/arrival/[token]` | 비회원 메시지 확인 |
-| 마이페이지 | `/my` | 내 정보, 연락처 인증 상태, 전화번호 변경, 로그아웃 |
+| 마이페이지 | `/my` | 내 정보, 연락처 인증 상태, 전화번호 변경, 송수신 거부 관리, 로그아웃 |
 
 ## 12.2 메시지 작성 화면 구성
 
@@ -3425,6 +3445,7 @@ NODE_ENV=production pm2 start apps/web/.next/standalone/apps/web/server.js --nam
 - 비회원 제출은 기존 텍스트 guardrail을 즉시 통과해야 저장됩니다.
 - scheduler는 `DELIVERY_CRON` 주기로 `ACTIVE` 마음나무 중 `scheduledAt`이 지난 항목을 `DELIVERED`로 전환하고 제출물을 일괄 공개합니다.
 - 도착 시각이 지난 공개 링크는 더 이상 조회/제출할 수 없으며 frontend는 `COLLECTION_LINK_EXPIRED`를 만료 페이지로 표시합니다.
+- `POST /api/message-collections/:id/share-link`는 도착 전 같은 URL/QR을 다시 확인할 수 있도록 암호화 저장된 token을 복호화해 반환합니다.
 - `PATCH /api/message-collections/:id/close`는 즉시 도착 처리, `DELETE /api/message-collections/:id/permanent`는 완전 삭제입니다.
 
 ### 22.6 운영 DB migration 상태
