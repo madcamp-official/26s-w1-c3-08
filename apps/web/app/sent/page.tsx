@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Clock3, Copy, Link2, MessageCircle, QrCode, RefreshCw, Send, Trash2, X, XCircle } from "lucide-react";
+import { Check, Clock3, Copy, Link2, MessageCircle, QrCode, RefreshCw, Send, Trash2, TriangleAlert, X, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
-import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime, statusLabel } from "@/lib/format";
 
@@ -348,8 +347,12 @@ export default function SentPage() {
           ) : null}
         </button>
       </div>
-      {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
-      {error ? <Notice title={error} tone="danger" /> : null}
+      {notice || error ? (
+        <div className="mb-5 space-y-3">
+          {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
+          {error ? <Notice title={error} tone="danger" /> : null}
+        </div>
+      ) : null}
       {viewMode === "MESSAGES" ? (
         <>
       {emotionFilters.length > 0 ? (
@@ -385,7 +388,6 @@ export default function SentPage() {
           <article key={message.id} className="maeari-letter-surface p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex min-w-0 flex-1 gap-4">
-                <LetterThumb src={message.thumbnail?.url} className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
@@ -600,7 +602,7 @@ function createSentSummary(messages: SentMessage[]) {
     {
       label: "예약함",
       count: reserved,
-      icon: Send,
+      icon: Clock3,
       iconBg: "bg-[#E4F3FF]",
       iconText: "text-[#4BA5F5]",
     },
@@ -614,7 +616,7 @@ function createSentSummary(messages: SentMessage[]) {
     {
       label: "전달 실패",
       count: failed,
-      icon: Clock3,
+      icon: TriangleAlert,
       iconBg: "bg-[#FFE2E2]",
       iconText: "text-[#EF5757]",
     },

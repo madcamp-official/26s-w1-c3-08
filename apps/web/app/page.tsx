@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Inbox, Plus, Send, Sparkles } from "lucide-react";
+import { Heart, Inbox, Send, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { LetterThumb } from "@/components/ui";
+import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -32,7 +32,11 @@ type InboxMessage = {
   senderName?: string | null;
   arrivedAt?: string | null;
   isSenderHidden: boolean;
+  readAt?: string | null;
   thumbnail?: MessageThumbnail | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  attachmentCount?: number;
 };
 
 type MessageThumbnail = {
@@ -190,36 +194,30 @@ export default function HomePage() {
             <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 찾아온 마음</h2>
             <Link
               href="/archive"
-              className="focus-ring inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs text-[#9A9CB0]"
+              className="focus-ring group inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs font-semibold text-[#8F91A8] shadow-[0_6px_16px_rgba(109,72,219,0.04)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#B9A7F3] hover:bg-[#F3EEFD] hover:text-[#6D48DB] hover:shadow-[0_12px_24px_rgba(109,72,219,0.16)] active:translate-y-0 active:bg-[#E9E0FF]"
             >
               전체 보기
-              <span>→</span>
+              <span className="transition-transform duration-200 ease-out group-hover:translate-x-1">→</span>
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid gap-[10px] sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {recentLetterItems.map((letter) => (
-                <Link
+                <MessageAlbumCard
                   key={letter.id}
                   href={`/messages/${letter.id}`}
-                  className="focus-ring maeari-letter-surface relative h-[193px] p-4 transition hover:-translate-y-0.5 hover:border-[#CBBBFA]"
-                >
-                  <div className="flex gap-[9px]">
-                    <LetterThumb src={letter.thumbnailUrl} className="h-[84px] w-[63px] shrink-0" />
-                    <div className="pt-1">
-                      <p className="text-[15px] font-medium text-[#797A94]">{letter.title}</p>
-                      <p className="mt-1 line-clamp-2 text-[15px] font-medium text-[#7B7D97]">{letter.body}</p>
-                      <p className="mt-2 text-[11px] text-[#B3B5C5]">{letter.meta}</p>
-                    </div>
-                  </div>
-                  <span className="absolute bottom-[51px] left-4 rounded-[8px] bg-[#EEE8FD] px-3 py-1 text-[11px] text-[#9A85E1]">
-                    {letter.tag}
-                  </span>
-                  <span className="absolute bottom-5 right-4 grid h-[30px] w-[30px] place-items-center rounded-[8px] border border-[#EEE8FD] text-[#6D48DB]">
-                    <Plus size={14} />
-                  </span>
-                  <span className="absolute bottom-[25px] left-[73px] text-[10px] text-[#ADB0C2]">{letter.date}</span>
-                </Link>
+                  message={{
+                    id: letter.id,
+                    title: letter.title,
+                    coverUrl: letter.coverUrl,
+                    coverAlt: letter.coverAlt,
+                    senderName: letter.senderName,
+                    arrivedAtLabel: letter.date,
+                    emotionLabel: letter.tag,
+                    unread: letter.unread,
+                    attachmentCount: letter.attachmentCount,
+                  }}
+                />
               ))}
             </div>
           ) : (
@@ -265,11 +263,13 @@ function formatRecentMessage(message: InboxMessage) {
   return {
     id: message.id,
     title: message.title,
-    body: message.preview || "도착한 마음을 열어보세요.",
-    meta: message.isSenderHidden ? "누군가의 마음" : `보낸 사람 · ${message.senderName ?? "알 수 없음"}`,
+    senderName: message.isSenderHidden ? "누군가의 마음" : message.senderName,
     tag: emotionLabel(message.emotionTag, message.customEmotionTag),
     date: message.arrivedAt ? formatDateTime(message.arrivedAt) : "숨겨진 시간",
-    thumbnailUrl: message.thumbnail?.url,
+    coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
+    coverAlt: message.coverImageAlt ?? message.title,
+    unread: !message.readAt,
+    attachmentCount: message.attachmentCount,
   };
 }
 

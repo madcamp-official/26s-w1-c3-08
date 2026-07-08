@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Archive, BarChart3, ChevronDown, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
+import { MaeariLoadingOverlay } from "@/components/MaeariLoadingOverlay";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
@@ -19,10 +20,12 @@ const navItems = [
 ];
 
 const mobileNavItems = [
+  { href: "/", label: "홈", icon: Home },
   { href: "/write", label: "쓰기", icon: Send },
   { href: "/sent", label: "보낸 마음", icon: Inbox },
+  { href: "/archive", label: "보관함", icon: Archive },
+  { href: "/tree", label: "마음나무", icon: Sprout },
   { href: "/friends", label: "친구", icon: UsersRound },
-  { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
 type Me = {
@@ -30,10 +33,26 @@ type Me = {
   isAdmin?: boolean;
 };
 
+type DailyLine = {
+  date: string;
+  text: string;
+  poemTitle?: string | null;
+  poet?: string | null;
+};
+
+type DailyLineResponse = {
+  dailyLine: DailyLine;
+};
+
+type LoadingWindow = Window & { __maeariPendingApiRequests?: number };
+
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
+  const [dailyLine, setDailyLine] = useState<DailyLine | null>(null);
+  const [pendingApiCount, setPendingApiCount] = useState(0);
+  const [showGlobalLoading, setShowGlobalLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -57,6 +76,61 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDailyLine() {
+      try {
+        const response = await apiFetch<DailyLineResponse>("/daily-line");
+        if (mounted) {
+          setDailyLine(response.dailyLine);
+        }
+      } catch {
+        if (mounted) {
+          setDailyLine(null);
+        }
+      }
+    }
+
+    void loadDailyLine();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncPendingApiCount() {
+      const loadingWindow = window as LoadingWindow;
+      setPendingApiCount(loadingWindow.__maeariPendingApiRequests ?? 0);
+    }
+
+    syncPendingApiCount();
+    window.addEventListener("maeari:api-start", syncPendingApiCount);
+    window.addEventListener("maeari:api-end", syncPendingApiCount);
+
+    return () => {
+      window.removeEventListener("maeari:api-start", syncPendingApiCount);
+      window.removeEventListener("maeari:api-end", syncPendingApiCount);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingApiCount === 0) {
+      setShowGlobalLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowGlobalLoading(true);
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [pendingApiCount]);
+
+  const dailyLineCredit = dailyLine ? [dailyLine.poemTitle, dailyLine.poet].filter(Boolean).join(", ") : "";
+  const dailyLineDate = dailyLine?.date ? formatDailyLineDate(dailyLine.date) : "";
 
   return (
     <div className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
@@ -115,11 +189,16 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
           <div className="absolute inset-0 bg-white/8" />
           <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#4B405E]">
-            <p className="maeari-sidebar-quote-title text-[14px] text-[#4B405E]">오늘의 한 줄🌙</p>
-            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(9px,1.15vh,12px)] leading-[1.35] text-[#636363]">
-              꽃이 피었다고 너에게 쓰고{"\n"}꽃이 졌다고 너에게 쓴다.{"\n"}너에게 쓴 마음이 벌써 길이 되었다
+            <p className="maeari-sidebar-quote-title text-[17px] text-[#4B405E]">오늘의 한 줄🌙</p>
+            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(11px,1.38vh,14px)] leading-[1.35] text-[#636363]">
+              {dailyLine?.text ?? ""}
             </p>
-            <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(9px,1.05vh,11px)] text-[#636363]">/ 너에게 쓴다, 천양희</p>
+            {dailyLineCredit ? (
+              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(11px,1.26vh,13px)] text-[#636363]">/ {dailyLineCredit}</p>
+            ) : null}
+            {dailyLineDate ? (
+              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(10px,1.14vh,12px)] text-[#636363]">/ {dailyLineDate}</p>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -130,7 +209,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -139,7 +218,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             <Link
               key={item.href}
               href={item.href}
-              className={`focus-ring flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] ${
+              className={`focus-ring flex min-h-16 flex-col items-center justify-center gap-1 px-1 text-[10px] ${
                 active ? "font-bold text-[#6D48DB]" : "font-medium text-[#A0A4B9]"
               }`}
             >
@@ -149,6 +228,22 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           );
         })}
       </nav>
+      {showGlobalLoading ? <MaeariLoadingOverlay overlay /> : null}
     </div>
   );
+}
+
+function formatDailyLineDate(value: string) {
+  const date = new Date(`${value}T00:00:00+09:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(date);
 }
