@@ -127,6 +127,49 @@ export type MeResponse = {
   accountSetup: AccountSetupStatus;
 };
 
+export type CommunicationBlockDirection = "SEND_TO" | "RECEIVE_FROM";
+
+export type CommunicationBlockTargetType = "USER" | "EMAIL" | "PHONE";
+
+export type CommunicationBlockListItem = {
+  id: string;
+  direction: CommunicationBlockDirection;
+  targetType: CommunicationBlockTargetType;
+  targetUserId: string | null;
+  targetDisplayName: string | null;
+  targetMaskedValue: string | null;
+  targetLabel: string | null;
+  createdAt: string;
+};
+
+export type CommunicationBlocksResponse = {
+  blocks: CommunicationBlockListItem[];
+};
+
+export type CreateCommunicationBlockRequest = {
+  direction: CommunicationBlockDirection;
+  target:
+    | {
+        type: "USER";
+        userId: string;
+      }
+    | {
+        type: "EMAIL";
+        value: string;
+        label?: string;
+      }
+    | {
+        type: "PHONE";
+        value: string;
+        label?: string;
+      };
+};
+
+export type CreateCommunicationBlockResponse = {
+  block: CommunicationBlockListItem;
+  created: boolean;
+};
+
 export type MessageThumbnailSource = "ATTACHMENT" | "THEME" | "DEFAULT";
 
 export type MessageThumbnail = {

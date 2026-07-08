@@ -4,6 +4,7 @@ import { normalizeOptionalEmailContact, normalizeOptionalPhoneContact } from "..
 import { MESSAGE_REPLY_CREATED_EVENT, domainEvents } from "../../events/domain-events.js";
 import { prisma } from "../../lib/prisma.js";
 import { hashContact, hashPublicToken } from "../../lib/tokens.js";
+import { getDisplayCustomEmotionTag } from "../messages/emotion-tags.js";
 import { getMessageThemeEnvelope } from "../messages/message.mapper.js";
 import { getModerationInputHash, moderateMessageWithRetry } from "../moderation/moderation.service.js";
 
@@ -79,7 +80,7 @@ export async function getPublicMessage(rawToken: string) {
     title: message.title,
     content: message.content,
     emotionTag: message.emotionTag,
-    customEmotionTag: message.customEmotionTag,
+    customEmotionTag: getDisplayCustomEmotionTag(message.emotionTag, message.customEmotionTag),
     theme: message.theme,
     themeEnvelope: getMessageThemeEnvelope(message.theme),
     attachments: message.attachments.map((attachment) => ({

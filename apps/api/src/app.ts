@@ -8,6 +8,7 @@ import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { collectionRoutes } from "./modules/collections/collection.routes.js";
+import { communicationBlockRoutes } from "./modules/communication-blocks/communication-block.routes.js";
 import { contactRoutes } from "./modules/contacts/contact.routes.js";
 import { dailyLineRoutes } from "./modules/daily-line/daily-line.routes.js";
 import { friendRoutes } from "./modules/friends/friend.routes.js";
@@ -47,6 +48,7 @@ export function createApp() {
   app.use("/api", authRoutes);
   app.use("/api", adminRoutes);
   app.use("/api", collectionRoutes);
+  app.use("/api", communicationBlockRoutes);
   app.use("/api", contactRoutes);
   app.use("/api", dailyLineRoutes);
   app.use("/api", friendRoutes);
