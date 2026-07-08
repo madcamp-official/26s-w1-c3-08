@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { config } from "../config/env.js";
 import { AppError } from "../lib/app-error.js";
 import { prisma } from "../lib/prisma.js";
+import { getAccountSetupStatus } from "../modules/auth/account-setup.service.js";
 
 export const AUTH_COOKIE_NAME = "maeari_session";
 
@@ -47,6 +48,20 @@ export async function authMiddleware(request: Request, _response: Response, next
       ...user,
       isAdmin: config.adminKakaoIds.includes(user.kakaoId),
     };
+
+    if (!isSignupPhoneVerificationExempt(request)) {
+      const accountSetup = await getAccountSetupStatus(user.id);
+
+      if (accountSetup.requiresSignupPhoneVerification) {
+        throw new AppError(
+          "SIGNUP_PHONE_VERIFICATION_REQUIRED",
+          "계정 사용을 시작하려면 전화번호 인증이 필요해요.",
+          409,
+          { redirectTo: "/phone-verification" },
+        );
+      }
+    }
+
     next();
   } catch (error) {
     next(error instanceof AppError ? error : new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401));
@@ -66,4 +81,15 @@ export function getAuthCookieOptions() {
     path: "/",
     maxAge: 1000 * 60 * 60 * 24 * 14,
   };
+}
+
+function isSignupPhoneVerificationExempt(request: Request) {
+  const path = request.originalUrl.split("?")[0] ?? "";
+  const method = request.method.toUpperCase();
+
+  return (
+    (method === "GET" && path === "/api/me") ||
+    path.startsWith("/api/me/contacts") ||
+    (method === "POST" && path === "/api/auth/logout")
+  );
 }

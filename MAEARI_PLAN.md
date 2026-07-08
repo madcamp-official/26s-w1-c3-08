@@ -186,6 +186,13 @@
 - 이메일 연락처는 마음쓰기 권한이 아니라 외부 이메일 수신 메시지를 기존 사용자에게 연결하기 위한 보조 신원으로 사용합니다.
 - 친구 초대 링크 기능을 추가했습니다. `/friends`에서 24시간 유효한 1회성 링크를 만들고, `/friends/invite/[token]`에서 미리보기/claim을 처리합니다.
 - 로그인 전 초대 링크를 열면 `sessionStorage.maeari.pendingFriendInviteToken`에 보관하고 `/auth/callback`에서 로그인 완료 후 자동 claim합니다.
+
+### 0.2.2.1 신규 가입 직후 전화번호 인증 전환
+
+- 신규 카카오 가입자는 `User.signupPhoneVerificationRequiredAt`가 저장되고, 전화번호 인증 완료 전 주요 인증 API에서 `SIGNUP_PHONE_VERIFICATION_REQUIRED`로 차단됩니다.
+- 기존 가입자는 새 컬럼이 `NULL`이므로 강제 전환하지 않고, 기존 `/write`의 `SENDER_PHONE_VERIFICATION_REQUIRED` gate만 유지합니다.
+- 로그인 완료 후 frontend는 `GET /api/me`의 `accountSetup.requiresSignupPhoneVerification`을 확인해 `/phone-verification?next=/onboarding` 또는 pending claim용 `/phone-verification?next=/auth/callback`으로 이동합니다.
+- PHONE OTP 인증 성공 시 `User.signupPhoneVerificationCompletedAt`를 같은 transaction 안에서 기록하고, 이후 온보딩 또는 pending claim 흐름을 이어갑니다.
 - 메시지 첨부는 web 기본 경로를 multipart form-data로 전환했습니다. JSON payload는 `payload` field에, 이미지는 `attachments` field에 담고 API가 multer로 MIME/개수/용량/총량을 검증합니다.
 - 운영 DB를 기존 MVP 이름 `maeum_arrival`에서 `maeari`로 전환했습니다. Docker Postgres의 DB/USER healthcheck도 `maeari` 기준이며, 기존 DB와 dry-run DB는 final dump 검증 후 제거했습니다.
 - 2026-07-07 기준 앱 환경변수와 PM2 프로세스는 `maeari` DB만 사용합니다. 기존 bootstrap role `maeum`은 Postgres system-required role이라 삭제할 수 없지만 `NOLOGIN` 상태이며, template DB owner는 `maeari`로 정리했습니다.
@@ -389,6 +396,17 @@
 - OpenAI는 꽃 관련 시 일부를 `글귀`, `시제목`, `시인` 순서의 JSON으로 반환해야 합니다.
 - 프롬프트는 공개저작물로 판단 가능한 고전 시만 사용하도록 제한하고, 최신/저작권 불명 작품은 인용하지 않도록 합니다.
 - OpenAI 생성 실패 시 `DAILY_LINE_GENERATION_FAILED`로 실패하며, mock/dummy/seed 문구는 만들지 않습니다.
+
+### 0.2.5.9 마음 목록 thumbnail backend 계약
+
+- `/api/messages/sent`, `/api/messages/received`, `/api/messages/archived`의 각 message에 `thumbnail` 객체를 추가합니다.
+- `thumbnail.source="ATTACHMENT"`이면 첫 번째 첨부 이미지의 `publicUrl`을 `thumbnail.url`로 반환합니다.
+- 첨부 이미지가 없으면 선택된 봉투 테마의 `themeEnvelope.imageUrl`을 `thumbnail.url`로 사용하고 `thumbnail.source="THEME"`로 반환합니다.
+- `packages/shared`는 `messageThemeOptions`와 `messageThemeEnvelopeByTheme`로 `LAVENDER`, `MOSS`, `SUNSET`, `MIDNIGHT`, `PAPER`의 label/imageUrl/alt 계약을 제공합니다.
+- `POST /api/messages`, 목록, 상세, 공개 도착 응답은 모두 `themeEnvelope`을 제공합니다.
+- `/api/messages/received`와 `/api/messages/archived`는 앨범형 UI를 위해 `theme`, `coverImageUrl`, `coverImageAlt`, `attachmentCount`도 제공합니다.
+- frontend는 메인/수신함/발신함/아카이브 card의 `LetterThumb` 또는 앨범 card 배경에 `thumbnail.url`을 넣으면 되고, 앨범 UI에서 첨부 우선 규칙을 직접 제어하려면 `coverImageUrl ?? themeEnvelope.imageUrl`을 사용합니다.
+- 이 변경은 목록 응답 파생 필드와 정적 asset 추가이므로 DB migration은 만들지 않습니다.
 
 ---
 
@@ -1285,7 +1303,7 @@ MVP에서는 두 가지 선택지가 있습니다.
 | GET | `/api/auth/kakao/callback` | 불필요 | 카카오 OAuth callback 처리 |
 | POST | `/api/auth/link-message` | 필요 | 공개 링크로 열람한 메시지를 로그인 사용자 수신함에 귀속 |
 | POST | `/api/auth/logout` | 필요 | 로그아웃 |
-| GET | `/api/me` | 필요 | 현재 로그인 사용자 조회 |
+| GET | `/api/me` | 필요 | 현재 로그인 사용자와 `accountSetup` 조회 |
 
 ## 9.1.1 Contact API
 
@@ -1300,6 +1318,7 @@ MVP에서는 두 가지 선택지가 있습니다.
 
 PHONE 인증 정책:
 
+- 신규 가입자만 가입 직후 PHONE 인증을 강제합니다. 기존 미인증 사용자는 `/write`에서만 기존 gate로 차단합니다.
 - `normalizeStrictKoreanMobilePhone`은 `01012345678`, `010-1234-5678`, `+821012345678`, `821012345678`를 `01012345678`로 정규화합니다.
 - `^010\d{8}$`가 아니면 `CONTACT_PHONE_INVALID`입니다.
 - 동일 연락처 10분 내 3회 초과 요청은 CONTACT 24시간 lock입니다.

@@ -35,7 +35,7 @@ import {
 import { assertActiveFriendship } from "../friends/friend.service.js";
 import { assertVerifiedSenderPhoneContact } from "../contacts/contact.service.js";
 import type { CreateMessageInput, CreateMessageReplyInput } from "./message.validation.js";
-import { mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
+import { getMessageThemeEnvelope, mapMessageListItem, mapReceivedItem, toPublicUrl } from "./message.mapper.js";
 
 export async function createMessage(userId: string, input: CreateMessageInput) {
   const messageId = crypto.randomUUID();
@@ -107,7 +107,10 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
     await createModerationLog(message.id, moderation, config.moderationMaxAttempts, inputHash);
 
     return {
-      message,
+      message: {
+        ...message,
+        themeEnvelope: getMessageThemeEnvelope(message.theme),
+      },
       publicUrl: null,
       notice: "안전 검사를 잠시 완료하지 못했어요. 작성한 마음은 임시로 보관했고, 하루에 한 번 자동으로 다시 검사할게요.",
     };
@@ -157,7 +160,10 @@ export async function createMessage(userId: string, input: CreateMessageInput) {
   await createModerationLog(message.id, moderation, 1, inputHash);
 
   return {
-    message,
+    message: {
+      ...message,
+      themeEnvelope: getMessageThemeEnvelope(message.theme),
+    },
     publicUrl: toPublicUrl(rawTokens[0]),
     publicUrls: rawTokens.map((token, index) => ({
       receiverName: receivers[index]?.receiverName ?? null,
@@ -178,6 +184,10 @@ export async function listSentMessages(userId: string) {
           accessTokens: true,
         },
         orderBy: { createdAt: "asc" },
+      },
+      attachments: {
+        orderBy: { createdAt: "asc" },
+        take: 1,
       },
     },
     orderBy: { createdAt: "desc" },
@@ -482,6 +492,15 @@ export async function listReceivedMessages(userId: string) {
               nickname: true,
             },
           },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
+          _count: {
+            select: {
+              attachments: true,
+            },
+          },
         },
       },
     },
@@ -519,6 +538,15 @@ export async function listArchivedMessages(userId: string) {
             select: {
               id: true,
               nickname: true,
+            },
+          },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
+          _count: {
+            select: {
+              attachments: true,
             },
           },
         },
@@ -625,6 +653,7 @@ export async function getMessageDetail(userId: string, messageId: string) {
     emotionTag: message.emotionTag,
     customEmotionTag: message.customEmotionTag,
     theme: message.theme,
+    themeEnvelope: getMessageThemeEnvelope(message.theme),
     arrivalMode: message.arrivalMode,
     arrivalWindowStartAt: message.arrivalWindowStartAt,
     arrivalWindowEndAt: message.arrivalWindowEndAt,

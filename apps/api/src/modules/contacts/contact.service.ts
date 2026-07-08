@@ -19,6 +19,7 @@ import {
 import { prisma } from "../../lib/prisma.js";
 import { hashContact, hashOtpCode } from "../../lib/tokens.js";
 import { externalNotificationProvider } from "../../processors/notification-provider.js";
+import { completeSignupPhoneVerificationIfRequired } from "../auth/account-setup.service.js";
 import type {
   CreateUserContactInput,
   UpdateUserContactInput,
@@ -223,7 +224,7 @@ export async function verifyUserContact(userId: string, contactId: string, input
         },
       });
 
-      return tx.userContact.update({
+      const updatedPhoneContact = await tx.userContact.update({
         where: { id: contact.id },
         data: {
           verifiedAt,
@@ -232,6 +233,10 @@ export async function verifyUserContact(userId: string, contactId: string, input
           isPrimary: true,
         },
       });
+
+      await completeSignupPhoneVerificationIfRequired(tx, userId, verifiedAt);
+
+      return updatedPhoneContact;
     }
 
     const hasPrimary = await tx.userContact.findFirst({
