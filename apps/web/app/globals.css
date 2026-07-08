@@ -166,12 +166,11 @@ a {
   overflow: visible;
 }
 
-.maeari-arrival-trail polyline {
+.maeari-arrival-trail-segment {
   fill: none;
   stroke: rgba(255, 255, 255, 0.82);
   stroke-width: 2.4;
   stroke-linecap: round;
-  stroke-linejoin: round;
   filter:
     drop-shadow(0 0 5px rgba(255, 255, 255, 0.62))
     drop-shadow(0 0 16px rgba(216, 198, 255, 0.38));
@@ -185,8 +184,8 @@ a {
     filter 180ms ease;
 }
 
-.maeari-arrival-trail-settled {
-  animation: maeari-arrival-trail-fade 1.5s ease-in forwards;
+.maeari-arrival-trail-settled .maeari-arrival-trail-segment {
+  animation: maeari-arrival-segment-fade 1.45s ease-in forwards;
 }
 
 .maeari-arrival-trail-settled circle {
@@ -194,20 +193,46 @@ a {
   filter:
     drop-shadow(0 0 12px rgba(255, 255, 255, 0.96))
     drop-shadow(0 0 26px rgba(216, 198, 255, 0.72));
+  animation: maeari-arrival-point-fade 1.55s ease-in 0.65s forwards;
 }
 
 .maeari-arrival-gate-card {
-  min-height: 286px;
+  min-height: 310px;
 }
 
-@keyframes maeari-arrival-trail-fade {
+.maeari-arrival-gate-card .maeari-page-title,
+.maeari-arrival-gate-eyebrow {
+  font-family: var(--font-title-batang);
+  font-weight: 700;
+}
+
+.maeari-arrival-gate-eyebrow {
+  color: #7b65cc;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+}
+
+@keyframes maeari-arrival-segment-fade {
   0%,
-  62% {
+  45% {
     opacity: 1;
   }
 
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes maeari-arrival-point-fade {
+  0%,
+  55% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.72);
   }
 }
 

@@ -201,12 +201,12 @@ export default function HomePage() {
             </Link>
           </div>
           {hasRecentLetters ? (
-            <div className="grid justify-center gap-5 md:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {recentLetterItems.map((letter) => (
                 <MessageAlbumCard
                   key={letter.id}
                   href={`/messages/${letter.id}`}
-                  className="aspect-[10/7] min-h-0 w-full max-w-[500px]"
+                  className="aspect-[16/10] min-h-[190px] w-full"
                   message={{
                     id: letter.id,
                     title: letter.title,

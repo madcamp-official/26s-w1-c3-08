@@ -77,6 +77,7 @@ export default function ArrivalPage() {
   const meteorIdRef = useRef(0);
   const activeTrailIdRef = useRef<number | null>(null);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const lastTrailSampleAtRef = useRef(0);
   const settleTimerRef = useRef<number | null>(null);
   const clearTrailTimerRef = useRef<number | null>(null);
 
@@ -218,16 +219,20 @@ export default function ArrivalPage() {
     lastPointerRef.current = nextPoint;
 
     if (!previous) {
+      lastTrailSampleAtRef.current = performance.now();
       return;
     }
 
+    const now = performance.now();
     const dx = event.clientX - previous.x;
     const dy = event.clientY - previous.y;
     const length = Math.hypot(dx, dy);
 
-    if (length < 16) {
+    if (length < 16 || now - lastTrailSampleAtRef.current < 95) {
       return;
     }
+
+    lastTrailSampleAtRef.current = now;
 
     if (settleTimerRef.current) {
       window.clearTimeout(settleTimerRef.current);
@@ -259,13 +264,15 @@ export default function ArrivalPage() {
         if (activeTrailIdRef.current === trailId) {
           activeTrailIdRef.current = null;
           lastPointerRef.current = null;
+          lastTrailSampleAtRef.current = 0;
         }
-      }, 1500);
-    }, 180);
+      }, 2200);
+    }, 240);
   }
 
   const arrivalCoverUrl = message ? getFirstImageAttachment(message)?.publicUrl ?? null : null;
   const trailEndPoint = meteorTrail?.points.at(-1);
+  const trailSegments = meteorTrail ? createTrailSegments(meteorTrail.points) : [];
 
   return (
     <main className="maeari-public-stage maeari-arrival-night-stage text-[#4E536B]" onPointerMove={handlePointerMove}>
@@ -285,7 +292,20 @@ export default function ArrivalPage() {
         ))}
         {meteorTrail ? (
           <svg className={`maeari-arrival-trail ${meteorTrail.settled ? "maeari-arrival-trail-settled" : ""}`}>
-            <polyline points={meteorTrail.points.map((point) => `${point.x},${point.y}`).join(" ")} />
+            {trailSegments.map((segment, index) => (
+              <line
+                key={`${meteorTrail.id}-${index}`}
+                className="maeari-arrival-trail-segment"
+                x1={segment.x1}
+                y1={segment.y1}
+                x2={segment.x2}
+                y2={segment.y2}
+                style={{
+                  animationDelay: meteorTrail.settled ? `${index * 70}ms` : "0ms",
+                  opacity: Math.min(1, 0.35 + index / Math.max(trailSegments.length, 1)),
+                }}
+              />
+            ))}
             {trailEndPoint ? (
               <circle
                 cx={trailEndPoint.x}
@@ -345,25 +365,30 @@ export default function ArrivalPage() {
         </section>
       ) : null}
       {message && !opened ? (
-        <section className="maeari-arrival-gate-card figma-panel relative overflow-hidden p-6 text-center">
-          {arrivalCoverUrl ? (
-            <>
-              <img src={arrivalCoverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.42]" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.70)_0%,rgba(255,255,255,0.86)_58%,rgba(248,244,253,0.94)_100%)]" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(218,201,255,0.34),transparent_42%)]" />
-          )}
-          <div className="relative z-10">
-            <Gift className="mx-auto mb-4 text-brand-accent" size={32} />
-            <h1 className="maeari-page-title">오늘, 누군가의 마음이 도착했어요.</h1>
+        <section className="maeari-arrival-gate-card relative overflow-hidden rounded-[8px] border border-white/70 text-center shadow-[0_24px_58px_rgba(55,39,105,0.16)]">
+          <Image
+            src="/images/maeari-arrival-letter.png"
+            alt=""
+            fill
+            sizes="(min-width: 768px) 760px, calc(100vw - 32px)"
+            className="object-cover"
+            priority
+          />
+          {arrivalCoverUrl ? <img src={arrivalCoverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.12]" /> : null}
+          <div className="absolute inset-0 bg-white/10" />
+          <div className="relative z-10 flex min-h-[310px] flex-col items-center px-5 py-7 sm:min-h-[340px]">
+            <p className="maeari-arrival-gate-eyebrow">남겨둔 마음이 도착했어요</p>
+            <Gift className="mt-3 text-brand-accent" size={31} />
+            <h1 className="maeari-page-title mt-6 text-[#3D3E91]">지금, 열어볼까요?</h1>
+            <div className="flex-1" />
             <button
               type="button"
               onClick={() => setOpened(true)}
-              className="focus-ring maeari-action maeari-action-primary mt-6 h-11 px-5"
+              className="focus-ring maeari-action maeari-action-primary h-10 min-w-[220px] px-6 text-sm"
             >
-              열어보기
+              마음 열어보기
             </button>
+            <p className="mt-3 text-xs font-semibold text-[#7E6BCB]">지금 바로 도착한 마음을 열어볼 수 있어요.</p>
           </div>
         </section>
       ) : null}
@@ -514,6 +539,26 @@ function createArrivalStars() {
   }
 
   return stars;
+}
+
+function createTrailSegments(points: Array<{ x: number; y: number }>) {
+  const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+
+    if (previous && current) {
+      segments.push({
+        x1: previous.x,
+        y1: previous.y,
+        x2: current.x,
+        y2: current.y,
+      });
+    }
+  }
+
+  return segments;
 }
 
 function themeClass(theme?: string | null) {
