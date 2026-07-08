@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { Copy, QrCode, ShieldAlert, Trash2, X, XCircle } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
@@ -204,17 +203,10 @@ export default function MessageDetailPage() {
 
   const detailCoverUrl = message ? getDetailPaperOverlayUrl(message) : null;
   const detailCoverAlt = message?.coverImageAlt ?? `${message?.title ?? "받은 마음"} 봉투 표지`;
+  const displayTime = message ? getMessageDisplayTime(message) : null;
 
   return (
     <AppShell>
-      <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/sent" className="focus-ring maeari-action">
-          보낸 마음
-        </Link>
-        <Link href="/inbox" className="focus-ring maeari-action">
-          받은 마음
-        </Link>
-      </div>
       {notice ? <Notice title={notice.title} body={notice.body} tone={notice.tone} /> : null}
       {error ? <Notice title={error} tone="danger" /> : null}
       {!message && !error ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
@@ -248,8 +240,7 @@ export default function MessageDetailPage() {
           <h1 className="relative z-[1] maeari-page-title">{message.title}</h1>
           <div className="relative z-[1] mt-3 grid gap-1 text-sm text-[#A2A6BF]">
             <p>보낸 사람: {message.senderName ?? "익명 발신"}</p>
-            {message.viewerRole === "SENDER" ? <p>예약 시간: {formatDateTime(message.scheduledAt)}</p> : null}
-            <p>도착 시간: {formatDateTime(message.sentAt)}</p>
+            {displayTime ? <p>{displayTime.label}: {formatDateTime(displayTime.value)}</p> : null}
             {message.status === "MODERATION_FAILED" ? (
               <p className="text-brand-accent">다음 검사: {formatDateTime(message.moderationNextRetryAt)}</p>
             ) : null}
@@ -416,6 +407,25 @@ function senderDeleteLabel(status: string) {
   }
 
   return "보낸 마음에서 삭제";
+}
+
+function getMessageDisplayTime(message: MessageDetail) {
+  const shouldShowScheduledTime =
+    message.viewerRole === "SENDER" && ["PENDING", "MODERATION_PENDING", "MODERATION_FAILED"].includes(message.status);
+
+  if (shouldShowScheduledTime && message.scheduledAt) {
+    return { label: "예약 시간", value: message.scheduledAt };
+  }
+
+  if (message.sentAt) {
+    return { label: "도착 시간", value: message.sentAt };
+  }
+
+  if (message.scheduledAt) {
+    return { label: "예약 시간", value: message.scheduledAt };
+  }
+
+  return null;
 }
 
 function getDetailPaperOverlayUrl(message: MessageDetail) {
