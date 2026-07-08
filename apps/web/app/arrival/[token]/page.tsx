@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PointerEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Bell, BellOff, Clock3, Gift, LogIn, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import { ApiError, apiFetch, getApiBaseUrl } from "@/lib/api";
@@ -46,10 +46,16 @@ type SuppressionChannel = "EMAIL" | "SMS";
 
 type MeteorTrail = {
   id: number;
+  points: Array<{ x: number; y: number }>;
+  settled: boolean;
+};
+
+type ArrivalStar = {
+  id: number;
   x: number;
   y: number;
-  length: number;
-  angle: number;
+  size: number;
+  opacity: number;
 };
 
 export default function ArrivalPage() {
@@ -67,9 +73,12 @@ export default function ArrivalPage() {
     tone: "success" | "danger";
   }>>>({});
   const [meteorTrail, setMeteorTrail] = useState<MeteorTrail | null>(null);
+  const arrivalStars = useMemo(createArrivalStars, []);
   const meteorIdRef = useRef(0);
-  const lastMeteorAtRef = useRef(0);
+  const activeTrailIdRef = useRef<number | null>(null);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const settleTimerRef = useRef<number | null>(null);
+  const clearTrailTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem(PENDING_TOKEN_KEY, params.token);
@@ -99,6 +108,17 @@ export default function ArrivalPage() {
 
     return () => window.clearInterval(timer);
   }, [params.token]);
+
+  useEffect(() => {
+    return () => {
+      if (settleTimerRef.current) {
+        window.clearTimeout(settleTimerRef.current);
+      }
+      if (clearTrailTimerRef.current) {
+        window.clearTimeout(clearTrailTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleToggleSuppression(channel: SuppressionChannel, suppressed: boolean) {
     setSuppressingChannel(channel);
@@ -193,11 +213,11 @@ export default function ArrivalPage() {
       return;
     }
 
-    const now = window.performance.now();
+    const nextPoint = { x: event.clientX, y: event.clientY };
     const previous = lastPointerRef.current;
-    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    lastPointerRef.current = nextPoint;
 
-    if (!previous || now - lastMeteorAtRef.current < 34) {
+    if (!previous) {
       return;
     }
 
@@ -209,37 +229,71 @@ export default function ArrivalPage() {
       return;
     }
 
-    lastMeteorAtRef.current = now;
-    const id = meteorIdRef.current + 1;
-    meteorIdRef.current = id;
-    setMeteorTrail({
-      id,
-      x: event.clientX,
-      y: event.clientY,
-      length: Math.min(length, 280),
-      angle: Math.atan2(dy, dx) * (180 / Math.PI),
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current);
+    }
+    if (clearTrailTimerRef.current) {
+      window.clearTimeout(clearTrailTimerRef.current);
+    }
+
+    if (!activeTrailIdRef.current) {
+      activeTrailIdRef.current = meteorIdRef.current + 1;
+      meteorIdRef.current = activeTrailIdRef.current;
+    }
+
+    const trailId = activeTrailIdRef.current;
+    setMeteorTrail((current) => {
+      const points = current?.id === trailId ? current.points : [previous];
+
+      return {
+        id: trailId,
+        points: [...points.slice(-34), nextPoint],
+        settled: false,
+      };
     });
-    window.setTimeout(() => {
-      setMeteorTrail((current) => (current?.id === id ? null : current));
-    }, 520);
+
+    settleTimerRef.current = window.setTimeout(() => {
+      setMeteorTrail((current) => (current?.id === trailId ? { ...current, settled: true } : current));
+      clearTrailTimerRef.current = window.setTimeout(() => {
+        setMeteorTrail((current) => (current?.id === trailId ? null : current));
+        if (activeTrailIdRef.current === trailId) {
+          activeTrailIdRef.current = null;
+          lastPointerRef.current = null;
+        }
+      }, 1500);
+    }, 180);
   }
 
   const arrivalCoverUrl = message ? getFirstImageAttachment(message)?.publicUrl ?? null : null;
+  const trailEndPoint = meteorTrail?.points.at(-1);
 
   return (
     <main className="maeari-public-stage maeari-arrival-night-stage text-[#4E536B]" onPointerMove={handlePointerMove}>
       <div className="maeari-arrival-meteor-layer" aria-hidden="true">
-        {meteorTrail ? (
+        {arrivalStars.map((star) => (
           <span
-            key={meteorTrail.id}
-            className="maeari-arrival-meteor"
+            key={star.id}
+            className="maeari-arrival-star"
             style={{
-              left: `${meteorTrail.x}px`,
-              top: `${meteorTrail.y}px`,
-              width: `${meteorTrail.length}px`,
-              transform: `translateX(-100%) translateY(-50%) rotate(${meteorTrail.angle}deg)`,
+              left: `${star.x}%`,
+              top: `${star.y}%`,
+              width: `${star.size}px`,
+              height: `${star.size}px`,
+              opacity: star.opacity,
             }}
           />
+        ))}
+        {meteorTrail ? (
+          <svg className={`maeari-arrival-trail ${meteorTrail.settled ? "maeari-arrival-trail-settled" : ""}`}>
+            <polyline points={meteorTrail.points.map((point) => `${point.x},${point.y}`).join(" ")} />
+            {trailEndPoint ? (
+              <circle
+                cx={trailEndPoint.x}
+                cy={trailEndPoint.y}
+                r={meteorTrail.settled ? 4.2 : 2.4}
+              />
+            ) : null}
+          </svg>
         ) : null}
       </div>
       <header className="relative z-20 h-[74px] border-b border-[#EEE8F8] bg-white/92 px-5 backdrop-blur-xl">
@@ -329,16 +383,19 @@ export default function ArrivalPage() {
             {message.content}
           </div>
           {message.attachments && message.attachments.length > 0 ? (
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               {message.attachments.map((attachment) => (
                 <a
                   key={attachment.id}
                   href={attachment.publicUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="focus-ring block overflow-hidden rounded-[8px] border border-[#E3DEF0] bg-white"
+                  className="focus-ring maeari-polaroid-frame"
                 >
-                  <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} className="w-full object-cover" />
+                  <span className="maeari-polaroid-photo">
+                    <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} />
+                  </span>
+                  <span className="maeari-polaroid-caption">{attachment.originalName ?? "첨부 사진"}</span>
                 </a>
               ))}
             </div>
@@ -377,7 +434,7 @@ export default function ArrivalPage() {
             <ShieldAlert size={16} />
             신고
           </button>
-          <div className="maeari-soft-panel mt-6 p-4">
+          <div className="maeari-soft-panel mt-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             {message.linked ? (
               <p className="text-sm font-medium text-[#6E738A]">이미 매아리 수신함에 보관된 마음이에요.</p>
             ) : (
@@ -387,7 +444,7 @@ export default function ArrivalPage() {
                 </p>
                 <a
                   href={`${getApiBaseUrl()}/auth/kakao`}
-                  className="focus-ring mt-3 inline-flex min-h-[38px] items-center gap-2 rounded-[8px] bg-[#fee500] px-4 text-sm font-semibold text-[#191600] shadow-[0_10px_22px_rgba(55,43,13,0.10)]"
+                  className="focus-ring inline-flex min-h-[38px] shrink-0 items-center gap-2 rounded-[8px] bg-[#fee500] px-4 text-sm font-semibold text-[#191600] shadow-[0_10px_22px_rgba(55,43,13,0.10)]"
                 >
                   <LogIn size={16} />
                   카카오로 시작하기
@@ -437,6 +494,26 @@ export default function ArrivalPage() {
 
 function getFirstImageAttachment(message: PublicMessage) {
   return message.attachments?.find((attachment) => attachment.mimeType.startsWith("image/")) ?? null;
+}
+
+function createArrivalStars() {
+  let seed = 92821;
+  const stars: ArrivalStar[] = [];
+
+  for (let index = 0; index < 58; index += 1) {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    const x = (seed / 4294967296) * 100;
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    const y = 10 + (seed / 4294967296) * 86;
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    const size = 1.2 + (seed / 4294967296) * 2.6;
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    const opacity = 0.22 + (seed / 4294967296) * 0.58;
+
+    stars.push({ id: index, x, y, size, opacity });
+  }
+
+  return stars;
 }
 
 function themeClass(theme?: string | null) {
