@@ -5,23 +5,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { BarChart3, ChevronDown, Heart, Home, Inbox, Send, Sparkles, TreePine, UserRound, UsersRound } from "lucide-react";
+import { Archive, BarChart3, ChevronDown, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
+import { MaeariLoadingOverlay } from "@/components/MaeariLoadingOverlay";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
   { href: "/write", label: "마음 보내기", icon: Send },
-  { href: "/inbox", label: "받은 마음", icon: Heart },
   { href: "/sent", label: "보낸 마음", icon: Inbox },
-  { href: "/tree", label: "마음나무", icon: TreePine },
+  { href: "/archive", label: "마음 보관함", icon: Archive },
+  { href: "/tree", label: "마음나무", icon: Sprout },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/reports", label: "리포트", icon: BarChart3 },
-  { href: "/my", label: "내 정보", icon: UserRound },
 ];
 
 const mobileNavItems = [
   { href: "/write", label: "쓰기", icon: Send },
-  { href: "/inbox", label: "받은 마음", icon: Heart },
   { href: "/sent", label: "보낸 마음", icon: Inbox },
   { href: "/friends", label: "친구", icon: UsersRound },
   { href: "/my", label: "내 정보", icon: UserRound },
@@ -32,10 +31,29 @@ type Me = {
   isAdmin?: boolean;
 };
 
+type DailyLine = {
+  date: string;
+  text: string;
+  poemTitle?: string | null;
+  poet?: string | null;
+};
+
+type LoadingWindow = Window & { __maeariPendingApiRequests?: number };
+
+const fallbackDailyLine: DailyLine = {
+  date: "",
+  text: "꽃이 피었다고 너에게 쓰고\n꽃이 졌다고 너에게 쓴다.\n너에게 쓴 마음이 벌써 길이 되었다",
+  poemTitle: "너에게 쓴다",
+  poet: "천양희",
+};
+
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
+  const [dailyLine, setDailyLine] = useState<DailyLine>(fallbackDailyLine);
+  const [pendingApiCount, setPendingApiCount] = useState(0);
+  const [showGlobalLoading, setShowGlobalLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -59,6 +77,60 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDailyLine() {
+      try {
+        const response = await apiFetch<DailyLine>("/daily-line");
+        if (mounted) {
+          setDailyLine(response);
+        }
+      } catch {
+        if (mounted) {
+          setDailyLine(fallbackDailyLine);
+        }
+      }
+    }
+
+    void loadDailyLine();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncPendingApiCount() {
+      const loadingWindow = window as LoadingWindow;
+      setPendingApiCount(loadingWindow.__maeariPendingApiRequests ?? 0);
+    }
+
+    syncPendingApiCount();
+    window.addEventListener("maeari:api-start", syncPendingApiCount);
+    window.addEventListener("maeari:api-end", syncPendingApiCount);
+
+    return () => {
+      window.removeEventListener("maeari:api-start", syncPendingApiCount);
+      window.removeEventListener("maeari:api-end", syncPendingApiCount);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingApiCount === 0) {
+      setShowGlobalLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowGlobalLoading(true);
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [pendingApiCount]);
+
+  const dailyLineCredit = [dailyLine.poemTitle, dailyLine.poet].filter(Boolean).join(", ");
 
   return (
     <div className="min-h-screen bg-[#FBF9FC] text-[#4E536B]">
@@ -113,29 +185,28 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           })}
         </nav>
 
-        <div className="relative mx-[15px] mb-9 mt-auto min-h-[237px] w-[185px] shrink-0 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_20px_45px_rgba(122,90,184,0.14)] max-[1100px]:hidden">
+        <div className="relative mx-[15px] mb-5 mt-5 min-h-[168px] w-[185px] flex-1 overflow-hidden rounded-[8px] border border-[#E6DDF3] bg-[#F0D9FF] shadow-[0_16px_34px_rgba(122,90,184,0.12)]">
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
           <div className="absolute inset-0 bg-white/8" />
-          <div className="absolute inset-0 px-[18px] py-[22px] text-[#4B405E]">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] bg-white/75 text-[#6D48DB]">
-              <Sparkles size={15} />
-            </span>
-            <p className="maeari-sidebar-quote-title mt-3 text-base text-[#4B405E]">오늘의 한 줄</p>
-            <p className="maeari-sidebar-quote-body mt-5 whitespace-pre-line text-[11px] leading-[15px] text-[#636363]">
-              꽃이 피었다고 너에게 쓰고{"\n"}꽃이 졌다고 너에게 쓴다.{"\n"}너에게 쓴 마음이{"\n"}벌써 길이 되었다
+          <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#4B405E]">
+            <p className="maeari-sidebar-quote-title text-[14px] text-[#4B405E]">오늘의 한 줄🌙</p>
+            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(9px,1.15vh,12px)] leading-[1.35] text-[#636363]">
+              {dailyLine.text}
             </p>
-            <p className="maeari-sidebar-quote-body mt-3 text-[11px] text-[#636363]">/ 너에게 쓴다, 천양희</p>
+            {dailyLineCredit ? (
+              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(9px,1.05vh,11px)] text-[#636363]">/ {dailyLineCredit}</p>
+            ) : null}
           </div>
         </div>
       </aside>
 
       <main className="maeari-stage min-h-screen px-4 pb-24 pt-[92px] lg:ml-[221px] lg:min-h-screen lg:px-0 lg:pb-0 lg:pt-[74px]">
-        <div className="mx-auto w-full max-w-[1190px] lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
+        <div className="mx-auto w-full lg:mx-0 lg:min-h-[calc(100vh-74px)] lg:px-[38px] lg:py-[31px]">
           {children}
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#EEE8F8] bg-white/95 backdrop-blur lg:hidden" aria-label="모바일 주요 메뉴">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -154,6 +225,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           );
         })}
       </nav>
+      {showGlobalLoading ? <MaeariLoadingOverlay overlay /> : null}
     </div>
   );
 }

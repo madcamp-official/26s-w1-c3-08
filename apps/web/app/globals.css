@@ -359,3 +359,289 @@ a {
   border-radius: 999px;
   background: #d8cdf4;
 }
+
+.maeari-loading-stage {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(203, 187, 250, 0.24), transparent 260px),
+    radial-gradient(circle at 18% 0%, rgba(109, 72, 219, 0.18), transparent 360px),
+    linear-gradient(180deg, rgba(38, 32, 56, 0.92) 0%, rgba(27, 24, 39, 0.96) 100%);
+  color: #f2ecff;
+}
+
+.maeari-loading-stage-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(203, 187, 250, 0.22), transparent 260px),
+    linear-gradient(180deg, rgba(31, 28, 42, 0.64) 0%, rgba(25, 22, 35, 0.72) 100%);
+  backdrop-filter: blur(2px);
+}
+
+.maeari-loading-scene {
+  display: grid;
+  justify-items: center;
+  gap: 1.25rem;
+}
+
+.maeari-loading-envelope {
+  position: relative;
+  width: 180px;
+  height: 132px;
+  animation: maeari-envelope-float 1.9s ease-in-out infinite;
+  filter: drop-shadow(0 22px 28px rgba(86, 63, 142, 0.2));
+}
+
+.maeari-loading-envelope-front {
+  position: absolute;
+  inset: 34px 0 0;
+  z-index: 3;
+  overflow: hidden;
+  border-radius: 0 0 8px 8px;
+  background:
+    linear-gradient(30deg, transparent 49.4%, rgba(202, 184, 246, 0.64) 50%, transparent 50.7%),
+    linear-gradient(150deg, transparent 49.4%, rgba(255, 255, 255, 0.78) 50%, transparent 50.7%),
+    linear-gradient(180deg, #f6f1ff 0%, #eee7fb 100%);
+}
+
+.maeari-loading-envelope-front::before,
+.maeari-loading-envelope-front::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  width: 52%;
+  height: 100%;
+  background: #f1ebfb;
+}
+
+.maeari-loading-envelope-front::before {
+  left: 0;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.maeari-loading-envelope-front::after {
+  right: 0;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.maeari-loading-envelope-lining {
+  position: absolute;
+  inset: 0 0 34px;
+  z-index: 1;
+  border-radius: 8px 8px 0 0;
+  background: #9b84e6;
+  clip-path: polygon(50% 0, 100% 82%, 100% 100%, 0 100%, 0 82%);
+  transform-origin: bottom center;
+  animation: maeari-envelope-lining 1.9s ease-in-out infinite;
+}
+
+.maeari-loading-envelope-flap {
+  position: absolute;
+  inset: 34px 0 26px;
+  z-index: 5;
+  transform-origin: top center;
+  animation: maeari-envelope-flap 1.9s ease-in-out infinite;
+  border-radius: 8px 8px 12px 12px;
+  background:
+    linear-gradient(180deg, #fbf8ff 0%, #efe8fb 100%);
+  clip-path: polygon(0 0, 100% 0, 50% 72%);
+  filter: drop-shadow(0 8px 7px rgba(66, 48, 105, 0.2));
+}
+
+.maeari-loading-moon {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  z-index: 2;
+  width: 70px;
+  height: 70px;
+  border-radius: 999px;
+  transform: translateX(-50%) scale(0.7);
+  opacity: 0;
+  animation: maeari-envelope-glow 1.9s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.92) 0%, rgba(219, 205, 255, 0.54) 42%, transparent 70%);
+}
+
+.maeari-loading-star {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 48px;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, 0) scale(0.64) rotate(45deg);
+  opacity: 0;
+  color: #d7caff;
+  animation: maeari-star-rise 1.9s ease-in-out infinite;
+}
+
+.maeari-loading-star::before,
+.maeari-loading-star::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 18px rgba(203, 187, 250, 0.78);
+}
+
+.maeari-loading-star::before {
+  width: 9px;
+  height: 34px;
+}
+
+.maeari-loading-star::after {
+  width: 34px;
+  height: 9px;
+}
+
+.maeari-loading-star-one {
+  left: 38%;
+  width: 18px;
+  height: 18px;
+  animation-delay: 0.16s;
+}
+
+.maeari-loading-star-one::before {
+  width: 5px;
+  height: 18px;
+}
+
+.maeari-loading-star-one::after {
+  width: 18px;
+  height: 5px;
+}
+
+.maeari-loading-star-two {
+  left: 63%;
+  width: 22px;
+  height: 22px;
+  animation-delay: 0.28s;
+}
+
+.maeari-loading-star-two::before {
+  width: 6px;
+  height: 22px;
+}
+
+.maeari-loading-star-two::after {
+  width: 22px;
+  height: 6px;
+}
+
+.maeari-loading-copy {
+  margin: 0;
+  max-width: min(82vw, 420px);
+  color: #f5efff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+  text-shadow: 0 1px 12px rgba(20, 16, 32, 0.42);
+}
+
+@keyframes maeari-envelope-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes maeari-envelope-flap {
+  0%,
+  18%,
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  44%,
+  74% {
+    transform: translateY(-38px) scaleY(0.72);
+    opacity: 0;
+  }
+}
+
+@keyframes maeari-envelope-lining {
+  0%,
+  18%,
+  100% {
+    transform: translateY(30px) scaleY(0.18);
+    opacity: 0;
+  }
+  42%,
+  76% {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes maeari-envelope-glow {
+  0%,
+  24%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.72);
+  }
+  48%,
+  76% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes maeari-star-rise {
+  0%,
+  24% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.58) rotate(45deg);
+  }
+  48% {
+    opacity: 1;
+    transform: translate(-50%, -42px) scale(1) rotate(45deg);
+  }
+  74% {
+    opacity: 1;
+    transform: translate(-50%, -58px) scale(1.08) rotate(45deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -62px) scale(0.82) rotate(45deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maeari-loading-envelope,
+  .maeari-loading-envelope-flap,
+  .maeari-loading-envelope-lining,
+  .maeari-loading-moon,
+  .maeari-loading-star {
+    animation: none;
+  }
+
+  .maeari-loading-envelope-flap {
+    opacity: 0;
+  }
+
+  .maeari-loading-envelope-lining,
+  .maeari-loading-moon,
+  .maeari-loading-star {
+    opacity: 1;
+  }
+
+  .maeari-loading-envelope-lining {
+    transform: translateY(0) scaleY(1);
+  }
+
+  .maeari-loading-star {
+    transform: translate(-50%, -52px) scale(1) rotate(45deg);
+  }
+}

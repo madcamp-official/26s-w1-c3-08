@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArchiveRestore, Inbox, RefreshCw, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { MessageAlbumCard } from "@/components/MessageAlbumCard";
 import { Notice } from "@/components/Notice";
-import { LetterThumb } from "@/components/ui";
 import { ApiError, apiFetch } from "@/lib/api";
 import { emotionLabel, formatDateTime } from "@/lib/format";
 
@@ -14,12 +14,22 @@ type ArchivedMessage = {
   id: string;
   recipientId: string;
   title: string;
+  thumbnail?: MessageThumbnail | null;
   preview: string;
   emotionTag?: string | null;
   customEmotionTag?: string | null;
   senderName?: string | null;
   arrivedAt?: string | null;
   readAt?: string | null;
+  theme?: string | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  attachmentCount?: number;
+};
+
+type MessageThumbnail = {
+  source: "ATTACHMENT" | "DEFAULT";
+  url: string;
 };
 
 export default function ArchivePage() {
@@ -44,7 +54,7 @@ export default function ArchivePage() {
         return;
       }
 
-      setError(caught instanceof Error ? caught.message : "아카이브를 불러오지 못했어요.");
+      setError(caught instanceof Error ? caught.message : "마음 보관함을 불러오지 못했어요.");
     } finally {
       setLoading(false);
     }
@@ -70,7 +80,7 @@ export default function ArchivePage() {
 
     try {
       await apiFetch(`/messages/${id}`, { method: "DELETE" });
-      setNotice({ title: "아카이브에서 삭제했어요.", tone: "success" });
+      setNotice({ title: "마음 보관함에서 삭제했어요.", tone: "success" });
       await load();
     } catch (caught) {
       setNotice({
@@ -81,7 +91,7 @@ export default function ArchivePage() {
   }
 
   async function bulkDelete() {
-    if (filteredMessages.length === 0 || !window.confirm("현재 보이는 아카이브 마음을 모두 삭제할까요?")) {
+    if (filteredMessages.length === 0 || !window.confirm("현재 보이는 마음 보관함의 마음을 모두 삭제할까요?")) {
       return;
     }
 
@@ -143,24 +153,17 @@ export default function ArchivePage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="maeari-page-title">아카이브</h1>
-          <p className="maeari-page-copy mt-2">받은 마음 중 따로 보관한 것들을 모아두었어요.</p>
+          <h1 className="maeari-page-title">마음 보관함</h1>
+          <p className="maeari-page-copy mt-2">따로 간직하고 싶은 마음을 앨범처럼 모아두었어요.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/inbox"
-            className="focus-ring maeari-action"
-          >
+          <Link href="/inbox" className="focus-ring maeari-action">
             <Inbox size={16} />
             받은 마음
           </Link>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="focus-ring maeari-action"
-          >
+          <button type="button" onClick={() => void load()} className="focus-ring maeari-action">
             <RefreshCw size={16} />
             새로고침
           </button>
@@ -175,10 +178,7 @@ export default function ArchivePage() {
           </button>
         </div>
       </div>
-      {notice ? <Notice title={notice.title} tone={notice.tone} /> : null}
-      {error ? <Notice title={error} tone="danger" /> : null}
-      {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
-      {!loading && messages.length === 0 ? <Notice title="아카이브한 마음이 없어요." /> : null}
+
       {emotionFilters.length > 0 ? (
         <div className="maeari-filterbar mb-5">
           <button
@@ -200,47 +200,43 @@ export default function ArchivePage() {
           ))}
         </div>
       ) : null}
-      {!loading && messages.length > 0 && filteredMessages.length === 0 ? <Notice title="이 감정의 마음이 없어요." /> : null}
-      <div className="grid gap-3">
+
+      {notice ? <Notice title={notice.title} tone={notice.tone} /> : null}
+      {error ? <Notice title={error} tone="danger" /> : null}
+      {loading ? <p className="text-sm text-[#A2A6BF]">불러오는 중</p> : null}
+      {!loading && messages.length === 0 ? <Notice title="보관한 마음이 없어요." body="간직하고 싶은 마음을 보관하면 이곳에서 앨범처럼 보여드릴게요." /> : null}
+      {!loading && messages.length > 0 && filteredMessages.length === 0 ? <Notice title="선택한 감정의 마음이 없어요." /> : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filteredMessages.map((message) => (
-          <article key={message.recipientId} className="maeari-letter-surface p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <Link href={`/messages/${message.id}`} className="focus-ring flex min-w-0 flex-1 gap-4 rounded-[8px] hover:text-[#6D48DB]">
-                <LetterThumb className="hidden h-[92px] w-[69px] shrink-0 sm:block" />
-                <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    <span className="maeari-badge bg-[#F3EEFD] text-[#6D48DB]">
-                      {emotionLabel(message.emotionTag, message.customEmotionTag)}
-                    </span>
-                    <span className="maeari-badge bg-[#F3EFF7] text-[#6E738A]">
-                      {message.senderName ?? "누군가의 마음"}
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-semibold text-[#4E536B]">{message.title}</h2>
-                  <p className="mt-2 line-clamp-2 text-sm text-[#A2A6BF]">{message.preview}</p>
-                  <p className="mt-3 text-xs font-medium text-[#A2A6BF]">{formatDateTime(message.arrivedAt)}</p>
-                </div>
-              </Link>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void unarchive(message.id)}
-                  className="focus-ring maeari-action"
-                >
+          <MessageAlbumCard
+            key={message.recipientId}
+            href={`/messages/${message.id}`}
+            message={{
+              id: message.id,
+              title: message.title,
+              preview: message.preview,
+              coverUrl: message.thumbnail?.url ?? message.coverImageUrl,
+              coverAlt: message.coverImageAlt ?? message.title,
+              senderName: message.senderName,
+              arrivedAtLabel: formatDateTime(message.arrivedAt),
+              emotionLabel: emotionLabel(message.emotionTag, message.customEmotionTag),
+              unread: !message.readAt,
+              attachmentCount: message.attachmentCount,
+            }}
+            actions={
+              <>
+                <button type="button" onClick={() => void unarchive(message.id)} className="focus-ring maeari-action">
                   <ArchiveRestore size={16} />
                   복구
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void deleteMessage(message.id)}
-                  className="focus-ring maeari-action"
-                >
+                <button type="button" onClick={() => void deleteMessage(message.id)} className="focus-ring maeari-action">
                   <Trash2 size={16} />
                   삭제
                 </button>
-              </div>
-            </div>
-          </article>
+              </>
+            }
+          />
         ))}
       </div>
     </AppShell>
