@@ -215,7 +215,7 @@ export default function FriendsPage() {
 
   return (
     <AppShell>
-      <div className="w-full max-w-[1146px]">
+      <div className="w-full">
         <header className="mb-[24px] pl-[5px]">
           <h1 className="maeari-page-title">친구</h1>
           <p className="maeari-page-copy mt-2">친구로 연결된 사람에게 빠르게 마음을 보낼 수 있어요.</p>
@@ -227,7 +227,7 @@ export default function FriendsPage() {
           </div>
         ) : null}
 
-        <section className="mb-5 grid w-full gap-4 lg:grid-cols-2">
+        <section className="mb-5 grid w-full gap-4 xl:grid-cols-2">
           <div className="figma-panel min-w-0 p-[18px]">
             <p className="text-[15px] font-bold text-[#6A6F88]">내 친구 코드</p>
             <div className="mt-[12px] flex min-h-[58px] items-center gap-3 rounded-[8px] border border-[#E5DCF5] bg-[#F9F5FD] p-2">
@@ -248,7 +248,7 @@ export default function FriendsPage() {
 
           <form onSubmit={sendRequest} className="figma-panel min-w-0 p-[18px]">
             <p className="text-[16px] font-bold text-[#626781]">친구 요청 보내기</p>
-            <div className="mt-[12px] grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="mt-[12px] grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_auto]">
               <input
                 required
                 value={friendCode}
@@ -279,7 +279,7 @@ export default function FriendsPage() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex-1">
               <p className="text-[15px] font-bold text-[#686D87]">친구 찾기</p>
-              <form onSubmit={searchCandidates} className="mt-3 flex gap-2">
+              <form onSubmit={searchCandidates} className="mt-3 flex min-w-0 gap-2">
                 <input
                   required
                   minLength={2}
@@ -297,7 +297,7 @@ export default function FriendsPage() {
                 </button>
               </form>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void createInviteLink()}

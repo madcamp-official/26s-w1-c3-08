@@ -625,7 +625,6 @@ export default function WritePage() {
             completedMessage={notice.tone === "success" ? completedMessage : null}
             onClose={() => setNotice(null)}
             onViewDetail={(messageId) => router.push(`/messages/${messageId}`)}
-            onViewSent={() => router.push("/sent")}
             onReset={resetForm}
             onHome={() => router.push("/")}
           />
@@ -1088,13 +1087,6 @@ export default function WritePage() {
               {submitting ? "검사 중" : "마음 보내기"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => router.push("/sent")}
-              className="focus-ring maeari-action mt-2 h-9 w-full text-xs"
-            >
-              보낸 마음 보기
-            </button>
           </aside>
         </form>
       </div>
@@ -1215,7 +1207,6 @@ function WriteNoticeDialog({
   completedMessage,
   onClose,
   onViewDetail,
-  onViewSent,
   onReset,
   onHome,
 }: {
@@ -1223,7 +1214,6 @@ function WriteNoticeDialog({
   completedMessage: CompletedMessage | null;
   onClose: () => void;
   onViewDetail: (messageId: string) => void;
-  onViewSent: () => void;
   onReset: () => void;
   onHome: () => void;
 }) {
@@ -1290,13 +1280,6 @@ function WriteNoticeDialog({
                 className={`focus-ring rounded-[8px] px-3 py-2 text-sm font-semibold ${primaryButtonClass}`}
               >
                 예약 상세 보기
-              </button>
-              <button
-                type="button"
-                onClick={onViewSent}
-                className="hidden"
-              >
-                보낸 마음 보기
               </button>
               <button
                 type="button"
