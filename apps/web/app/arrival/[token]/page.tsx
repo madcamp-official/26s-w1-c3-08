@@ -420,7 +420,6 @@ export default function ArrivalPage() {
                   <span className="maeari-polaroid-photo">
                     <img src={attachment.publicUrl} alt={attachment.originalName ?? ""} />
                   </span>
-                  <span className="maeari-polaroid-caption">{attachment.originalName ?? "첨부 사진"}</span>
                 </a>
               ))}
             </div>
