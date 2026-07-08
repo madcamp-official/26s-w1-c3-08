@@ -4,20 +4,9 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: clamp(320px, 30vw, 430px);
-  gap: 1rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.35rem;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-}
-
-@media (min-width: 1536px) {
-  .home-recent-album-grid {
-    grid-auto-columns: clamp(340px, 24vw, 440px);
-  }
+  grid-template-columns: repeat(var(--recent-columns, 3), minmax(0, 1fr));
+  gap: clamp(0.65rem, 1.4vw, 1rem);
+  width: 100%;
 }
 
 @font-face {
