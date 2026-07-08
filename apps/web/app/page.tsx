@@ -141,7 +141,7 @@ export default function HomePage() {
             <p className="mt-5 max-w-[500px] break-keep text-[15px] font-light leading-[24px] text-[#FFF7FB] drop-shadow-[0_2px_8px_rgba(32,20,78,0.32)] sm:text-base sm:leading-[25px]">
               지금 이 마음이 바래지기 전에
               <br />
-              누군가에게 이 온도를 그대로 전해보세요.
+              이 온도를 그대로 전해보세요.
             </p>
 
             <div className="mt-7 flex w-full max-w-[342px] items-center gap-3 rounded-[8px] border border-white/22 bg-white/18 px-4 py-3 text-white shadow-[0_14px_30px_rgba(22,16,58,0.18)] backdrop-blur">

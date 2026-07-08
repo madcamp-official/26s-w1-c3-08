@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Info, Plus, RefreshCw, Sprout, X } from "lucide-react";
+import { Info, Plus, RefreshCw, Sprout, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
@@ -148,6 +148,31 @@ export default function TreePage() {
     }
   }
 
+  async function deleteCollectionPermanently(collection: Collection) {
+    if (collection.status === "ACTIVE") {
+      setNotice({ title: "마음나무 링크를 먼저 닫아주세요.", body: "열려 있는 마음나무는 바로 삭제할 수 없어요.", tone: "default" });
+      return;
+    }
+
+    if (!window.confirm(`'${collection.title}' 마음나무를 영구 삭제할까요? 삭제한 마음나무는 다시 복구할 수 없어요.`)) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/message-collections/${collection.id}/permanent`, { method: "DELETE" });
+      setNotice({ title: "마음나무를 영구 삭제했어요.", tone: "success" });
+      await loadCollections();
+      if (selected?.id === collection.id) {
+        setSelected(null);
+      }
+      if (detailCollectionId === collection.id) {
+        setDetailCollectionId(null);
+      }
+    } catch (caught) {
+      setNotice({ title: caught instanceof ApiError ? caught.message : "마음나무를 삭제하지 못했어요.", tone: "danger" });
+    }
+  }
+
   return (
     <AppShell>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -169,7 +194,7 @@ export default function TreePage() {
 
       <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
         <section className="figma-panel p-5">
-          <h2 className="text-lg font-semibold text-[#4E536B]">새 마음나무 만들기</h2>
+          <h2 className="text-lg font-semibold text-[#4E536B]">새 마음나무 심기</h2>
           <form className="mt-4 grid gap-3" onSubmit={(event) => void createCollection(event)}>
             <input
               value={title}
@@ -248,6 +273,11 @@ export default function TreePage() {
                       <button type="button" onClick={() => setPendingCancel(collection)} className="focus-ring maeari-action maeari-action-danger">
                         <X size={16} />
                         닫기
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => void deleteCollectionPermanently(collection)} className="focus-ring maeari-action maeari-action-danger">
+                        <Trash2 size={16} />
+                        삭제
                       </button>
                     ) : null}
                   </div>
