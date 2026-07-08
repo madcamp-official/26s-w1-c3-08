@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Archive, BarChart3, ChevronDown, Home, Inbox, Send, Sprout, UserRound, UsersRound } from "lucide-react";
 import { ApiError, apiFetch } from "@/lib/api";
+import { MaeariLoadingOverlay } from "@/components/MaeariLoadingOverlay";
 
 const navItems = [
   { href: "/", label: "홈", icon: Home },
@@ -37,6 +38,8 @@ type DailyLine = {
   poet?: string | null;
 };
 
+type LoadingWindow = Window & { __maeariPendingApiRequests?: number };
+
 const fallbackDailyLine: DailyLine = {
   date: "",
   text: "꽃이 피었다고 너에게 쓰고\n꽃이 졌다고 너에게 쓴다.\n너에게 쓴 마음이 벌써 길이 되었다",
@@ -49,6 +52,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [dailyLine, setDailyLine] = useState<DailyLine>(fallbackDailyLine);
+  const [pendingApiCount, setPendingApiCount] = useState(0);
+  const [showGlobalLoading, setShowGlobalLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -95,6 +100,35 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    function syncPendingApiCount() {
+      const loadingWindow = window as LoadingWindow;
+      setPendingApiCount(loadingWindow.__maeariPendingApiRequests ?? 0);
+    }
+
+    syncPendingApiCount();
+    window.addEventListener("maeari:api-start", syncPendingApiCount);
+    window.addEventListener("maeari:api-end", syncPendingApiCount);
+
+    return () => {
+      window.removeEventListener("maeari:api-start", syncPendingApiCount);
+      window.removeEventListener("maeari:api-end", syncPendingApiCount);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingApiCount === 0) {
+      setShowGlobalLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowGlobalLoading(true);
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [pendingApiCount]);
 
   const dailyLineCredit = [dailyLine.poemTitle, dailyLine.poet].filter(Boolean).join(", ");
 
@@ -191,6 +225,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           );
         })}
       </nav>
+      {showGlobalLoading ? <MaeariLoadingOverlay overlay /> : null}
     </div>
   );
 }
