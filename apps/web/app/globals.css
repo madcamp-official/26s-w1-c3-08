@@ -4,8 +4,9 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-template-columns: repeat(var(--recent-columns, 3), minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 380px));
   gap: clamp(0.65rem, 1.4vw, 1rem);
+  justify-content: start;
   width: 100%;
 }
 
@@ -742,13 +743,14 @@ a {
   height: 92px;
   border-radius: 8px 8px 16px 16px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.9), transparent 32%),
-    linear-gradient(180deg, #fffaff 0%, #d8c9ff 42%, #a98af1 100%);
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.94), transparent 34%),
+    linear-gradient(180deg, #fffaff 0%, #f6f0ff 68%, #efe7fd 100%);
   clip-path: polygon(0 0, 100% 0, 50% 80%);
   opacity: 0;
   transform: translateY(-24px) scaleX(0.92);
   filter:
-    drop-shadow(0 7px 7px rgba(49, 39, 78, 0.28))
+    drop-shadow(0 10px 7px rgba(77, 70, 154, 0.36))
+    drop-shadow(0 4px 2px rgba(95, 76, 178, 0.18))
     drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
   animation: maeari-envelope-flap-build 2.8s cubic-bezier(0.2, 0.78, 0.2, 1) infinite;
 }
@@ -758,14 +760,20 @@ a {
   left: 50%;
   top: 78px;
   z-index: 5;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   opacity: 0;
   transform: translate(-50%, 8px) scale(0.62);
   filter:
-    drop-shadow(0 5px 7px rgba(49, 35, 123, 0.24))
-    drop-shadow(0 0 14px rgba(117, 78, 224, 0.46));
+    drop-shadow(0 5px 6px rgba(54, 35, 129, 0.24))
+    drop-shadow(0 0 14px rgba(164, 136, 255, 0.48));
   animation: maeari-wax-star-build 2.8s cubic-bezier(0.18, 0.82, 0.2, 1) infinite;
+}
+
+.maeari-loading-wax-star svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .maeari-loading-sparkle::before,
@@ -779,18 +787,14 @@ a {
 }
 
 .maeari-loading-wax-star::before {
-  content: "★";
+  content: "";
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, #9c83f1 0%, #6d48db 58%, #5230bb 100%);
-  background-clip: text;
-  color: transparent;
-  font-size: 48px;
-  line-height: 1;
-  -webkit-background-clip: text;
-  -webkit-text-stroke: 1px rgba(86, 54, 194, 0.2);
+  inset: 7px 11px auto;
+  z-index: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0));
+  transform: rotate(-18deg);
 }
 
 .maeari-loading-sparkle {
