@@ -197,10 +197,10 @@ export default function HomePage() {
             <h2 className="maeari-display-title text-[24px] text-[#555777]">최근 찾아온 마음</h2>
             <Link
               href="/archive"
-              className="focus-ring inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs text-[#9A9CB0]"
+              className="focus-ring group inline-flex h-[33px] items-center gap-2 rounded-[8px] border border-[#E4D9F0] bg-white px-4 text-xs font-semibold text-[#8F91A8] shadow-[0_6px_16px_rgba(109,72,219,0.04)] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#B9A7F3] hover:bg-[#F3EEFD] hover:text-[#6D48DB] hover:shadow-[0_12px_24px_rgba(109,72,219,0.16)] active:translate-y-0 active:bg-[#E9E0FF]"
             >
               전체 보기
-              <span>→</span>
+              <span className="transition-transform duration-200 ease-out group-hover:translate-x-1">→</span>
             </Link>
           </div>
           {hasRecentLetters ? (
