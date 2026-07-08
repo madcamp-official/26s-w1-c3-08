@@ -4,10 +4,10 @@
 
 .home-recent-album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 380px));
   gap: clamp(0.65rem, 1.4vw, 1rem);
   justify-content: start;
   width: 100%;
+  overflow: hidden;
 }
 
 @font-face {
@@ -872,7 +872,7 @@ a {
 .maeari-loading-copy {
   margin: 0;
   max-width: min(82vw, 420px);
-  color: #15121f;
+  color: #4b2bb4;
   font-family: var(--font-kst-batang);
   font-size: 0.95rem;
   font-weight: 300;
