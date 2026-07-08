@@ -194,15 +194,15 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           <Image src="/images/maeari-sidebar-sky.png" alt="" fill sizes="185px" className="scale-[1.08] object-cover object-center" />
           <div className="absolute inset-0 bg-white/8" />
           <div className="absolute inset-0 flex flex-col px-[16px] py-[15px] text-[#4B405E]">
-            <p className="maeari-sidebar-quote-title text-[14px] text-[#4B405E]">오늘의 한 줄🌙</p>
-            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(9px,1.15vh,12px)] leading-[1.35] text-[#636363]">
+            <p className="maeari-sidebar-quote-title text-[17px] text-[#4B405E]">오늘의 한 줄🌙</p>
+            <p className="maeari-sidebar-quote-body mt-3 whitespace-pre-line text-[clamp(11px,1.38vh,14px)] leading-[1.35] text-[#636363]">
               {dailyLine.text}
             </p>
             {dailyLineCredit ? (
-              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(9px,1.05vh,11px)] text-[#636363]">/ {dailyLineCredit}</p>
+              <p className="maeari-sidebar-quote-body mt-auto pt-3 text-[clamp(11px,1.26vh,13px)] text-[#636363]">/ {dailyLineCredit}</p>
             ) : null}
             {dailyLineDate ? (
-              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(8px,0.95vh,10px)] text-[#636363]">/ {dailyLineDate}</p>
+              <p className="maeari-sidebar-quote-body mt-1 text-[clamp(10px,1.14vh,12px)] text-[#636363]">/ {dailyLineDate}</p>
             ) : null}
           </div>
         </div>
