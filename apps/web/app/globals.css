@@ -127,6 +127,22 @@ a {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 76%);
 }
 
+.maeari-arrival-night-stage {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(181, 149, 255, 0.2) 0, rgba(181, 149, 255, 0) 360px),
+    radial-gradient(circle at 82% 4%, rgba(255, 214, 238, 0.14) 0, rgba(255, 214, 238, 0) 290px),
+    linear-gradient(180deg, #fbf7ff 0%, #d8bddf 34%, #32254e 72%, #080713 100%);
+}
+
+.maeari-arrival-night-stage::before {
+  background-image:
+    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, 0.18), transparent 22%),
+    radial-gradient(circle at 78% 52%, rgba(139, 104, 214, 0.18), transparent 24%);
+  background-repeat: no-repeat;
+  background-size: auto;
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.18) 18%, rgba(0, 0, 0, 0.72) 100%);
+}
+
 .maeari-arrival-meteor-layer {
   pointer-events: none;
   position: fixed;
@@ -135,49 +151,111 @@ a {
   overflow: hidden;
 }
 
-.maeari-arrival-meteor {
+.maeari-arrival-star {
   position: absolute;
-  width: 92px;
-  height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(216, 198, 255, 0.92), rgba(109, 72, 219, 0.02));
-  filter: drop-shadow(0 0 8px rgba(154, 133, 225, 0.42));
-  opacity: 0;
-  transform: translate(-10px, -6px) rotate(-28deg);
-  animation: maeari-arrival-meteor-fall 920ms ease-out forwards;
+  background: #fff9ff;
+  box-shadow: 0 0 9px rgba(255, 255, 255, 0.48);
 }
 
-.maeari-arrival-meteor::after {
-  content: "";
-  position: absolute;
-  right: 5px;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: #f6efff;
-  box-shadow: 0 0 12px rgba(109, 72, 219, 0.62);
-  transform: translateY(-50%);
+.maeari-arrival-trail {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+}
+
+.maeari-arrival-trail polyline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.82);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.62))
+    drop-shadow(0 0 16px rgba(216, 198, 255, 0.38));
+}
+
+.maeari-arrival-trail circle {
+  fill: rgba(255, 255, 255, 0.78);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.78));
+  transition:
+    r 180ms ease,
+    filter 180ms ease;
+}
+
+.maeari-arrival-trail-settled {
+  animation: maeari-arrival-trail-fade 1.5s ease-in forwards;
+}
+
+.maeari-arrival-trail-settled circle {
+  fill: #ffffff;
+  filter:
+    drop-shadow(0 0 12px rgba(255, 255, 255, 0.96))
+    drop-shadow(0 0 26px rgba(216, 198, 255, 0.72));
 }
 
 .maeari-arrival-gate-card {
   min-height: 286px;
 }
 
-@keyframes maeari-arrival-meteor-fall {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) rotate(-28deg) scaleX(0.45);
-  }
-
-  16% {
-    opacity: 0.78;
+@keyframes maeari-arrival-trail-fade {
+  0%,
+  62% {
+    opacity: 1;
   }
 
   100% {
     opacity: 0;
-    transform: translate(150px, 82px) rotate(-28deg) scaleX(1);
   }
+}
+
+.maeari-polaroid-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(227, 222, 240, 0.92);
+  background: linear-gradient(180deg, #fff 0%, #fbf9fd 100%);
+  padding: 10px 10px 24px;
+  box-shadow:
+    0 16px 28px rgba(76, 63, 119, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.maeari-polaroid-frame:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 20px 36px rgba(76, 63, 119, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+}
+
+.maeari-polaroid-photo {
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #f3eff7;
+}
+
+.maeari-polaroid-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.maeari-polaroid-caption {
+  display: block;
+  margin-top: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #8f93aa;
+  font-size: 0.75rem;
 }
 
 @media (max-width: 1023px) {
@@ -203,6 +281,11 @@ a {
     0 18px 45px rgba(76, 63, 119, 0.07),
     0 2px 8px rgba(86, 67, 130, 0.035);
   backdrop-filter: blur(10px);
+}
+
+.maeari-modal-overlay {
+  background: rgba(32, 30, 42, 0.96);
+  backdrop-filter: none;
 }
 
 .maeari-soft-panel {

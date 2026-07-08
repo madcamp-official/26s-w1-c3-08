@@ -65,7 +65,7 @@ export default function ArchivePage() {
 
     try {
       await apiFetch(`/messages/${id}/unarchive`, { method: "PATCH" });
-      setNotice({ title: "받은 마음으로 되돌렸어요.", tone: "success" });
+      setNotice({ title: "보관함에서 뺐어요.", tone: "success" });
       await load();
     } catch (caught) {
       setNotice({
@@ -228,7 +228,7 @@ export default function ArchivePage() {
               <>
                 <button type="button" onClick={() => void unarchive(message.id)} className="focus-ring maeari-action">
                   <ArchiveRestore size={16} />
-                  복구
+                  보관함에서 빼기
                 </button>
                 <button type="button" onClick={() => void deleteMessage(message.id)} className="focus-ring maeari-action">
                   <Trash2 size={16} />
