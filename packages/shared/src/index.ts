@@ -72,6 +72,24 @@ export type ReceiverInfo = {
   preferredChannel?: "AUTO" | "SMS" | "EMAIL";
 };
 
+export type RecipientHistoryPreferredChannel = "AUTO" | "SMS" | "EMAIL";
+
+export type RecipientHistoryItem = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  maskedEmail: string | null;
+  maskedPhone: string | null;
+  preferredChannel: RecipientHistoryPreferredChannel;
+  lastUsedAt: string;
+  sendCount: number;
+};
+
+export type RecipientHistoryResponse = {
+  recipients: RecipientHistoryItem[];
+};
+
 export type NotificationEventType =
   | "MESSAGE_SENT"
   | "ARRIVAL_HINT"

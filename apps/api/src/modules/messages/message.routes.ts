@@ -15,6 +15,7 @@ import {
   listAuthoredMessageRepliesController,
   listReceivedMessageRepliesController,
   listReceivedMessagesController,
+  listRecipientHistoryController,
   listSentMessageRepliesController,
   listSentMessagesController,
   markSentReplyReadController,
@@ -34,6 +35,7 @@ messageRoutes.post(
   createMessageController,
 );
 messageRoutes.get("/messages/sent", authMiddleware, listSentMessagesController);
+messageRoutes.get("/messages/recipient-history", authMiddleware, listRecipientHistoryController);
 messageRoutes.get("/messages/sent/replies", authMiddleware, listSentMessageRepliesController);
 messageRoutes.get("/messages/replies/sent", authMiddleware, listAuthoredMessageRepliesController);
 messageRoutes.get("/messages/replies/received", authMiddleware, listReceivedMessageRepliesController);

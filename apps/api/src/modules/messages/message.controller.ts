@@ -21,6 +21,7 @@ import {
   reportMessage,
   unarchiveReceivedMessage,
 } from "./message.service.js";
+import { listRecipientHistory } from "./recipient-history.service.js";
 import type { MessageMailboxDeleteScope } from "./message.service.js";
 
 export const createMessageController = asyncHandler(async (request: Request, response: Response) => {
@@ -38,6 +39,14 @@ export const listSentMessagesController = asyncHandler(async (request: Request, 
   }
 
   response.json({ messages: await listSentMessages(request.user.id) });
+});
+
+export const listRecipientHistoryController = asyncHandler(async (request: Request, response: Response) => {
+  if (!request.user) {
+    throw new AppError("UNAUTHENTICATED", "로그인이 필요합니다.", 401);
+  }
+
+  response.json(await listRecipientHistory(request.user.id));
 });
 
 export const listSentMessageRepliesController = asyncHandler(async (request: Request, response: Response) => {

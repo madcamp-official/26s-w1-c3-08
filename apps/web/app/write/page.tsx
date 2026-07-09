@@ -4,10 +4,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Home, ImagePlus, Plus, RotateCcw, Send, ShieldCheck, Trash2, X } from "lucide-react";
+import type { RecipientHistoryItem, RecipientHistoryResponse } from "@maeari/shared";
 import { AppShell } from "@/components/AppShell";
 import { Notice } from "@/components/Notice";
 import { QrShare } from "@/components/QrShare";
 import { ApiError, apiFetch } from "@/lib/api";
+import { RecipientHistoryPicker } from "./components/RecipientHistoryPicker";
 
 type CreateMessageResponse = {
   message: {
@@ -132,6 +134,9 @@ export default function WritePage() {
   const [hasVerifiedStrictPhone, setHasVerifiedStrictPhone] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(true);
   const [contactsError, setContactsError] = useState<string | null>(null);
+  const [recipientHistory, setRecipientHistory] = useState<RecipientHistoryItem[]>([]);
+  const [recipientHistoryLoading, setRecipientHistoryLoading] = useState(true);
+  const [recipientHistoryError, setRecipientHistoryError] = useState<string | null>(null);
   const [serverTimeLoading, setServerTimeLoading] = useState(true);
   const [serverTimeError, setServerTimeError] = useState<string | null>(null);
   const [serverDefaultScheduledAt, setServerDefaultScheduledAt] = useState<string | null>(null);
@@ -165,6 +170,20 @@ export default function WritePage() {
   const [kstNow, setKstNow] = useState("KST 시간 확인 중");
 
   const selectedFriend = friends.find((friend) => friend.friendshipId === selectedFriendshipId);
+  const selectedRecipientHistoryKey = useMemo(() => {
+    const email = receiverEmail.trim().toLowerCase();
+    const phone = sanitizePhoneNumber(receiverPhone);
+
+    if (email) {
+      return `EMAIL:${email}`;
+    }
+
+    if (phone) {
+      return `PHONE:${phone}`;
+    }
+
+    return "";
+  }, [receiverEmail, receiverPhone]);
   const scheduledAtDate = useMemo(() => {
     if (!arrivalTouched && serverDefaultScheduledAt) {
       return new Date(serverDefaultScheduledAt);
@@ -255,6 +274,29 @@ export default function WritePage() {
     }
 
     void loadContacts();
+  }, [router]);
+
+  useEffect(() => {
+    async function loadRecipientHistory() {
+      setRecipientHistoryLoading(true);
+      setRecipientHistoryError(null);
+
+      try {
+        const response = await apiFetch<RecipientHistoryResponse>("/messages/recipient-history");
+        setRecipientHistory(response.recipients);
+      } catch (caught) {
+        if (caught instanceof ApiError && caught.status === 401) {
+          router.replace("/login");
+          return;
+        }
+
+        setRecipientHistoryError(caught instanceof Error ? caught.message : "최근 연락처를 불러오지 못했어요.");
+      } finally {
+        setRecipientHistoryLoading(false);
+      }
+    }
+
+    void loadRecipientHistory();
   }, [router]);
 
   useEffect(() => {
@@ -405,6 +447,15 @@ export default function WritePage() {
     };
   }
 
+  function applyRecipientHistoryItem(recipient: RecipientHistoryItem) {
+    setNotice(null);
+    setReceiverType("OTHER");
+    setReceiverName(recipient.name);
+    setReceiverEmail(recipient.email ?? "");
+    setReceiverPhone(recipient.phone ? formatPhoneInput(recipient.phone) : "");
+    setPreferredChannel(recipient.preferredChannel);
+  }
+
   function validateCurrentReceiverIfNeeded(shouldValidate: boolean) {
     if (!shouldValidate) {
       return true;
@@ -453,9 +504,8 @@ export default function WritePage() {
     }
 
     const payload = createReceiverInfo();
-    const key = JSON.stringify(payload);
 
-    if (recipientDrafts.some((draft) => JSON.stringify(draft.payload) === key)) {
+    if (recipientDrafts.some((draft) => isSameRecipientDraft(draft.payload, payload))) {
       setNotice({ title: "이미 추가한 수신자예요.", tone: "default" });
       return;
     }
@@ -484,6 +534,41 @@ export default function WritePage() {
     }
 
     return "미래의 나";
+  }
+
+  function isSameRecipientDraft(left: ReceiverInfoPayload, right: ReceiverInfoPayload) {
+    const leftKeys = createRecipientIdentityKeys(left);
+    const rightKeys = createRecipientIdentityKeys(right);
+
+    return leftKeys.some((key) => rightKeys.includes(key));
+  }
+
+  function createRecipientIdentityKeys(payload: ReceiverInfoPayload) {
+    if (payload.type === "FRIEND") {
+      return [`FRIEND:${payload.userId ?? payload.friendshipId ?? ""}`];
+    }
+
+    if (payload.type === "SELF") {
+      return ["SELF"];
+    }
+
+    const keys: string[] = [];
+    const email = payload.email?.trim().toLowerCase();
+    const phone = sanitizePhoneNumber(payload.phone ?? "");
+
+    if (email) {
+      keys.push(`OTHER:EMAIL:${email}`);
+    }
+
+    if (phone) {
+      keys.push(`OTHER:PHONE:${phone}`);
+    }
+
+    if (keys.length === 0) {
+      keys.push(`OTHER:NAME:${payload.name?.trim().toLowerCase() ?? ""}`);
+    }
+
+    return keys;
   }
 
   function resetForm() {
@@ -691,37 +776,46 @@ export default function WritePage() {
                 ) : null}
 
                 {receiverType === "OTHER" ? (
-                  <div className="grid gap-2 md:grid-cols-4">
-                    <input
-                      value={receiverName}
-                      onChange={(event) => setReceiverName(event.target.value)}
-                      placeholder="수신자 이름"
-                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
+                  <div className="grid gap-3">
+                    <RecipientHistoryPicker
+                      recipients={recipientHistory}
+                      loading={recipientHistoryLoading}
+                      error={recipientHistoryError}
+                      selectedKey={selectedRecipientHistoryKey}
+                      onSelect={applyRecipientHistoryItem}
                     />
-                    <input
-                      value={receiverEmail}
-                      onChange={(event) => setReceiverEmail(event.target.value)}
-                      placeholder="메일 주소"
-                      type="email"
-                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
-                    />
-                    <input
-                      value={receiverPhone}
-                      onChange={(event) => setReceiverPhone(formatPhoneInput(event.target.value))}
-                      placeholder="전화번호"
-                      inputMode="tel"
-                      maxLength={13}
-                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
-                    />
-                    <select
-                      value={preferredChannel}
-                      onChange={(event) => setPreferredChannel(event.target.value as PreferredChannel)}
-                      className="focus-ring maeari-input h-[36px] px-3 text-xs"
-                    >
-                      <option value="AUTO">자동 선택</option>
-                      <option value="EMAIL">이메일</option>
-                      <option value="SMS">문자</option>
-                    </select>
+                    <div className="grid gap-2 md:grid-cols-4">
+                      <input
+                        value={receiverName}
+                        onChange={(event) => setReceiverName(event.target.value)}
+                        placeholder="수신자 이름"
+                        className="focus-ring maeari-input h-[36px] px-3 text-xs"
+                      />
+                      <input
+                        value={receiverEmail}
+                        onChange={(event) => setReceiverEmail(event.target.value)}
+                        placeholder="메일 주소"
+                        type="email"
+                        className="focus-ring maeari-input h-[36px] px-3 text-xs"
+                      />
+                      <input
+                        value={receiverPhone}
+                        onChange={(event) => setReceiverPhone(formatPhoneInput(event.target.value))}
+                        placeholder="전화번호"
+                        inputMode="tel"
+                        maxLength={13}
+                        className="focus-ring maeari-input h-[36px] px-3 text-xs"
+                      />
+                      <select
+                        value={preferredChannel}
+                        onChange={(event) => setPreferredChannel(event.target.value as PreferredChannel)}
+                        className="focus-ring maeari-input h-[36px] px-3 text-xs"
+                      >
+                        <option value="AUTO">자동 선택</option>
+                        <option value="EMAIL">이메일</option>
+                        <option value="SMS">문자</option>
+                      </select>
+                    </div>
                   </div>
                 ) : null}
 

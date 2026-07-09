@@ -270,6 +270,7 @@
 | PATCH | `/api/friends/requests/:id/cancel` | 보낸 친구 요청 취소 | 세션 쿠키, request id | `{ request }` |
 | DELETE | `/api/friends/:friendshipId` | 친구 관계 삭제 | 세션 쿠키, friendship id | `{ deleted: true }` |
 | POST | `/api/messages` | 메시지 작성 및 예약. `senderDisplayName` 생략 시 user nickname snapshot 저장 | JSON 또는 multipart `payload` + `attachments`; 서버가 인증 PHONE을 선택하고 `senderContactId`는 무시 | `{ message, publicUrl, publicUrls?, notice? }` |
+| GET | `/api/messages/recipient-history` | 비회원 연락처 수신자 최근 이력 조회. `/write`에서 다시 보낼 사람을 빠르게 선택하는 용도 | 세션 쿠키 | `{ recipients }` |
 | GET | `/api/messages/sent` | 보낸 마음 목록. 각 message에 `thumbnail` 포함 | 세션 쿠키 | `{ messages }` |
 | GET | `/api/messages/sent/replies` | 보낸 마음에 받은 답장함 조회. `/api/messages/replies/received`의 deprecated alias | 세션 쿠키 | `{ replies }` |
 | GET | `/api/messages/replies/sent` | 내가 작성한 답장 목록 | 세션 쿠키 | `{ replies }` |
