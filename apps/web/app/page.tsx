@@ -105,8 +105,10 @@ export default function HomePage() {
       return;
     }
 
+    const observedGridElement = gridElement;
+
     function updateRecentLimit() {
-      const width = gridElement.clientWidth;
+      const width = observedGridElement.clientWidth;
       const nextLimit = Math.max(1, Math.floor((width + RECENT_CARD_GAP) / (RECENT_CARD_MIN_WIDTH + RECENT_CARD_GAP)));
       setRecentLimit(Math.min(receivedMessages.length, nextLimit));
     }
@@ -119,7 +121,7 @@ export default function HomePage() {
     }
 
     const observer = new ResizeObserver(updateRecentLimit);
-    observer.observe(gridElement);
+    observer.observe(observedGridElement);
 
     return () => observer.disconnect();
   }, [receivedMessages.length]);
