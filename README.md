@@ -144,7 +144,7 @@
 상세 IA는 `MAEARI_IA.md`에 정리되어 있습니다.
 
 ### 사용자 Information Architecture
-![본 서비스를 이용하는 사용자의 분류를 파악할 수 있는 도식이다.](user_IA.png)
+![본 서비스를 이용하는 사용자의 분류를 파악할 수 있는 도식이다.]<img width="986" height="318" alt="image" src="https://github.com/user-attachments/assets/efe914f0-388a-42f7-a0dd-94038a5705bf" />
 
 ### 주요 페이지
 
@@ -187,6 +187,12 @@
   -> 비회원 수신자가 공개 링크 열람
   -> 수신자가 가입하면 /api/auth/link-message로 수신함 귀속
 ```
+### 사용자 user flow
+<img width="876" height="640" alt="image" src="https://github.com/user-attachments/assets/5d2d454c-9375-41e9-9ea4-43faf084c021" />
+
+### 상세 IA
+<img width="712" height="346" alt="image" src="https://github.com/user-attachments/assets/d43fa21c-6820-40a8-9950-a9dbe520d1b2" />
+<img width="1232" height="410" alt="image" src="https://github.com/user-attachments/assets/c7f947ba-f341-4986-b905-95138cff7b1a" />
 
 ---
 
